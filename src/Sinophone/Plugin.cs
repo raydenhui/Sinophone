@@ -1,0 +1,132 @@
+namespace Sinophone;
+
+/// <summary>
+/// Displays official Chinese (Traditional / Simplified) translations for FFXIV
+/// dialogue in an overlay above the game's Talk dialog.
+/// </summary>
+public sealed class Plugin : IDalamudPlugin
+{
+    private const string CommandName = "/sinophone";
+
+    [PluginService] public static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
+    [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
+    [PluginService] public static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
+    [PluginService] public static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] public static IPluginLog Log { get; private set; } = null!;
+
+    private readonly Configuration _configuration;
+    private readonly WindowSystem _windowSystem = new("Sinophone");
+    private readonly FontManager _fontManager;
+    private readonly OverlayWindow _overlay;
+    private readonly ConfigWindow _configWindow;
+    private readonly TalkHandler _talkHandler;
+
+    private TranslationStore? _store;
+
+    private ChineseVariant _lastVariant;
+    private bool _lastFallback;
+    private float _lastFontSize;
+    private string _lastFontPath;
+
+    public Plugin()
+    {
+        _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        _configuration.CustomFontPath ??= string.Empty;
+
+        _lastVariant = _configuration.Variant;
+        _lastFallback = _configuration.UseFallbackVariant;
+        _lastFontSize = _configuration.FontSize;
+        _lastFontPath = _configuration.CustomFontPath;
+
+        _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
+        _overlay = new OverlayWindow(_configuration, _fontManager);
+        _configWindow = new ConfigWindow(_configuration, ApplySettings, ShowPreview, BuildStatusText);
+
+        _windowSystem.AddWindow(_overlay);
+        _windowSystem.AddWindow(_configWindow);
+
+        _talkHandler = new TalkHandler(AddonLifecycle, Log, _configuration, () => _store, _overlay);
+
+        _store = TranslationStore.Load(_configuration, DataManager, Log);
+
+        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
+        {
+            HelpMessage = "Toggle the Sinophone settings window.",
+        });
+
+        PluginInterface.UiBuilder.Draw += _windowSystem.Draw;
+        PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
+        PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
+
+        Log.Info("[Sinophone] Loaded. Variant: {Variant}, entries: {Entries:N0}.",
+            _configuration.Variant, _store?.TextEntryCount ?? 0);
+    }
+
+    public string Name => "Sinophone";
+
+    private void OnCommand(string command, string arguments)
+        => _configWindow.Toggle();
+
+    private void OpenConfigUi()
+        => _configWindow.IsOpen = true;
+
+    private void ShowPreview()
+    {
+        _overlay.SetContent(
+            "這是 Sinophone 的預覽文字，用於檢查中文字型是否正常顯示。\n这是 Sinophone 的预览文字，用于检查中文字体是否正常显示。",
+            "This is a preview of the Sinophone overlay.",
+            "Sinophone",
+            "Sinophone",
+            false);
+    }
+
+    private string BuildStatusText()
+    {
+        var store = _store;
+        if (store is null)
+            return "No translation data loaded. Run the DataPrep tool and rebuild the plugin.";
+
+        var font = _fontManager.ActiveFontPath;
+        var fontText = font is null
+            ? "Font: not found (Chinese text may render as boxes)."
+            : $"Font: {font}{(_fontManager.UsingSystemFont ? " (system font)" : string.Empty)}";
+
+        return $"{store.PrimaryVariant}{(store.UsedFallback ? " + fallback" : string.Empty)}: " +
+               $"{store.TextEntryCount:N0} dialogue entries, {store.NameEntryCount:N0} name entries.\n{fontText}";
+    }
+
+    private void ApplySettings()
+    {
+        var needsStoreReload = _configuration.Variant != _lastVariant
+                               || _configuration.UseFallbackVariant != _lastFallback;
+
+        var needsFontRebuild = needsStoreReload
+                               || Math.Abs(_configuration.FontSize - _lastFontSize) > 0.01f
+                               || !string.Equals(_configuration.CustomFontPath, _lastFontPath, StringComparison.OrdinalIgnoreCase);
+
+        _lastVariant = _configuration.Variant;
+        _lastFallback = _configuration.UseFallbackVariant;
+        _lastFontSize = _configuration.FontSize;
+        _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
+
+        if (needsStoreReload)
+            _store = TranslationStore.Load(_configuration, DataManager, Log);
+
+        if (needsFontRebuild)
+            _fontManager.Rebuild();
+
+        PluginInterface.SavePluginConfig(_configuration);
+    }
+
+    public void Dispose()
+    {
+        PluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
+        PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
+        PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
+        CommandManager.RemoveHandler(CommandName);
+
+        _talkHandler.Dispose();
+        _windowSystem.RemoveAllWindows();
+        _fontManager.Dispose();
+    }
+}

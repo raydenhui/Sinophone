@@ -1,0 +1,36 @@
+<Project Sdk="Dalamud.NET.SDK/15.0.0">
+  <PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Platforms>x64</Platforms>
+    <AssemblyName>Sinophone</AssemblyName>
+    <RootNamespace>Sinophone</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <Description>Displays the official Simplified or Traditional Chinese translation of FFXIV dialogue in an overlay, alongside the English original.</Description>
+    <Company>raydenhui</Company>
+    <Copyright>raydenhui 2026</Copyright>
+    <PackageProjectUrl>https://github.com/raydenhui/Sinophone</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/raydenhui/Sinophone</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>ffxiv;Dalamud;plugin;translation;Chinese;UI</PackageTags>
+    <NoWarn>$(NoWarn);IDE0003;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\*.json.gz" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Sinophone.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
