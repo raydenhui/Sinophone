@@ -1,0 +1,16 @@
+{
+  "Name": "Sinophone",
+  "Author": "raydenhui",
+  "InternalName": "Sinophone",
+  "ApplicableVersion": "any",
+  "Description": "Displays the official Simplified or Traditional Chinese translation of FFXIV dialogue in an overlay, alongside the English original.",
+  "RepoUrl": "https://github.com/raydenhui/Sinophone",
+  "Tags": [ "ffxiv", "Dalamud", "plugin", "translation", "Chinese", "UI", "Utility" ],
+  "Disabled": false,
+  "Testing": false,
+  "Punchline": "Official Chinese translations for FFXIV dialogue, shown as an overlay.",
+  "IsHide": false,
+  "IsTestingExclusive": false,
+  "LoadPriority": 0,
+  "DevSupportState": "ACTIVE"
+}
