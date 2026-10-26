@@ -96,7 +96,7 @@ public static class SheetCatalog
         Add<RideShootingTextData>(dataManager, descriptors, "RideShootingTextData", "String", false,
             static row => ExtractSingle(row.String));
         Add<QuickChatTransient>(dataManager, descriptors, "QuickChatTransient", "Text", false,
-            static row => ExtractSingle(row.Text));
+            static row => ExtractSingle(row.TextOutput));
         Add<PublicContentTextData>(dataManager, descriptors, "PublicContentTextData", "TextData", false,
             static row => ExtractSingle(row.TextData));
         Add<PartyContentTextData>(dataManager, descriptors, "PartyContentTextData", "Data", false,
