@@ -309,8 +309,12 @@ changes instead.
 Use structured logging. Pass values as parameters, not by string concatenation:
 
 ```csharp
-log.Debug("[Sinophone] No translation for {Length} char line.", text.Length);
+log.Debug("No translation for {Length} char line.", text.Length);
 ```
+
+Do not put `[Sinophone]` in log messages. Dalamud already shows the plugin name for each plugin
+log line, so the prefix appears twice. Chat messages (`ChatGui.Print`) are not plugin logs and do
+keep the prefix, because the game chat does not add it.
 
 ### Performance
 

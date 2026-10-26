@@ -94,7 +94,7 @@ public sealed class TranslationStore
         var primary = LoadArtifact(variant, openResource, fallbackResource, log);
         if (primary is null)
         {
-            log.Warning("[Sinophone] Primary artifact for {Variant} was not available.", variant);
+            log.Warning("Primary artifact for {Variant} was not available.", variant);
         }
 
         var fallback = useFallback
@@ -103,7 +103,7 @@ public sealed class TranslationStore
 
         if (primary is null && fallback is null)
         {
-            log.Error("[Sinophone] No translation artifacts are available. Talk text will not be translated.");
+            log.Error("No translation artifacts are available. Talk text will not be translated.");
             return null;
         }
 
@@ -120,7 +120,7 @@ public sealed class TranslationStore
 
         stopwatch.Stop();
         log.Info(
-            "[Sinophone] Loaded {Variant}{Fallback} translations: {Text:N0} dialogue and {Name:N0} name entries in {Elapsed} ms " +
+            "Loaded {Variant}{Fallback} translations: {Text:N0} dialogue and {Name:N0} name entries in {Elapsed} ms " +
             "(fallback added {AddedText:N0} dialogue / {AddedName:N0} name entries).",
             store.PrimaryVariant,
             store.UsedFallback ? " + fallback" : string.Empty,
@@ -145,7 +145,7 @@ public sealed class TranslationStore
         {
             if (!artifact.Sheets.TryGetValue(descriptor.Name, out var rows))
             {
-                log.Debug("[Sinophone] Artifact has no rows for sheet {Sheet}.", descriptor.Name);
+                log.Debug("Artifact has no rows for sheet {Sheet}.", descriptor.Name);
                 continue;
             }
 
@@ -182,7 +182,7 @@ public sealed class TranslationStore
             }
         }
 
-        log.Debug("[Sinophone] Indexed {Rows:N0} rows and {Slots:N0} text slots from the {Language} artifact.",
+        log.Debug("Indexed {Rows:N0} rows and {Slots:N0} text slots from the {Language} artifact.",
             indexedRows, indexedSlots, artifact.Language);
     }
 
@@ -199,7 +199,7 @@ public sealed class TranslationStore
 
         // The primary stream exists but could not be read. Keep working with the
         // copy shipped in the assembly instead of running with no translations.
-        log.Warning("[Sinophone] Could not read the {Variant} artifact. Using the embedded copy.", variant);
+        log.Warning("Could not read the {Variant} artifact. Using the embedded copy.", variant);
         return TryLoadArtifact(variant, fallbackResource, log);
     }
 
@@ -219,7 +219,7 @@ public sealed class TranslationStore
         }
         catch (Exception ex)
         {
-            log.Error(ex, "[Sinophone] Failed to load the {Variant} translation artifact.", variant);
+            log.Error(ex, "Failed to load the {Variant} translation artifact.", variant);
             return null;
         }
     }

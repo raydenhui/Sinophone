@@ -66,13 +66,13 @@ public sealed class TalkHandler : IDisposable
             return;
         }
 
-        _log.Info("[Sinophone] {Event} fired for {Addon} ({ArgType}).",
+        _log.Info("{Event} fired for {Addon} ({ArgType}).",
             eventType, addonName, args.GetType().Name);
 
         if (!_configuration.Enabled)
         {
             _overlay.Hide();
-            _log.Info("[Sinophone] Plugin disabled in settings; overlay hidden.");
+            _log.Info("Plugin disabled in settings; overlay hidden.");
             return;
         }
 
@@ -80,31 +80,31 @@ public sealed class TalkHandler : IDisposable
 
         if (isSubtitle && !_configuration.ShowInTalkSubtitle)
         {
-            _log.Info("[Sinophone] {Addon} overlay disabled in settings.", addonName);
+            _log.Info("{Addon} overlay disabled in settings.", addonName);
             return;
         }
 
         if (!isSubtitle && !_configuration.ShowInTalk)
         {
-            _log.Info("[Sinophone] {Addon} overlay disabled in settings.", addonName);
+            _log.Info("{Addon} overlay disabled in settings.", addonName);
             return;
         }
 
         var store = _getStore();
         if (store is null)
         {
-            _log.Info("[Sinophone] No translation data loaded; overlay not shown.");
+            _log.Info("No translation data loaded; overlay not shown.");
             return;
         }
 
         if (!TryGetAtkValues(args, out var values, out var count))
         {
-            _log.Info("[Sinophone] {Event} for {Addon} carried no usable AtkValues ({ArgType}).",
+            _log.Info("{Event} for {Addon} carried no usable AtkValues ({ArgType}).",
                 eventType, addonName, args.GetType().Name);
             return;
         }
 
-        _log.Info("[Sinophone] {Addon} supplied {Count} AtkValues.", addonName, count);
+        _log.Info("{Addon} supplied {Count} AtkValues.", addonName, count);
         LogAtkValues(addonName, values, count);
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
@@ -112,7 +112,7 @@ public sealed class TalkHandler : IDisposable
             ? ReadStringValue(values, NameValueIndex, count)
             : null;
 
-        _log.Info("[Sinophone] {Event} for {Addon}: {TextLength} text chars, name: {HasName}, text: {Text}",
+        _log.Info("{Event} for {Addon}: {TextLength} text chars, name: {HasName}, text: {Text}",
             eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName),
             englishText ?? "(null)");
 
@@ -121,7 +121,7 @@ public sealed class TalkHandler : IDisposable
         if (content is null)
         {
             _overlay.Hide();
-            _log.Info("[Sinophone] {Addon} line has no usable translation; overlay hidden. " +
+            _log.Info("{Addon} line has no usable translation; overlay hidden. " +
                       "Text empty: {TextEmpty}, hide when no translation: {HideWhenMissing}.",
                 addonName, string.IsNullOrWhiteSpace(englishText), _configuration.HideWhenNoTranslation);
         }
@@ -129,7 +129,7 @@ public sealed class TalkHandler : IDisposable
         {
             _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
                 englishName ?? string.Empty, isSubtitle);
-            _log.Info("[Sinophone] Overlay shown for {Addon}: {ChineseLength} Chinese chars.",
+            _log.Info("Overlay shown for {Addon}: {ChineseLength} Chinese chars.",
                 addonName, content.Value.ChineseText.Length);
         }
     }
@@ -174,19 +174,19 @@ public sealed class TalkHandler : IDisposable
 
             if (value.Type != AtkValueType.String)
             {
-                _log.Info("[Sinophone]   {Addon} AtkValue[{Index}] type {Type}.", addonName, i, value.Type);
+                _log.Info("  {Addon} AtkValue[{Index}] type {Type}.", addonName, i, value.Type);
                 continue;
             }
 
             var text = ReadStringValue(values, i, count);
             if (text is null)
             {
-                _log.Info("[Sinophone]   {Addon} AtkValue[{Index}] string, unreadable.", addonName, i);
+                _log.Info("  {Addon} AtkValue[{Index}] string, unreadable.", addonName, i);
                 continue;
             }
 
             var preview = text.Length > 120 ? string.Concat(text.AsSpan(0, 120), "...") : text;
-            _log.Info("[Sinophone]   {Addon} AtkValue[{Index}] string, {Length} chars: {Text}",
+            _log.Info("  {Addon} AtkValue[{Index}] string, {Length} chars: {Text}",
                 addonName, i, text.Length, preview);
         }
     }
@@ -235,7 +235,7 @@ public sealed class TalkHandler : IDisposable
         }
         catch (Exception ex)
         {
-            _log.Debug(ex, "[Sinophone] Failed to read AtkValue {Index}.", index);
+            _log.Debug(ex, "Failed to read AtkValue {Index}.", index);
             return null;
         }
     }

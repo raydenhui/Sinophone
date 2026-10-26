@@ -106,7 +106,7 @@ public sealed class Plugin : IDalamudPlugin
         if (_configuration.CheckForDataUpdates)
             _dataUpdater.StartCheck();
 
-        Log.Info("[Sinophone] Loaded. Variant: {Variant}, entries: {Entries:N0}.",
+        Log.Info("Loaded. Variant: {Variant}, entries: {Entries:N0}.",
             _configuration.Variant, _store?.TextEntryCount ?? 0);
     }
 
@@ -189,7 +189,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ShowPreview()
     {
-        Log.Info("[Sinophone] Preview requested. Font handle: {HasFont}, font: {Font}, plugin enabled: {Enabled}.",
+        Log.Info("Preview requested. Font handle: {HasFont}, font: {Font}, plugin enabled: {Enabled}.",
             _fontManager.Handle is not null, _fontManager.ActiveFontPath ?? "(none)", _configuration.Enabled);
 
         _overlay.SetContent(

@@ -80,7 +80,7 @@ public sealed class TranslationDataUpdater : IDisposable
             }
             catch (Exception ex)
             {
-                _log.Warning(ex, "[Sinophone] Could not open downloaded data at {Path}; using the embedded copy.", path);
+                _log.Warning(ex, "Could not open downloaded data at {Path}; using the embedded copy.", path);
             }
         }
 
@@ -249,7 +249,7 @@ public sealed class TranslationDataUpdater : IDisposable
         }
         catch (Exception ex)
         {
-            _log.Error(ex, "[Sinophone] Translation data update failed.");
+            _log.Error(ex, "Translation data update failed.");
             SetState(s => s with
             {
                 IsBusy = false,
@@ -364,7 +364,7 @@ public sealed class TranslationDataUpdater : IDisposable
         }
 
         _log.Info(
-            "[Sinophone] Installed translation data version {Version} ({Variants}).",
+            "Installed translation data version {Version} ({Variants}).",
             manifest.Version,
             string.Join(", ", pending));
 
@@ -428,7 +428,7 @@ public sealed class TranslationDataUpdater : IDisposable
 
             if (!response.IsSuccessStatusCode)
             {
-                _log.Warning("[Sinophone] Data manifest request returned {Status}.", response.StatusCode);
+                _log.Warning("Data manifest request returned {Status}.", response.StatusCode);
                 return null;
             }
 
@@ -442,7 +442,7 @@ public sealed class TranslationDataUpdater : IDisposable
             if (token.IsCancellationRequested)
                 throw;
 
-            _log.Warning(ex, "[Sinophone] Could not download the data manifest.");
+            _log.Warning(ex, "Could not download the data manifest.");
             return null;
         }
     }
