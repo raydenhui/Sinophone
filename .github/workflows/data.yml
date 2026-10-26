@@ -1,0 +1,141 @@
+name: Data
+
+# Builds the translation artifacts from the datamining CSV dumps and publishes
+# them to the "data" release. The plugin downloads that release at runtime, so
+# users get updated translations without waiting for a plugin build.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish translation data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download datamining CSVs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sheets=(
+            DefaultTalk Balloon NpcYell InstanceContentTextData ContentTalk
+            SnipeTalk GuildleveAssignmentTalk CraftLeveTalk
+            ENpcResident BNpcName SnipeTalkName
+          )
+
+          mkdir -p csv/cn csv/tc
+
+          for sheet in "${sheets[@]}"; do
+            curl -fsSL --retry 3 -o "csv/cn/$sheet.csv" \
+              "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/master/$sheet.csv" \
+              || echo "::warning::CN $sheet.csv is not available"
+            curl -fsSL --retry 3 -o "csv/tc/$sheet.csv" \
+              "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-tc/master/$sheet.csv" \
+              || echo "::warning::TC $sheet.csv is not available"
+          done
+
+      - name: Build artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cn_commit=$(git ls-remote https://github.com/thewakingsands/ffxiv-datamining-cn HEAD | cut -c1-12)
+          tc_commit=$(git ls-remote https://github.com/thewakingsands/ffxiv-datamining-tc HEAD | cut -c1-12)
+
+          dotnet run --project tools/Sinophone.DataPrep -c Release -- \
+            --source csv/cn --language CN \
+            --output out/Sinophone.cn.json.gz --game-version "CN $cn_commit"
+
+          dotnet run --project tools/Sinophone.DataPrep -c Release -- \
+            --source csv/tc --language TC \
+            --output out/Sinophone.tc.json.gz --game-version "TC $tc_commit"
+
+          echo "CN_COMMIT=$cn_commit" >> "$GITHUB_ENV"
+          echo "TC_COMMIT=$tc_commit" >> "$GITHUB_ENV"
+
+      - name: Write manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cn_sha=$(sha256sum out/Sinophone.cn.json.gz | cut -d' ' -f1)
+          tc_sha=$(sha256sum out/Sinophone.tc.json.gz | cut -d' ' -f1)
+
+          # The version is derived from the content, so an unchanged weekly run
+          # keeps the same version and clients do not download again.
+          version=$(printf '%s%s' "$cn_sha" "$tc_sha" | sha256sum | cut -c1-16)
+
+          python3 - "$version" "$cn_sha" "$tc_sha" <<'PY'
+          import datetime
+          import json
+          import os
+          import sys
+
+          version, cn_sha, tc_sha = sys.argv[1:4]
+
+          manifest = {
+              "formatVersion": 1,
+              "version": version,
+              "generatedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "cnSha256": cn_sha,
+              "tcSha256": tc_sha,
+              "cnSourceCommit": os.environ["CN_COMMIT"],
+              "tcSourceCommit": os.environ["TC_COMMIT"],
+          }
+
+          with open("out/manifest.json", "w", encoding="utf-8") as file:
+              json.dump(manifest, file, indent=2)
+              file.write("\n")
+
+          print(f"version {version}")
+          PY
+
+      - name: Publish data release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          assets=(
+            out/manifest.json
+            out/Sinophone.cn.json.gz
+            out/Sinophone.tc.json.gz
+          )
+
+          if gh release view data >/dev/null 2>&1; then
+            gh release upload data "${assets[@]}" --clobber
+          else
+            gh release create data \
+              --title "Translation data" \
+              --notes "Generated translation data for the Sinophone plugin. Downloaded by the plugin at runtime." \
+              --latest=false \
+              "${assets[@]}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: translation-data
+          path: |
+            out/manifest.json
+            out/Sinophone.cn.json.gz
+            out/Sinophone.tc.json.gz
+          retention-days: 14
