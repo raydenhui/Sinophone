@@ -111,6 +111,14 @@ internal static class Program
         new("GuildleveAssignmentTalk", "Talk",
             ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]", "Talk[6]", "Talk[7]"]),
         new("CraftLeveTalk", "Talk", ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]"]),
+        new("GoldSaucerTextData", "Text", ["Text"]),
+        new("CSBonusTextData", "Text", ["Text"]),
+        new("RideShootingTextData", "String", ["String"]),
+        new("QuickChatTransient", "Text", ["Text{Output}"]),
+        new("PublicContentTextData", "TextData", ["TextData"]),
+        new("PartyContentTextData", "Data", ["Data"]),
+        new("MKDLore", "Name", ["Name"]),
+        new("MKDLore", "Description", ["Description"]),
         new("ENpcResident", "Singular", ["Singular"]),
         new("BNpcName", "Singular", ["Singular"]),
         new("EObjName", "Singular", ["Singular"]),
@@ -176,8 +184,29 @@ internal static class Program
                 continue;
             }
 
-            artifact.Sheets[spec.Sheet] = rows;
-            totalRows += rows.Count;
+            // A sheet can have more than one spec, one per text field. Merge the
+            // fields into the same row instead of replacing the sheet.
+            if (!artifact.Sheets.TryGetValue(spec.Sheet, out var sheetRows))
+            {
+                sheetRows = new Dictionary<string, Dictionary<string, string[]>>(StringComparer.Ordinal);
+                artifact.Sheets[spec.Sheet] = sheetRows;
+            }
+
+            var addedRows = 0;
+            foreach (var (rowId, fields) in rows)
+            {
+                if (!sheetRows.TryGetValue(rowId, out var row))
+                {
+                    row = new Dictionary<string, string[]>(StringComparer.Ordinal);
+                    sheetRows[rowId] = row;
+                    addedRows++;
+                }
+
+                foreach (var (field, values) in fields)
+                    row[field] = values;
+            }
+
+            totalRows += addedRows;
 
             var slots = rows.Values.Sum(fields => fields[spec.Field].Length);
             totalSlots += slots;

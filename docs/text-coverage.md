@@ -4,7 +4,7 @@ Which sheets Sinophone translates today, which ones are missing, and what to add
 
 The data comes from the CN and TC CSV dumps in the two datamining repositories. The reference for
 "all text" is [FFXIVChnTextPatch-GP](https://github.com/GpointChen/FFXIVChnTextPatch-GP): it patches
-444 top-level sheets. Sinophone indexes 12.
+444 top-level sheets. Sinophone indexes 18.
 
 Row counts below are rows containing Chinese text in the CN dump, counted on 2026-10-26. They show
 how much text a sheet adds. They do not predict how many lines the game will hit at runtime.
@@ -21,6 +21,14 @@ how much text a sheet adds. They do not predict how many lines the game will hit
 | `SnipeTalk` | `Text` | Dialogue | Snipe event dialogue |
 | `GuildleveAssignmentTalk` | `Talk[0..7]` | Dialogue | Guildleve NPC dialogue |
 | `CraftLeveTalk` | `Talk[0..5]` | Dialogue | Crafting leve dialogue |
+| `GoldSaucerTextData` | `Text` | Dialogue | Gold Saucer text |
+| `CSBonusTextData` | `Text` | Dialogue | Content bonus text |
+| `RideShootingTextData` | `String` | Dialogue | Ride shooting minigame |
+| `QuickChatTransient` | `Text` | Dialogue | Quick chat phrases |
+| `PublicContentTextData` | `TextData` | Dialogue | Public content narration |
+| `PartyContentTextData` | `Data` | Dialogue | Party content text |
+| `MKDLore` | `Name` | Name | Occult Crescent lore names |
+| `MKDLore` | `Description` | Dialogue | Occult Crescent lore text |
 | `ENpcResident` | `Singular` | Name | NPC speaker names |
 | `BNpcName` | `Singular` | Name | Enemy names |
 | `SnipeTalkName` | `Name` | Name | Snipe event names |
@@ -32,21 +40,6 @@ only needs sheets that the tests use. The Data workflow downloads whatever DataP
 needs no change.
 
 ## Missing dialogue
-
-### Sheets with named columns
-
-These can be added to DataPrep by name. Each still needs the matching Lumina property in
-`SheetCatalog`.
-
-| Sheet | Field | Rows | What it contains |
-| --- | --- | ---: | --- |
-| `GoldSaucerTextData` | `Text` | 71 | Gold Saucer text |
-| `CSBonusTextData` | `Text` | 10 | Content bonus text |
-| `RideShootingTextData` | `String` | 3 | Ride shooting minigame |
-| `QuickChatTransient` | `Text{Output}` | 39 | Quick chat phrases |
-| `MKDLore` | `Name`, `Description` | 60 | Occult Crescent lore |
-| `PublicContentTextData` | `TextData` | 726 | Public content narration |
-| `PartyContentTextData` | `Data` | 41 | Party content text |
 
 ### Sheets with unnamed columns
 
@@ -90,8 +83,8 @@ These sheets look like text sources but contain no prose. Do not spend time on t
 ## Column layout
 
 The CN and TC dumps export the raw game schema. Named columns match Lumina property names, which is
-why the current 11 sheets work. Unnamed columns do not: Lumina may expose them as `UnknownN`, and
-the game keeps string columns at the end of the row.
+why the named sheets work. Unnamed columns do not: Lumina may expose them as `UnknownN`, and the
+game keeps string columns at the end of the row.
 
 Check the property against a real row before adding a descriptor. A wrong field compiles and
 silently misses every lookup.
@@ -168,23 +161,32 @@ name in the artifact already identifies the rows.
 
 ## Size
 
-Only the selected fields are stored, not the whole CSV. No full artifact has been measured yet.
-For scale: `DefaultTalk.csv` is 2.5 MB, `ENpcResident.csv` is 2.6 MB, `Item.csv` is 18 MB, and
-`Action.csv` is 14 MB. Most of `Item` and `Action` is numbers, so the text fields compress well.
+Measured on 2026-10-26 from the artifacts the Data workflow built and published on the `data`
+release, using the 11 sheets above:
 
-Adding `Item` names and descriptions is the big step. If downloads get uncomfortable, split into a
-core artifact (dialogue and names) and a full artifact (items and UI), and let the updater fetch
-what the settings ask for. Measure before splitting.
+| File | Size |
+| --- | ---: |
+| `Sinophone.cn.json.gz` | 1.62 MiB |
+| `Sinophone.tc.json.gz` | 1.50 MiB |
+
+The updater downloads both variants, so one data update is about 3.1 MiB. These numbers were
+measured before the seven named-column dialogue sheets were added; those sheets are small and were
+not re-measured.
+
+`Item` is the next large addition. An estimate with `Item` `Name` and `Description` for every row
+adds about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.
+Only the selected fields are stored, and most of `Item.csv` is numbers, so it compresses well.
+
+**Decision: keep one artifact per variant.** Splitting into core and full artifacts would add a
+manifest, updater, and settings path for a download that is still only a few MiB. Revisit when the
+full sheet set pushes one variant past about 8 MiB, or if users report slow updates.
 
 ## Order of work
 
-1. Named-column dialogue sheets: `PublicContentTextData`, `PartyContentTextData`,
-   `GoldSaucerTextData`, `CSBonusTextData`, `QuickChatTransient`, `RideShootingTextData`,
-   `MKDLore`.
-2. Unnamed-column dialogue sheets. Map one sheet, add it, check it in game, then the next.
-3. Name sheets plus the target-info and item-tooltip overlays.
-4. Category filtering.
-5. Native UI replacement and the font mod.
+1. Unnamed-column dialogue sheets. Map one sheet, add it, check it in game, then the next.
+2. Name sheets plus the target-info and item-tooltip overlays.
+3. Category filtering.
+4. Native UI replacement and the font mod.
 
 ## Adding a sheet
 
