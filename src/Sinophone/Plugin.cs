@@ -12,6 +12,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] public static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
     [PluginService] public static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] public static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] public static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
@@ -31,6 +32,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastFallback;
     private bool _lastEnabled;
     private bool _lastShowTargetName;
+    private bool _announceUpdate;
+    private bool _updateWasBusy;
     private float _lastFontSize;
     private string _lastFontPath;
 
@@ -78,7 +81,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Toggle the Sinophone settings window.",
+            HelpMessage = "Open the settings window. Use /sinophone update or /sinophone status.",
         });
 
         PluginInterface.UiBuilder.Draw += _windowSystem.Draw;
@@ -96,7 +99,76 @@ public sealed class Plugin : IDalamudPlugin
     public string Name => "Sinophone";
 
     private void OnCommand(string command, string arguments)
-        => _configWindow.Toggle();
+    {
+        switch (ParseCommand(arguments))
+        {
+            case CommandAction.Toggle:
+                _configWindow.Toggle();
+                break;
+
+            case CommandAction.Update:
+                _announceUpdate = true;
+                _updateWasBusy = true;
+                _dataUpdater.StartUpdate();
+                ChatGui.Print("[Sinophone] Checking for translation data updates...");
+                break;
+
+            case CommandAction.Status:
+                ChatGui.Print($"[Sinophone] {BuildStatusText().Replace('\n', ' ')} {BuildDataSourceText()}");
+                break;
+
+            default:
+                ChatGui.Print("[Sinophone] Usage: /sinophone [update|status]");
+                break;
+        }
+    }
+
+    internal enum CommandAction
+    {
+        Toggle,
+        Update,
+        Status,
+        Unknown,
+    }
+
+    internal static CommandAction ParseCommand(string? arguments)
+    {
+        var command = (arguments ?? string.Empty).Trim().ToLowerInvariant();
+
+        return command switch
+        {
+            "" or "toggle" => CommandAction.Toggle,
+            "update" => CommandAction.Update,
+            "status" => CommandAction.Status,
+            _ => CommandAction.Unknown,
+        };
+    }
+
+    /// <summary>
+    /// Prints the result of an update started from chat. The updater runs on a
+    /// worker task, so the message is printed here on the game thread.
+    /// </summary>
+    private void AnnounceUpdateResult()
+    {
+        var state = _dataUpdater.State;
+
+        if (state.IsBusy)
+        {
+            _updateWasBusy = true;
+            return;
+        }
+
+        if (!_updateWasBusy)
+            return;
+
+        _updateWasBusy = false;
+
+        if (!_announceUpdate)
+            return;
+
+        _announceUpdate = false;
+        ChatGui.Print($"[Sinophone] {state.Status}");
+    }
 
     private void OpenConfigUi()
         => _configWindow.IsOpen = true;
@@ -150,6 +222,8 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private void OnTick()
     {
+        AnnounceUpdateResult();
+
         if (!_dataUpdater.ConsumeReloadRequest())
             return;
 
