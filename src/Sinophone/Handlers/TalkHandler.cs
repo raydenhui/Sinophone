@@ -66,26 +66,45 @@ public sealed class TalkHandler : IDisposable
             return;
         }
 
+        _log.Info("[Sinophone] {Event} fired for {Addon} ({ArgType}).",
+            eventType, addonName, args.GetType().Name);
+
         if (!_configuration.Enabled)
         {
             _overlay.Hide();
+            _log.Info("[Sinophone] Plugin disabled in settings; overlay hidden.");
             return;
         }
 
         var isSubtitle = string.Equals(addonName, TalkSubtitleAddonName, StringComparison.Ordinal);
 
         if (isSubtitle && !_configuration.ShowInTalkSubtitle)
+        {
+            _log.Info("[Sinophone] {Addon} overlay disabled in settings.", addonName);
             return;
+        }
 
         if (!isSubtitle && !_configuration.ShowInTalk)
+        {
+            _log.Info("[Sinophone] {Addon} overlay disabled in settings.", addonName);
             return;
+        }
 
         var store = _getStore();
         if (store is null)
+        {
+            _log.Info("[Sinophone] No translation data loaded; overlay not shown.");
             return;
+        }
 
         if (!TryGetAtkValues(args, out var values, out var count))
+        {
+            _log.Info("[Sinophone] {Event} for {Addon} carried no usable AtkValues ({ArgType}).",
+                eventType, addonName, args.GetType().Name);
             return;
+        }
+
+        _log.Info("[Sinophone] {Addon} supplied {Count} AtkValues.", addonName, count);
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
         var englishName = _configuration.ShowSpeakerName
