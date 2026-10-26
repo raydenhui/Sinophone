@@ -66,9 +66,10 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
 - The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
   `Sinophone.tc.json.gz`. The base URL is hardcoded in `TranslationDataUpdater`; renaming the
   repository breaks every installed copy.
-- The manifest `version` is a hash of both artifacts, not a date. Unchanged data keeps the same
-  version, so clients do not download again. `Configuration.LastDataVersion` records what is
-  installed.
+- The manifest `version` is a hash of the translated sheets, not a date. `GeneratedAt` and
+  `GameVersion` are left out, because they change on every build. The data workflow compares the
+  new version with the published one and skips the upload when they match, so clients do not
+  download again. `Configuration.LastDataVersion` records what is installed.
 - Only the configured variant is downloaded; the other one is fetched when fallback is on.
   `HasSimplifiedData` and `HasTraditionalData` say which files match `LastDataVersion`, so a file
   left over from an older version is not mistaken for current data.
