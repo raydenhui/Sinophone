@@ -398,7 +398,9 @@ premature interface.
 - **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
   not. Some Talk windows show text that is not in the indexed sheets at all. Sundhimal's
   "aetherial travel" line is absent from `DefaultTalk`, `Balloon`, and `CustomTalk`, so it stays
-  untranslated. Check the live sheet with a diagnostic test before assuming a lookup bug.
+  untranslated. Before assuming a lookup bug, search the live sheets with
+  `tests/Sinophone.IntegrationTests/SundhimalDiagnosisTests.cs`. It writes matches to
+  `%TEMP%\sinophone-sundhimal.txt`.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
