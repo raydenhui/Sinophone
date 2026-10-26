@@ -32,6 +32,7 @@ how much text a sheet adds. They do not predict how many lines the game will hit
 | `ENpcResident` | `Singular` | Name | NPC speaker names |
 | `BNpcName` | `Singular` | Name | Enemy names |
 | `SnipeTalkName` | `Name` | Name | Snipe event names |
+| `EObjName` | `Singular` | Name | Names of objects you interact with |
 
 Both files must change together: `SheetCatalog.Create` and the `Sheets` array in
 `tools/Sinophone.DataPrep/Program.cs`. `FixtureBuilder` keeps its own smaller list on purpose; it
@@ -95,7 +96,6 @@ silently misses every lookup.
 Items, actors, and places. These feed the name lookups and any new surface that shows a name.
 
 - `Item`: `Singular`, `Name`, `Description`. The largest win and the largest file (18 MB of CSV).
-- `EObjName`: objects you interact with.
 - `PlaceName`, `PlaceNameReplace`.
 - `GatheringPointName`, `FishingSpot`, `FishParameter`.
 - `Mount`, `Companion`, `Pet`, `Emote`, `Orchestrion`, `Title`, `ClassJob`, `ClassJobCategory`.

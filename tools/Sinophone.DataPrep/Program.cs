@@ -121,6 +121,7 @@ internal static class Program
         new("MKDLore", "Description", ["Description"]),
         new("ENpcResident", "Singular", ["Singular"]),
         new("BNpcName", "Singular", ["Singular"]),
+        new("EObjName", "Singular", ["Singular"]),
         new("SnipeTalkName", "Name", ["Name"]),
     ];
 

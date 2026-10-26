@@ -13,6 +13,8 @@ public class ConfigurationTests
         Assert.True(config.ShowInTalk);
         Assert.True(config.ShowInTalkSubtitle);
         Assert.True(config.ShowSpeakerName);
+        Assert.False(config.ShowTargetName);
+        Assert.Equal(170f, config.TargetNameOffsetY);
         Assert.True(config.ShowOriginal);
         Assert.True(config.HideWhenNoTranslation);
         Assert.True(config.LockOverlay);
