@@ -369,6 +369,8 @@ premature interface.
 - [ffxiv-datamining-tc](https://github.com/thewakingsands/ffxiv-datamining-tc)
 - [DalaMock](https://github.com/Critical-Impact/DalaMock)
 - [AGENTS.md format](https://agents.md/)
+- [docs/text-coverage.md](docs/text-coverage.md) — which game sheets carry text, which are indexed,
+  and the order to add the rest.
 
 When you find a source that explains something this file does not, add it here with one line
 saying what it covers.
