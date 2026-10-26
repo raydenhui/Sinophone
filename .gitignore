@@ -11,9 +11,9 @@ obj/
 .vscode/
 
 ## Generated data artifacts (build outputs of Sinophone.DataPrep)
-# These are generated from the CN/TC datamining CSVs and committed intentionally.
-# Uncomment the next line to stop tracking regenerated artifacts.
-#src/Sinophone/Resources/*.json.gz
+# Not committed: they are large and change every game patch.
+# Build them with tools/Sinophone.DataPrep before compiling the plugin.
+src/Sinophone/Resources/*.json.gz
 
 ## Local tooling
 *.log
