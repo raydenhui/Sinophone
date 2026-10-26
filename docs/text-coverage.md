@@ -168,13 +168,23 @@ name in the artifact already identifies the rows.
 
 ## Size
 
-Only the selected fields are stored, not the whole CSV. No full artifact has been measured yet.
-For scale: `DefaultTalk.csv` is 2.5 MB, `ENpcResident.csv` is 2.6 MB, `Item.csv` is 18 MB, and
-`Action.csv` is 14 MB. Most of `Item` and `Action` is numbers, so the text fields compress well.
+Measured on 2026-10-26 from the artifacts the Data workflow built and published on the `data`
+release, using the 11 sheets above:
 
-Adding `Item` names and descriptions is the big step. If downloads get uncomfortable, split into a
-core artifact (dialogue and names) and a full artifact (items and UI), and let the updater fetch
-what the settings ask for. Measure before splitting.
+| File | Size |
+| --- | ---: |
+| `Sinophone.cn.json.gz` | 1.62 MiB |
+| `Sinophone.tc.json.gz` | 1.50 MiB |
+
+The updater downloads both variants, so one data update is about 3.1 MiB.
+
+`Item` is the next large addition. An estimate with `Item` `Name` and `Description` for every row
+adds about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.
+Only the selected fields are stored, and most of `Item.csv` is numbers, so it compresses well.
+
+**Decision: keep one artifact per variant.** Splitting into core and full artifacts would add a
+manifest, updater, and settings path for a download that is still only a few MiB. Revisit when the
+full sheet set pushes one variant past about 8 MiB, or if users report slow updates.
 
 ## Order of work
 
