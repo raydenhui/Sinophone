@@ -89,6 +89,23 @@ public static class SheetCatalog
         Add<CraftLeveTalk>(dataManager, descriptors, "CraftLeveTalk", "Talk", false,
             static row => ExtractCollection(row.Talk));
 
+        Add<GoldSaucerTextData>(dataManager, descriptors, "GoldSaucerTextData", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<CSBonusTextData>(dataManager, descriptors, "CSBonusTextData", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<RideShootingTextData>(dataManager, descriptors, "RideShootingTextData", "String", false,
+            static row => ExtractSingle(row.String));
+        Add<QuickChatTransient>(dataManager, descriptors, "QuickChatTransient", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<PublicContentTextData>(dataManager, descriptors, "PublicContentTextData", "TextData", false,
+            static row => ExtractSingle(row.TextData));
+        Add<PartyContentTextData>(dataManager, descriptors, "PartyContentTextData", "Data", false,
+            static row => ExtractSingle(row.Data));
+        Add<MKDLore>(dataManager, descriptors, "MKDLore", "Name", true,
+            static row => ExtractSingle(row.Name));
+        Add<MKDLore>(dataManager, descriptors, "MKDLore", "Description", false,
+            static row => ExtractSingle(row.Description));
+
         Add<ENpcResident>(dataManager, descriptors, "ENpcResident", "Singular", true,
             static row => ExtractSingle(row.Singular));
         Add<BNpcName>(dataManager, descriptors, "BNpcName", "Singular", true,
@@ -111,6 +128,10 @@ public static class SheetCatalog
         var text = value.ExtractText();
         return string.IsNullOrEmpty(text) ? Array.Empty<string>() : new[] { text };
     }
+
+    // Some Lumina sheets expose a text field as a plain string instead of a SeString.
+    private static IReadOnlyList<string> ExtractSingle(string value)
+        => string.IsNullOrEmpty(value) ? Array.Empty<string>() : new[] { value };
 
     private static IReadOnlyList<string> ExtractCollection(Collection<ReadOnlySeString> values)
     {
