@@ -25,6 +25,10 @@ public static partial class MacroNormalizer
             return string.Empty;
 
         var cleaned = StripInvisible(text);
+
+        // Turn <br> into a space before the generic macro strip, which would
+        // otherwise glue the words on either side together.
+        cleaned = LineBreakPattern().Replace(cleaned, " ");
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
 
         var builder = new StringBuilder(cleaned.Length);
