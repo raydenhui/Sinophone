@@ -21,7 +21,6 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
     private readonly TranslationDataUpdater _dataUpdater;
-    private readonly string _dataDirectory;
 
     private TranslationStore? _store;
 
@@ -40,8 +39,10 @@ public sealed class Plugin : IDalamudPlugin
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath;
 
-        _dataDirectory = PluginInterface.GetPluginConfigDirectory();
-        _dataUpdater = new TranslationDataUpdater(_configuration, _dataDirectory, Log);
+        _dataUpdater = new TranslationDataUpdater(
+            _configuration,
+            PluginInterface.GetPluginConfigDirectory(),
+            Log);
 
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
@@ -112,8 +113,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private string BuildDataSourceText()
     {
-        var hasCn = File.Exists(Path.Combine(_dataDirectory, TranslationStore.ResourceCnSuffix));
-        var hasTc = File.Exists(Path.Combine(_dataDirectory, TranslationStore.ResourceTcSuffix));
+        var hasCn = File.Exists(_dataUpdater.DataFilePath(ChineseVariant.Simplified));
+        var hasTc = File.Exists(_dataUpdater.DataFilePath(ChineseVariant.Traditional));
 
         if (!hasCn && !hasTc)
             return "Using the translation data built into the plugin.";

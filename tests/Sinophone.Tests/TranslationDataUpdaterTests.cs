@@ -96,25 +96,6 @@ public class TranslationDataUpdaterTests
     }
 
     [Fact]
-    public void HasDownloadedData_ReflectsTheFilesOnDisk()
-    {
-        var directory = CreateTemporaryDirectory();
-        try
-        {
-            var updater = CreateUpdater(directory);
-            Assert.False(updater.HasDownloadedData);
-
-            File.WriteAllBytes(updater.DataFilePath(ChineseVariant.Traditional), [10]);
-
-            Assert.True(updater.HasDownloadedData);
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-    }
-
-    [Fact]
     public void NewUpdater_IsIdleAndHasNoPendingReload()
     {
         var directory = CreateTemporaryDirectory();

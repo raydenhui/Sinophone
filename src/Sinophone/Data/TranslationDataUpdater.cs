@@ -57,11 +57,6 @@ public sealed class TranslationDataUpdater : IDisposable
 
     public DataUpdateState State => Volatile.Read(ref _state);
 
-    /// <summary>True when at least one downloaded artifact is present on disk.</summary>
-    public bool HasDownloadedData
-        => File.Exists(DataFilePath(ChineseVariant.Simplified))
-           || File.Exists(DataFilePath(ChineseVariant.Traditional));
-
     public string DataFilePath(ChineseVariant variant)
         => Path.Combine(
             _dataDirectory,
