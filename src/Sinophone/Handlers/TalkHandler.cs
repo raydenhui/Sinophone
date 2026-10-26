@@ -172,7 +172,7 @@ public sealed class TalkHandler : IDisposable
         {
             ref var value = ref values[i];
 
-            if (value.Type != AtkValueType.String)
+            if (!IsStringValue(value.Type))
             {
                 _log.Info("  {Addon} AtkValue[{Index}] type {Type}.", addonName, i, value.Type);
                 continue;
@@ -190,6 +190,14 @@ public sealed class TalkHandler : IDisposable
                 addonName, i, text.Length, preview);
         }
     }
+
+    /// <summary>
+    /// True for both string kinds. The game sends dialogue as ManagedString
+    /// (Managed | String); the plain String kind is a caller-owned cstring. Both
+    /// store the pointer in the same union field, so one read path serves both.
+    /// </summary>
+    internal static bool IsStringValue(AtkValueType type)
+        => type == AtkValueType.String || type == AtkValueType.ManagedString;
 
     private static unsafe bool TryGetAtkValues(AddonArgs args, out AtkValue* values, out uint count)
     {
@@ -221,7 +229,7 @@ public sealed class TalkHandler : IDisposable
         {
             ref var value = ref values[index];
 
-            if (value.Type != AtkValueType.String || !value.String.HasValue)
+            if (!IsStringValue(value.Type) || !value.String.HasValue)
                 return null;
 
             var text = MemoryHelper.ReadSeStringAsString(
