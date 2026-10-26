@@ -36,10 +36,12 @@ src/Sinophone/
     MacroNormalizer.cs      Text cleanup for matching and for display.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
-    TargetNameHandler.cs  Polls the current target. Feeds its Chinese name to the target window.
+    TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name window.
+    ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
   UI/
     OverlayWindow.cs      The translation overlay.
     TargetNameWindow.cs   Small window under the target info with the target's Chinese name.
+    ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.
     ConfigWindow.cs       Settings window.
     FontManager.cs        CJK font loading and font atlas rebuilds.
 tools/Sinophone.DataPrep/
@@ -377,6 +379,8 @@ premature interface.
   a miss.
 - **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
   not.
+- **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
+  `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 

@@ -15,6 +15,7 @@ public class ConfigurationTests
         Assert.True(config.ShowSpeakerName);
         Assert.False(config.ShowTargetName);
         Assert.Equal(170f, config.TargetNameOffsetY);
+        Assert.False(config.ShowItemName);
         Assert.True(config.ShowOriginal);
         Assert.True(config.HideWhenNoTranslation);
         Assert.True(config.LockOverlay);

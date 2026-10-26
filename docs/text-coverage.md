@@ -4,7 +4,7 @@ Which sheets Sinophone translates today, which ones are missing, and what to add
 
 The data comes from the CN and TC CSV dumps in the two datamining repositories. The reference for
 "all text" is [FFXIVChnTextPatch-GP](https://github.com/GpointChen/FFXIVChnTextPatch-GP): it patches
-444 top-level sheets. Sinophone indexes 18.
+444 top-level sheets. Sinophone indexes 19.
 
 Row counts below are rows containing Chinese text in the CN dump, counted on 2026-10-26. They show
 how much text a sheet adds. They do not predict how many lines the game will hit at runtime.
@@ -33,6 +33,7 @@ how much text a sheet adds. They do not predict how many lines the game will hit
 | `BNpcName` | `Singular` | Name | Enemy names |
 | `SnipeTalkName` | `Name` | Name | Snipe event names |
 | `EObjName` | `Singular` | Name | Names of objects you interact with |
+| `Item` | `Name` | Name | Item names, shown on the item tooltip |
 
 Both files must change together: `SheetCatalog.Create` and the `Sheets` array in
 `tools/Sinophone.DataPrep/Program.cs`. `FixtureBuilder` keeps its own smaller list on purpose; it
@@ -95,7 +96,8 @@ silently misses every lookup.
 
 Items, actors, and places. These feed the name lookups and any new surface that shows a name.
 
-- `Item`: `Singular`, `Name`, `Description`. The largest win and the largest file (18 MB of CSV).
+- `Item`: `Singular` and `Description` are still missing. `Name` is indexed now. The sheet is the
+  largest file (18 MB of CSV).
 - `PlaceName`, `PlaceNameReplace`.
 - `GatheringPointName`, `FishingSpot`, `FishParameter`.
 - `Mount`, `Companion`, `Pet`, `Emote`, `Orchestrion`, `Title`, `ClassJob`, `ClassJobCategory`.
@@ -139,8 +141,8 @@ The overlay only covers the Talk window. More sheets alone will not show more te
 | Surface | Route | Status |
 | --- | --- | --- |
 | Talk, subtitles, chat bubbles | Overlay | Works |
-| Target info | New handler: read the target's name id, look up the name, draw near `TargetInfo` | Not started |
-| Item tooltip | New handler: read the item id from `ItemDetail`, draw near the tooltip | Not started |
+| Target info | `TargetNameHandler` reads the target on `TargetInfo` events, draws under the target bar | Works |
+| Item tooltip | `ItemNameHandler` reads the hovered item, draws above the cursor | Works |
 | Inventory, shops, menus, chat | Native text replacement, then the CJK font mod | Planned as separate items |
 
 Full parity with FFXIVChnTextPatch-GP is not reachable with an overlay. That patch rewrites the game
@@ -173,8 +175,8 @@ The updater downloads both variants, so one data update is about 3.1 MiB. These 
 measured before the seven named-column dialogue sheets were added; those sheets are small and were
 not re-measured.
 
-`Item` is the next large addition. An estimate with `Item` `Name` and `Description` for every row
-adds about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.
+`Item` is now indexed by `Name` only. An estimate with `Name` and `Description` for every row adds
+about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.
 Only the selected fields are stored, and most of `Item.csv` is numbers, so it compresses well.
 
 **Decision: keep one artifact per variant.** Splitting into core and full artifacts would add a
@@ -184,7 +186,7 @@ full sheet set pushes one variant past about 8 MiB, or if users report slow upda
 ## Order of work
 
 1. Unnamed-column dialogue sheets. Map one sheet, add it, check it in game, then the next.
-2. Name sheets plus the target-info and item-tooltip overlays.
+2. The remaining name sheets. The target-info and item-tooltip overlays are done.
 3. Category filtering.
 4. Native UI replacement and the font mod.
 

@@ -123,6 +123,7 @@ internal static class Program
         new("BNpcName", "Singular", ["Singular"]),
         new("EObjName", "Singular", ["Singular"]),
         new("SnipeTalkName", "Name", ["Name"]),
+        new("Item", "Name", ["Name"]),
     ];
 
     private static int Main(string[] args)

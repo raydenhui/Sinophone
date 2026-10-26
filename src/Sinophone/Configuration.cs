@@ -38,6 +38,12 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Distance in pixels from the top of the screen to the target name overlay.</summary>
     public float TargetNameOffsetY { get; set; } = 170f;
 
+    /// <summary>
+    /// Show the Chinese name of the item under the mouse in a small overlay.
+    /// Off by default until the surface has been checked in game.
+    /// </summary>
+    public bool ShowItemName { get; set; }
+
     public bool ShowOriginal { get; set; } = true;
 
     /// <summary>

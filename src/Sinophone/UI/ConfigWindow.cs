@@ -94,6 +94,8 @@ public sealed class ConfigWindow : Window
         Checkbox("Show speaker name", _configuration.ShowSpeakerName, v => _configuration.ShowSpeakerName = v);
         Checkbox("Show the Chinese name of the target", _configuration.ShowTargetName,
             v => _configuration.ShowTargetName = v);
+        Checkbox("Show the Chinese name of the hovered item", _configuration.ShowItemName,
+            v => _configuration.ShowItemName = v);
         Checkbox("Also show original English text", _configuration.ShowOriginal,
             v => _configuration.ShowOriginal = v);
         Checkbox("Hide when no translation is found", _configuration.HideWhenNoTranslation,
@@ -223,6 +225,7 @@ public sealed class ConfigWindow : Window
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;
         _configuration.ShowTargetName = defaults.ShowTargetName;
         _configuration.TargetNameOffsetY = defaults.TargetNameOffsetY;
+        _configuration.ShowItemName = defaults.ShowItemName;
         _configuration.ShowOriginal = defaults.ShowOriginal;
         _configuration.HideWhenNoTranslation = defaults.HideWhenNoTranslation;
         _configuration.LockOverlay = defaults.LockOverlay;
