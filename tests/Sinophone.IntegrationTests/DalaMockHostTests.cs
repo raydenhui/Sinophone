@@ -10,8 +10,8 @@ namespace Sinophone.IntegrationTests;
 /// <remarks>
 /// DalaMock builds a Lumina <c>GameData</c> at startup and needs the game's sqpack
 /// files for that. Without an install these tests skip instead of failing, so CI
-/// stays green. Set <c>SINOPHONE_FFXIV_PATH</c> to the folder containing
-/// <c>game/</c> to run them locally.
+/// stays green. Set <c>SINOPHONE_FFXIV_PATH</c> to the <c>sqpack</c> folder inside
+/// the install's <c>game/</c> folder to run them locally.
 ///
 /// DalaMock cannot exercise addon events: its MockAddonLifecycle accepts listeners
 /// and never invokes them, and Dalamud keeps the addon args constructors internal.
@@ -62,13 +62,14 @@ public class DalaMockHostTests
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         if (!string.IsNullOrEmpty(appData))
         {
-            var standard = Path.Combine(appData, "XIVLauncher", "game");
+            // DalaMock wants the folder that holds the .sqpack files, not the game/ folder above it.
+            var standard = Path.Combine(appData, "XIVLauncher", "game", "sqpack");
             if (Directory.Exists(standard))
                 return standard;
         }
 
         Skip.If(true,
-            "No FFXIV install found. Set SINOPHONE_FFXIV_PATH to the folder containing game/ to run this test.");
+            "No FFXIV install found. Set SINOPHONE_FFXIV_PATH to the game's sqpack folder to run this test.");
         return string.Empty;
     }
 

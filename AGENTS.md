@@ -219,7 +219,9 @@ Required coverage:
 - DalaMock can build a container with every service the plugin asks for.
 
 The DalaMock tests skip themselves when no FFXIV install is found, because DalaMock needs the
-game's sqpack files. Set `SINOPHONE_FFXIV_PATH` to the folder containing `game/` to run them.
+game's sqpack files. Set `SINOPHONE_FFXIV_PATH` to the `sqpack` folder inside the install's
+`game/` folder, for example `...\FINAL FANTASY XIV Online\game\sqpack`. Pointing it at the
+folder above `sqpack` makes DalaMock report the path as invalid.
 
 DalaMock cannot drive addon events: `MockAddonLifecycle` accepts listeners and never calls them,
 and Dalamud keeps the addon args constructors internal. Do not try to fake addon events. Test the
