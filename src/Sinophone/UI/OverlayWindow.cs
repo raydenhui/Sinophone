@@ -17,6 +17,7 @@ public sealed class OverlayWindow : Window
 
     private bool _hasContent;
     private bool _applyPosition;
+    private bool _positionInitialized;
 
     public OverlayWindow(Configuration configuration, FontManager fontManager)
         : base("Sinophone Overlay###SinophoneOverlay", ImGuiWindowFlags.NoTitleBar)
@@ -71,12 +72,11 @@ public sealed class OverlayWindow : Window
             _blocks.Add(new TextBlock(originalText, OriginalColor));
         }
 
-        var wasShowing = _hasContent;
         _hasContent = _blocks.Count > 0;
 
-        // Only snap to the computed position when the overlay first appears or while the
-        // user asked to lock it. Otherwise every new line would undo a drag.
-        _applyPosition = _hasContent && (!wasShowing || _configuration.LockOverlay);
+        // Only snap to the computed position the first time the overlay appears or while
+        // the user asked to lock it. Otherwise every new line would undo a drag.
+        _applyPosition = _hasContent && (_configuration.LockOverlay || !_positionInitialized);
 
         _ = isSubtitle;
     }
@@ -108,6 +108,9 @@ public sealed class OverlayWindow : Window
         if (_configuration.LockOverlay)
             flags |= ImGuiWindowFlags.NoMove;
 
+        if (_configuration.Clickthrough)
+            flags |= ImGuiWindowFlags.NoInputs;
+
         Flags = flags;
         AllowClickthrough = _configuration.Clickthrough;
         IsClickthrough = _configuration.Clickthrough;
@@ -129,6 +132,7 @@ public sealed class OverlayWindow : Window
             Position = new Vector2(x, y);
             PositionCondition = ImGuiCond.Always;
             _applyPosition = false;
+            _positionInitialized = true;
         }
         else
         {
