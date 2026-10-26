@@ -142,7 +142,7 @@ The overlay only covers the Talk window. More sheets alone will not show more te
 | --- | --- | --- |
 | Talk, subtitles, chat bubbles | Overlay | Works |
 | Target info | `TargetNameHandler` reads the target on `TargetInfo` events, draws under the target bar | Works |
-| Item tooltip | `ItemNameHandler` reads the hovered item, draws next to the cursor | Works |
+| Item tooltip | `ItemNameHandler` reads the hovered item, draws above the cursor | Works |
 | Inventory, shops, menus, chat | Native text replacement, then the CJK font mod | Planned as separate items |
 
 Full parity with FFXIVChnTextPatch-GP is not reachable with an overlay. That patch rewrites the game
