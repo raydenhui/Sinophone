@@ -34,7 +34,7 @@ public class TargetNameHandlerTests
     [Fact]
     public void Resolve_ReturnsNull_ForPlayer()
     {
-        Assert.Null(TargetNameHandler.Resolve(CreateStore(), ObjectKind.Player, "Y'shtola"));
+        Assert.Null(TargetNameHandler.Resolve(CreateStore(), ObjectKind.Pc, "Y'shtola"));
     }
 
     [Fact]

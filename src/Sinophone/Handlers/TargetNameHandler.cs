@@ -92,7 +92,7 @@ public sealed class TargetNameHandler : IDisposable
             return null;
 
         // Player names are chosen by the player and are never translated.
-        if (objectKind == ObjectKind.Player)
+        if (objectKind == ObjectKind.Pc)
             return null;
 
         if (string.IsNullOrWhiteSpace(englishName))
