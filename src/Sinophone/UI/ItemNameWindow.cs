@@ -74,13 +74,13 @@ public sealed class ItemNameWindow : Window
         Size = size;
         SizeCondition = ImGuiCond.Always;
 
-        // Follow the cursor, but keep the whole window on screen when the cursor
-        // is near an edge.
+        // Sit above the cursor: the game draws the item tooltip below it, so this
+        // does not cover the tooltip. Keep the window on screen near an edge.
         var scale = ImGuiHelpers.GlobalScale;
         var viewport = ImGuiHelpers.MainViewport;
         var mouse = ImGui.GetMousePos();
         var x = MathF.Min(mouse.X + CursorOffset * scale, viewport.Pos.X + viewport.Size.X - size.X);
-        var y = MathF.Min(mouse.Y + CursorOffset * scale, viewport.Pos.Y + viewport.Size.Y - size.Y);
+        var y = MathF.Max(mouse.Y - size.Y - CursorOffset * scale, viewport.Pos.Y);
 
         Position = new Vector2(x, y);
         PositionCondition = ImGuiCond.Always;
