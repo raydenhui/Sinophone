@@ -92,13 +92,26 @@ public sealed class TalkHandler : IDisposable
             ? ReadStringValue(values, NameValueIndex, count)
             : null;
 
+        _log.Debug("[Sinophone] {Event} for {Addon}: {TextLength} text chars, name: {HasName}.",
+            eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName));
+
+        if (!string.IsNullOrWhiteSpace(englishText))
+            _log.Debug("[Sinophone] {Addon} English text: {Text}", addonName, englishText);
+
         var content = Resolve(store, _configuration, englishText, englishName);
 
         if (content is null)
+        {
             _overlay.Hide();
+            _log.Info("[Sinophone] {Addon} line has no usable translation; overlay hidden.", addonName);
+        }
         else
+        {
             _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
                 englishName ?? string.Empty, isSubtitle);
+            _log.Info("[Sinophone] Overlay shown for {Addon}: {ChineseLength} Chinese chars.",
+                addonName, content.Value.ChineseText.Length);
+        }
     }
 
     /// <summary>
