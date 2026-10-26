@@ -33,7 +33,7 @@ public sealed class ConfigWindow : Window
         _dataUpdater = dataUpdater;
         _dataSourceText = dataSourceText;
 
-        Size = new Vector2(480f, 660f);
+        Size = new Vector2(480f, 780f);
         SizeCondition = ImGuiCond.FirstUseEver;
         AllowPinning = false;
         ShowCloseButton = true;
