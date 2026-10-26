@@ -113,6 +113,7 @@ internal static class Program
         new("CraftLeveTalk", "Talk", ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]"]),
         new("ENpcResident", "Singular", ["Singular"]),
         new("BNpcName", "Singular", ["Singular"]),
+        new("EObjName", "Singular", ["Singular"]),
         new("SnipeTalkName", "Name", ["Name"]),
     ];
 

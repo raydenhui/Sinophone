@@ -92,6 +92,8 @@ public sealed class ConfigWindow : Window
         ImGui.Separator();
 
         Checkbox("Show speaker name", _configuration.ShowSpeakerName, v => _configuration.ShowSpeakerName = v);
+        Checkbox("Show the Chinese name of the target", _configuration.ShowTargetName,
+            v => _configuration.ShowTargetName = v);
         Checkbox("Also show original English text", _configuration.ShowOriginal,
             v => _configuration.ShowOriginal = v);
         Checkbox("Hide when no translation is found", _configuration.HideWhenNoTranslation,
@@ -114,6 +116,8 @@ public sealed class ConfigWindow : Window
             v => _configuration.OverlayWidth = v);
         SliderFloat("Distance from screen bottom", _configuration.OffsetFromBottom, 20f, 520f, "%.0f",
             v => _configuration.OffsetFromBottom = v);
+        SliderFloat("Target name distance from top", _configuration.TargetNameOffsetY, 20f, 520f, "%.0f",
+            v => _configuration.TargetNameOffsetY = v);
 
         ImGui.TextUnformatted("Custom font path (optional, .ttf/.ttc/.otf)");
         var fontPath = _configuration.CustomFontPath ?? string.Empty;
@@ -217,6 +221,8 @@ public sealed class ConfigWindow : Window
         _configuration.ShowInTalk = defaults.ShowInTalk;
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;
+        _configuration.ShowTargetName = defaults.ShowTargetName;
+        _configuration.TargetNameOffsetY = defaults.TargetNameOffsetY;
         _configuration.ShowOriginal = defaults.ShowOriginal;
         _configuration.HideWhenNoTranslation = defaults.HideWhenNoTranslation;
         _configuration.LockOverlay = defaults.LockOverlay;
