@@ -1,0 +1,42 @@
+<Project>
+
+  <!--
+    The Dalamud SDK adds its assembly references with Private="false", so they are
+    not copied next to a test assembly. Tests need them at runtime, so flip them to
+    Private="true". This runs after the SDK props have been imported, which is why
+    it lives in Directory.Build.targets rather than .props.
+  -->
+  <ItemGroup>
+    <Reference Update="Dalamud">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Dalamud.Bindings.ImGui">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Dalamud.Bindings.ImPlot">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Dalamud.Bindings.ImGuizmo">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="FFXIVClientStructs">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="InteropGenerator.Runtime">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Lumina">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Lumina.Excel">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Serilog">
+      <Private>True</Private>
+    </Reference>
+    <Reference Update="Newtonsoft.Json">
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

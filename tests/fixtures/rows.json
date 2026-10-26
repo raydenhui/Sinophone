@@ -1,0 +1,179 @@
+{
+  "note": "Real rows from the CN/TC datamining dumps, paired with the English text the game shows. Generated once and checked in so tests are fast and offline. Do not hand-edit; regenerate with scripts/Update-TestFixture.ps1.",
+  "generatedAt": "2026-10-26",
+  "sources": {
+    "en": "https://github.com/xivapi/ffxiv-datamining (csv/en)",
+    "cn": "https://github.com/thewakingsands/ffxiv-datamining-cn",
+    "tc": "https://github.com/thewakingsands/ffxiv-datamining-tc"
+  },
+  "rows": [
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589840,
+      "english": "Hey, did you know? There's a place in Meguro where you can gorge yourself on meat of unrivaled epicness.",
+      "cn": "……喂，你知道吗？\r\n听说在目黑那里有家店，\r\n做出来的肉好吃得不得了哦。",
+      "tc": "……喂，你知道嗎？\r\n聽說在目黑那裡有家店，\r\n做出來的肉好吃得不得了哦。"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589844,
+      "english": "I don't believe I've seen your face before. New to Gridania, I take it?",
+      "cn": "十分抱歉，我现在手头有点忙。\r\n可以请你在那里安静地等一下吗？",
+      "tc": "抱歉，我現在有點忙。\r\n可以請你在旁邊乖乖地等一下嗎？"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589845,
+      "english": "Make yourself known at the Carline Canopy, where the local Adventurers' Guild is headquartered. Speak to Mother Miounne within, and she will take you in hand.",
+      "cn": "你现在应该去冒险者行会的“魔女咖啡馆”，\r\n与那里的老板“缪恩”打个招呼。",
+      "tc": "你現在應該去冒險者行會的「魔女咖啡館」，\r\n與那裡的老闆「繆恩」打個招呼。"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589846,
+      "english": "Yer one o' them adventurers, ain't ye? Gridania fair swarms with outsiders o' late. Can't walk ten bloody yalms without bumpin' into one o' ye.",
+      "cn": "又来了一个“冒险者”吗？\r\n格里达尼亚还真是来了不少外来者啊……",
+      "tc": "又來了一個「冒險者」。\r\n格里達尼亞還真是來了不少外來者……"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589847,
+      "english": "It is by the blessing of the elementals that we Gridanians dwell in the Twelveswood. As you go about your business, be ever mindful of their presence and respectful of their will.",
+      "cn": "这里是得到森林与元灵认同的神圣之城格里达尼亚。\r\n请胸怀对大自然的感激之情，谨慎地行事吧。\u3000",
+      "tc": "這裡是得到森林與聖靈認同的神聖之城格里達尼亞。\r\n請胸懷對大自然的感激之情，謹慎地行事。"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589848,
+      "english": "It is by the blessing of the elementals that we Gridanians dwell in the Twelveswood.",
+      "cn": "这里是得到森林与元灵认同的神圣之城格里达尼亚。",
+      "tc": "這裡是得到森林與聖靈認同的神聖之城格里達尼亞。"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589849,
+      "english": "I don't understand these Gridanians. They make a great show of doubting us adventurers, yet place their trust in beings they can't even see. Where is the reason in that, I ask you?",
+      "cn": "看来格里达尼亚的那帮家伙，\r\n比起相信我们这些站在眼前的“冒险者”，\r\n更愿意去相信那些连影儿都见不着的“元灵”啊。",
+      "tc": "看來格里達尼亞的那群人，\r\n比起眼前我們這群「冒險者」，\r\n更願意相信那些見不著影子的「聖靈」啊。"
+    },
+    {
+      "sheet": "DefaultTalk",
+      "rowId": 589850,
+      "english": "I heard that the elementals show themselves when enraged. Call me reckless, but I'd *love* to see one in the flesh...or whatever the hells it is they're made of.",
+      "cn": "听说如果触怒了“元灵”的话，它们好像会现身啊？\r\n这情景我可真想见识见识。",
+      "tc": "聽說如果觸怒了「聖靈」的話，它們好像會現身。\r\n我真想見識見識。"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000063,
+      "english": "delivery moogle",
+      "cn": "邮差莫古力",
+      "tc": "郵差莫古利"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000100,
+      "english": "Mother Miounne",
+      "cn": "缪恩",
+      "tc": "繆恩"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000101,
+      "english": "Gontrant",
+      "cn": "贡特朗",
+      "tc": "貢特朗"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000102,
+      "english": "Antoinaut",
+      "cn": "安托瓦诺",
+      "tc": "安托瓦諾"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000104,
+      "english": "Gyles",
+      "cn": "盖尔斯",
+      "tc": "蓋爾斯"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000105,
+      "english": "Tierney",
+      "cn": "蒂尔尼",
+      "tc": "蒂爾尼"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000106,
+      "english": "Lionnellais",
+      "cn": "利翁内莱",
+      "tc": "利翁內萊"
+    },
+    {
+      "sheet": "ENpcResident",
+      "rowId": 1000107,
+      "english": "Hida",
+      "cn": "希妲",
+      "tc": "希妲"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 2,
+      "english": "ruins runner",
+      "cn": "遗迹走龙",
+      "tc": "遺跡走龍"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 3,
+      "english": "antelope doe",
+      "cn": "雌羚羊",
+      "tc": "雌羚羊"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 4,
+      "english": "antelope stag",
+      "cn": "雄羚羊",
+      "tc": "雄羚羊"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 5,
+      "english": "opo-opo",
+      "cn": "奥猴",
+      "tc": "奧猴"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 6,
+      "english": "lemur",
+      "cn": "狐猴",
+      "tc": "狐猴"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 7,
+      "english": "giant gnat",
+      "cn": "巨蝇",
+      "tc": "巨蠅"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 8,
+      "english": "ked",
+      "cn": "巨虻",
+      "tc": "巨虻"
+    },
+    {
+      "sheet": "BNpcName",
+      "rowId": 9,
+      "english": "miteling",
+      "cn": "灵蛛蝎",
+      "tc": "靈蛛蠍"
+    }
+  ]
+}

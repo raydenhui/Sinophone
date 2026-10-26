@@ -15,6 +15,10 @@ obj/
 # Build them with tools/Sinophone.DataPrep before compiling the plugin.
 src/Sinophone/Resources/*.json.gz
 
+## Test output
+TestResults/
+*.trx
+
 ## Local tooling
 *.log
 *.tmp

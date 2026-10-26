@@ -1,0 +1,17 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+  <PropertyGroup>
+    <RootNamespace>Sinophone.Tests</RootNamespace>
+    <AssemblyName>Sinophone.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sinophone\Sinophone.csproj" />
+    <ProjectReference Include="..\..\tools\Sinophone.DataPrep\Sinophone.DataPrep.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\fixtures\**\*" LinkBase="fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

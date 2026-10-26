@@ -59,28 +59,45 @@ same commit. A mismatch is silent: the artifact loads but rows are skipped.
 ## Commands
 
 The plugin targets `net10.0-windows7.0` and `win-x64`. It needs a local Dalamud install to
-resolve the `Dalamud.NET.SDK/15.0.0` SDK.
+resolve the `Dalamud.NET.SDK/15.0.0` SDK. Set `DALAMUD_HOME` to that folder, or let the SDK
+find XIVLauncher's copy.
+
+Use the scripts. They check their inputs and give a clear error instead of failing halfway.
 
 ```sh
 # Build everything
-dotnet build Sinophone.sln -c Release
+pwsh -File scripts/Build.ps1
 
-# Run the tests
+# Run all tests
+pwsh -File scripts/Test.ps1
+
+# Run a subset
+pwsh -File scripts/Test.ps1 -Filter "FullyQualifiedName~MacroNormalizer"
+
+# Download Dalamud libraries if you do not have a game install
+pwsh -File scripts/Get-DalamudLib.ps1
+
+# Build the CN and TC artifacts from the datamining dumps
+pwsh -File scripts/New-TranslationData.ps1 -CnSource <cn-csv> -TcSource <tc-csv> -GameVersion <patch>
+
+# Regenerate the test fixture (rarely needed)
+pwsh -File scripts/Update-TestFixture.ps1 -CnSource <cn-csv> -TcSource <tc-csv> -EnSource <en-csv>
+```
+
+The underlying commands, if you need to run one step by hand:
+
+```sh
+dotnet build Sinophone.sln -c Release
 dotnet test Sinophone.sln -c Release
 
-# Build the CN artifact
 dotnet run --project tools/Sinophone.DataPrep -- \
-  --source <path-to-ffxiv-datamining-cn> --language CN \
+  --source <csv-dir> --language CN \
   --output src/Sinophone/Resources/Sinophone.cn.json.gz --game-version <patch>
-
-# Build the TC artifact
-dotnet run --project tools/Sinophone.DataPrep -- \
-  --source <path-to-ffxiv-datamining-tc> --language TC \
-  --output src/Sinophone/Resources/Sinophone.tc.json.gz --game-version <patch>
 ```
 
 The plugin finds artifacts by filename suffix (`Sinophone.cn.json.gz`, `Sinophone.tc.json.gz`).
-Do not rename them.
+Do not rename them. `Build.ps1` fails when no artifacts exist, because a plugin built without
+them compiles fine and translates nothing.
 
 ### Scripts
 
@@ -137,35 +154,58 @@ Every function that can be tested without the game gets a unit test. Priority or
 2. `TranslationStore` lookup: exact match, missing key, empty key, fallback ordering.
 3. `Configuration` defaults and `ConfigWindow` reset behavior.
 
-Use xUnit. Put tests in `tests/Sinophone.Tests`.
+Use xUnit. Put tests in `tests/Sinophone.Tests`. Name tests
+`Method_Behaviour_WhenCondition`.
+
+Test projects use `Dalamud.NET.Sdk` only to resolve `DalamudLibPath`, and
+`tests/Directory.Build.targets` flips the Dalamud references to `Private="true"` so they are
+copied next to the test assemblies. Without that, tests fail at runtime with
+`Could not load file or assembly 'Dalamud'`.
 
 ### Integration tests
 
-These cover the parts that wire systems together. Put them in `tests/Sinophone.IntegrationTests`
-and run them through DalaMock so no game is needed.
+These cover the parts that wire systems together. Put them in `tests/Sinophone.IntegrationTests`.
 
 Required coverage:
 
-- `TranslationStore.Load` reads a fixture artifact and resolves known rows.
-- The DataPrep output format matches what `TranslationStore` expects.
-- `TalkHandler` receives a Talk addon event, reads the text values, and passes the right content
-  to the overlay.
+- `TranslationStore.Load` reads the fixture artifacts and resolves every fixture row.
+- The artifact on disk has the shape `TranslationStore` and `SheetCatalog` expect.
+- `TalkHandler.Resolve` picks the right content for a line, for both variants.
+- DalaMock can build a container with every service the plugin asks for.
+
+The DalaMock tests skip themselves when no FFXIV install is found, because DalaMock needs the
+game's sqpack files. Set `SINOPHONE_FFXIV_PATH` to the folder containing `game/` to run them.
+
+DalaMock cannot drive addon events: `MockAddonLifecycle` accepts listeners and never calls them,
+and Dalamud keeps the addon args constructors internal. Do not try to fake addon events. Test the
+decision logic directly through `TalkHandler.Resolve`, and cover the rest in game.
 
 ### Test data
 
 Do not commit full translation artifacts. They are large and change every game patch.
 
-Commit a small fixture instead: a few hundred real rows per variant, under `tests/fixtures/`.
-Keep it small enough to read in a diff. Build it by trimming a real artifact, not by hand.
+Commit the small fixture in `tests/fixtures/` instead: eight real rows per sheet, in both
+variants, plus the English text in `rows.json`. It is checked in, so tests are fast and offline.
+
+Regenerate it with `scripts/Update-TestFixture.ps1`, which runs DataPrep's `--fixture` mode. Never
+hand-edit `rows.json` or the `.json.gz` files.
 
 ### DalaMock
 
 DalaMock runs the plugin outside the game. Use `DalaMock.Core` (currently 6.2.1, which targets
-`net10.0-windows7.0`). Mock the services the plugin uses: `IPluginLog`, `IDataManager`,
-`IAddonLifecycle`, `ICommandManager`, `IDalamudPluginInterface`.
+`net10.0-windows7.0`). Build a `MockContainer` with `CreateWindow = false` and `askPath: false`;
+without those two flags it opens an ImGui window and a native folder picker.
 
 Do not mock what you can test directly. `MacroNormalizer` is a static class with no services;
 test it plainly.
+
+### Writing tests
+
+- Each test checks one behaviour, and the name says which: `Load_FallsBackToOtherVariant_ForMissingKeys`.
+- A failing test should tell you what broke. Assert on the specific value, not just "not null".
+- When a test fails, decide whether the test or the code is wrong before changing either.
+  `NormalizeKey_StripsLineBreakMacros` failed on first run and exposed a real bug: `<br>` was
+  deleted instead of becoming a space. Fix the code, not the test.
 
 ### In-game testing
 

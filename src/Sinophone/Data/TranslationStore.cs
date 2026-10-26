@@ -62,18 +62,34 @@ public sealed class TranslationStore
     /// primary nor the fallback artifact could be read.
     /// </summary>
     public static TranslationStore? Load(Configuration configuration, IDataManager dataManager, IPluginLog log)
+        => Load(
+            SheetCatalog.Create(dataManager),
+            configuration.Variant,
+            configuration.UseFallbackVariant,
+            OpenResource,
+            log);
+
+    /// <summary>
+    /// Builds a store from explicit inputs. Tests use this to supply their own
+    /// sheet descriptors and artifact streams instead of the embedded ones.
+    /// </summary>
+    internal static TranslationStore? Load(
+        IReadOnlyList<ISheetDescriptor> descriptors,
+        ChineseVariant variant,
+        bool useFallback,
+        Func<ChineseVariant, Stream?> openResource,
+        IPluginLog log)
     {
         var stopwatch = Stopwatch.StartNew();
-        var descriptors = SheetCatalog.Create(dataManager);
 
-        var primary = LoadArtifact(configuration.Variant, log);
+        var primary = LoadArtifact(variant, openResource, log);
         if (primary is null)
         {
-            log.Warning("[Sinophone] Primary artifact for {Variant} was not found in the assembly.", configuration.Variant);
+            log.Warning("[Sinophone] Primary artifact for {Variant} was not found in the assembly.", variant);
         }
 
-        var fallback = configuration.UseFallbackVariant
-            ? LoadArtifact(Other(configuration.Variant), log)
+        var fallback = useFallback
+            ? LoadArtifact(Other(variant), openResource, log)
             : null;
 
         if (primary is null && fallback is null)
@@ -82,7 +98,7 @@ public sealed class TranslationStore
             return null;
         }
 
-        var store = new TranslationStore(configuration.Variant, fallback is not null);
+        var store = new TranslationStore(variant, fallback is not null);
 
         if (primary is not null)
             store.Index(primary, descriptors, log);
@@ -161,11 +177,14 @@ public sealed class TranslationStore
             indexedRows, indexedSlots, artifact.Language);
     }
 
-    private static TranslationArtifact? LoadArtifact(ChineseVariant variant, IPluginLog log)
+    private static TranslationArtifact? LoadArtifact(
+        ChineseVariant variant,
+        Func<ChineseVariant, Stream?> openResource,
+        IPluginLog log)
     {
         try
         {
-            using var stream = OpenResource(variant);
+            using var stream = openResource(variant);
             if (stream is null)
                 return null;
 

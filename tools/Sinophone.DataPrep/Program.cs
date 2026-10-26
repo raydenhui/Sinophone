@@ -6,6 +6,95 @@ using System.Text.Json;
 namespace Sinophone.DataPrep;
 
 /// <summary>
+/// Minimal CSV reader for the datamining dumps. Handles quoted fields, escaped
+/// quotes, and CRLF or LF line endings.
+/// </summary>
+public static class Csv
+{
+    public static List<string[]> Parse(string text)
+    {
+        var records = new List<string[]>();
+        var fields = new List<string>();
+        var builder = new StringBuilder();
+        var inQuotes = false;
+        var fieldStarted = false;
+
+        void EndField()
+        {
+            fields.Add(builder.ToString());
+            builder.Clear();
+            fieldStarted = false;
+        }
+
+        void EndRecord()
+        {
+            EndField();
+
+            if (!(fields.Count == 1 && fields[0].Length == 0))
+                records.Add(fields.ToArray());
+
+            fields.Clear();
+        }
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < text.Length && text[i + 1] == '"')
+                    {
+                        builder.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    builder.Append(c);
+                }
+
+                continue;
+            }
+
+            switch (c)
+            {
+                case '"':
+                    inQuotes = true;
+                    fieldStarted = true;
+                    break;
+                case ',':
+                    EndField();
+                    fieldStarted = true;
+                    break;
+                case '\r':
+                    if (i + 1 < text.Length && text[i + 1] == '\n')
+                        i++;
+                    EndRecord();
+                    break;
+                case '\n':
+                    EndRecord();
+                    break;
+                default:
+                    builder.Append(c);
+                    fieldStarted = true;
+                    break;
+            }
+        }
+
+        if (builder.Length > 0 || fields.Count > 0 || fieldStarted)
+            EndRecord();
+
+        return records;
+    }
+}
+
+/// <summary>
 /// Converts the ffxiv-datamining-cn / ffxiv-datamining-tc CSV dumps into the gzipped
 /// JSON artifacts embedded in the Sinophone plugin.
 /// </summary>
@@ -39,6 +128,16 @@ internal static class Program
             Console.Error.WriteLine(ex.Message);
             PrintUsage();
             return 2;
+        }
+
+        if (options.FixtureOutputDirectory is not null)
+        {
+            return FixtureBuilder.Run(
+                options.SourceDirectory,
+                options.FixtureTcSource!,
+                options.FixtureEnSource!,
+                options.FixtureOutputDirectory,
+                options.FixtureRowCount);
         }
 
         if (!Directory.Exists(options.SourceDirectory))
@@ -115,7 +214,7 @@ internal static class Program
         if (text.Length > 0 && text[0] == '\uFEFF')
             text = text[1..];
 
-        var records = ParseCsv(text);
+        var records = Csv.Parse(text);
 
         var headerIndex = -1;
         for (var i = 0; i < records.Count; i++)
@@ -206,100 +305,20 @@ internal static class Program
         return raw;
     }
 
-    private static List<string[]> ParseCsv(string text)
-    {
-        var records = new List<string[]>();
-        var fields = new List<string>();
-        var builder = new StringBuilder();
-        var inQuotes = false;
-        var fieldStarted = false;
-
-        void EndField()
-        {
-            fields.Add(builder.ToString());
-            builder.Clear();
-            fieldStarted = false;
-        }
-
-        void EndRecord()
-        {
-            EndField();
-
-            if (!(fields.Count == 1 && fields[0].Length == 0))
-                records.Add(fields.ToArray());
-
-            fields.Clear();
-        }
-
-        for (var i = 0; i < text.Length; i++)
-        {
-            var c = text[i];
-
-            if (inQuotes)
-            {
-                if (c == '"')
-                {
-                    if (i + 1 < text.Length && text[i + 1] == '"')
-                    {
-                        builder.Append('"');
-                        i++;
-                    }
-                    else
-                    {
-                        inQuotes = false;
-                    }
-                }
-                else
-                {
-                    builder.Append(c);
-                }
-
-                continue;
-            }
-
-            switch (c)
-            {
-                case '"':
-                    inQuotes = true;
-                    fieldStarted = true;
-                    break;
-                case ',':
-                    EndField();
-                    fieldStarted = true;
-                    break;
-                case '\r':
-                    if (i + 1 < text.Length && text[i + 1] == '\n')
-                        i++;
-                    EndRecord();
-                    break;
-                case '\n':
-                    EndRecord();
-                    break;
-                default:
-                    builder.Append(c);
-                    fieldStarted = true;
-                    break;
-            }
-        }
-
-        if (builder.Length > 0 || fields.Count > 0 || fieldStarted)
-            EndRecord();
-
-        return records;
-    }
-
     private static void PrintUsage()
     {
         Console.WriteLine("Usage:");
         Console.WriteLine("  Sinophone.DataPrep --source <csv-directory> --language <CN|TC> --output <file.json.gz> [--game-version <version>]");
+        Console.WriteLine("  Sinophone.DataPrep --fixture --source <cn-csv> --tc-source <tc-csv> --en-source <en-csv> --fixture-output <dir> [--rows <n>]");
         Console.WriteLine();
         Console.WriteLine("Example:");
         Console.WriteLine(@"  Sinophone.DataPrep --source C:\ffxiv-datamining-cn --language CN --output ..\src\Sinophone\Resources\Sinophone.cn.json.gz --game-version 7.4");
+        Console.WriteLine(@"  Sinophone.DataPrep --fixture --source C:\ffxiv-datamining-cn --tc-source C:\ffxiv-datamining-tc --en-source C:\ffxiv-datamining\csv\en --fixture-output ..\tests\fixtures");
     }
 
-    private sealed record SheetSpec(string Sheet, string Field, string[] Columns);
+    internal sealed record SheetSpec(string Sheet, string Field, string[] Columns);
 
-    private sealed class Artifact
+    internal sealed class Artifact
     {
         public int FormatVersion { get; set; } = 1;
         public string Language { get; set; } = string.Empty;
@@ -315,12 +334,23 @@ internal static class Program
         public string OutputPath { get; private init; } = string.Empty;
         public string GameVersion { get; private init; } = "unknown";
 
+        /// <summary>Set when building the test fixture instead of a full artifact.</summary>
+        public string? FixtureOutputDirectory { get; private init; }
+        public string? FixtureTcSource { get; private init; }
+        public string? FixtureEnSource { get; private init; }
+        public int FixtureRowCount { get; private init; } = 8;
+
         public static Options Parse(string[] args)
         {
             string? source = null;
             string? language = null;
             string? output = null;
+            string? fixtureOutput = null;
+            string? tcSource = null;
+            string? enSource = null;
             var gameVersion = "unknown";
+            var rowCount = 8;
+            var fixture = false;
 
             for (var i = 0; i < args.Length; i++)
             {
@@ -345,6 +375,26 @@ internal static class Program
                         gameVersion = value ?? throw new ArgumentException("--game-version requires a value.");
                         i++;
                         break;
+                    case "--fixture":
+                        fixture = true;
+                        break;
+                    case "--fixture-output":
+                        fixtureOutput = value ?? throw new ArgumentException("--fixture-output requires a directory.");
+                        i++;
+                        break;
+                    case "--tc-source":
+                        tcSource = value ?? throw new ArgumentException("--tc-source requires a directory.");
+                        i++;
+                        break;
+                    case "--en-source":
+                        enSource = value ?? throw new ArgumentException("--en-source requires a directory.");
+                        i++;
+                        break;
+                    case "--rows":
+                        if (value is null || !int.TryParse(value, out rowCount) || rowCount < 1)
+                            throw new ArgumentException("--rows requires a positive number.");
+                        i++;
+                        break;
                     case "-h":
                     case "--help":
                         throw new ArgumentException("Help requested.");
@@ -355,6 +405,27 @@ internal static class Program
 
             if (string.IsNullOrWhiteSpace(source))
                 throw new ArgumentException("--source is required.");
+
+            if (fixture)
+            {
+                if (string.IsNullOrWhiteSpace(tcSource))
+                    throw new ArgumentException("--tc-source is required with --fixture.");
+
+                if (string.IsNullOrWhiteSpace(enSource))
+                    throw new ArgumentException("--en-source is required with --fixture.");
+
+                if (string.IsNullOrWhiteSpace(fixtureOutput))
+                    throw new ArgumentException("--fixture-output is required with --fixture.");
+
+                return new Options
+                {
+                    SourceDirectory = source,
+                    FixtureOutputDirectory = fixtureOutput,
+                    FixtureTcSource = tcSource,
+                    FixtureEnSource = enSource,
+                    FixtureRowCount = rowCount,
+                };
+            }
 
             if (string.IsNullOrWhiteSpace(language))
                 throw new ArgumentException("--language is required.");
