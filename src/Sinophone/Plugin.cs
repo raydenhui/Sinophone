@@ -20,6 +20,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly OverlayWindow _overlay;
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
+    private readonly TranslationDataUpdater _dataUpdater;
 
     private TranslationStore? _store;
 
@@ -38,16 +39,27 @@ public sealed class Plugin : IDalamudPlugin
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath;
 
+        _dataUpdater = new TranslationDataUpdater(
+            _configuration,
+            PluginInterface.GetPluginConfigDirectory(),
+            Log);
+
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
-        _configWindow = new ConfigWindow(_configuration, ApplySettings, ShowPreview, BuildStatusText);
+        _configWindow = new ConfigWindow(
+            _configuration,
+            ApplySettings,
+            ShowPreview,
+            BuildStatusText,
+            _dataUpdater,
+            BuildDataSourceText);
 
         _windowSystem.AddWindow(_overlay);
         _windowSystem.AddWindow(_configWindow);
 
         _talkHandler = new TalkHandler(AddonLifecycle, Log, _configuration, () => _store, _overlay);
 
-        _store = TranslationStore.Load(_configuration, DataManager, Log);
+        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -55,8 +67,12 @@ public sealed class Plugin : IDalamudPlugin
         });
 
         PluginInterface.UiBuilder.Draw += _windowSystem.Draw;
+        PluginInterface.UiBuilder.Draw += OnTick;
         PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
+
+        if (_configuration.CheckForDataUpdates)
+            _dataUpdater.StartCheck();
 
         Log.Info("[Sinophone] Loaded. Variant: {Variant}, entries: {Entries:N0}.",
             _configuration.Variant, _store?.TextEntryCount ?? 0);
@@ -84,7 +100,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         var store = _store;
         if (store is null)
-            return "No translation data loaded. Run the DataPrep tool and rebuild the plugin.";
+            return "No translation data loaded. Use \"Download / update data\" in the settings.";
 
         var font = _fontManager.ActiveFontPath;
         var fontText = font is null
@@ -94,6 +110,41 @@ public sealed class Plugin : IDalamudPlugin
         return $"{store.PrimaryVariant}{(store.UsedFallback ? " + fallback" : string.Empty)}: " +
                $"{store.TextEntryCount:N0} dialogue entries, {store.NameEntryCount:N0} name entries.\n{fontText}";
     }
+
+    private string BuildDataSourceText()
+    {
+        var hasCn = File.Exists(_dataUpdater.DataFilePath(ChineseVariant.Simplified));
+        var hasTc = File.Exists(_dataUpdater.DataFilePath(ChineseVariant.Traditional));
+
+        if (!hasCn && !hasTc)
+            return "Using the translation data built into the plugin.";
+
+        if (!hasCn || !hasTc)
+            return "Using downloaded data. One variant is missing and uses the built-in copy.";
+
+        var version = string.IsNullOrEmpty(_configuration.LastDataVersion)
+            ? "unknown version"
+            : $"version {_configuration.LastDataVersion}";
+
+        return $"Using downloaded data ({version}).";
+    }
+
+    /// <summary>
+    /// Applies a finished download on the game thread: the updater runs in the
+    /// background and only raises a flag.
+    /// </summary>
+    private void OnTick()
+    {
+        if (!_dataUpdater.ConsumeReloadRequest())
+            return;
+
+        SaveConfiguration();
+        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        _overlay.Hide();
+    }
+
+    private void SaveConfiguration()
+        => PluginInterface.SavePluginConfig(_configuration);
 
     private void ApplySettings()
     {
@@ -110,21 +161,23 @@ public sealed class Plugin : IDalamudPlugin
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
 
         if (needsStoreReload)
-            _store = TranslationStore.Load(_configuration, DataManager, Log);
+            _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
 
         if (needsFontRebuild)
             _fontManager.Rebuild();
 
-        PluginInterface.SavePluginConfig(_configuration);
+        SaveConfiguration();
     }
 
     public void Dispose()
     {
         PluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
+        PluginInterface.UiBuilder.Draw -= OnTick;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
         CommandManager.RemoveHandler(CommandName);
 
+        _dataUpdater.Dispose();
         _talkHandler.Dispose();
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();

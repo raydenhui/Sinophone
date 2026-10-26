@@ -59,14 +59,20 @@ public sealed class TranslationStore
 
     /// <summary>
     /// Builds a store for the configured variant. Returns null when neither the
-    /// primary nor the fallback artifact could be read.
+    /// primary nor the fallback artifact could be read. The opener decides where
+    /// artifacts come from; the plugin prefers downloaded files and falls back to
+    /// the copies embedded in the assembly.
     /// </summary>
-    public static TranslationStore? Load(Configuration configuration, IDataManager dataManager, IPluginLog log)
+    public static TranslationStore? Load(
+        Configuration configuration,
+        IDataManager dataManager,
+        IPluginLog log,
+        Func<ChineseVariant, Stream?> openResource)
         => Load(
             SheetCatalog.Create(dataManager),
             configuration.Variant,
             configuration.UseFallbackVariant,
-            OpenResource,
+            openResource,
             log);
 
     /// <summary>
@@ -85,7 +91,7 @@ public sealed class TranslationStore
         var primary = LoadArtifact(variant, openResource, log);
         if (primary is null)
         {
-            log.Warning("[Sinophone] Primary artifact for {Variant} was not found in the assembly.", variant);
+            log.Warning("[Sinophone] Primary artifact for {Variant} was not available.", variant);
         }
 
         var fallback = useFallback
@@ -94,7 +100,7 @@ public sealed class TranslationStore
 
         if (primary is null && fallback is null)
         {
-            log.Error("[Sinophone] No translation artifacts are embedded. Talk text will not be translated.");
+            log.Error("[Sinophone] No translation artifacts are available. Talk text will not be translated.");
             return null;
         }
 
@@ -198,7 +204,8 @@ public sealed class TranslationStore
         }
     }
 
-    private static Stream? OpenResource(ChineseVariant variant)
+    /// <summary>Opens the artifact embedded in the plugin assembly, if present.</summary>
+    public static Stream? OpenEmbeddedResource(ChineseVariant variant)
     {
         var suffix = variant == ChineseVariant.Traditional ? ResourceTcSuffix : ResourceCnSuffix;
         var assembly = typeof(TranslationStore).Assembly;

@@ -22,6 +22,8 @@ public class ConfigurationTests
         Assert.Equal(620f, config.OverlayWidth);
         Assert.Equal(180f, config.OffsetFromBottom);
         Assert.Equal(string.Empty, config.CustomFontPath);
+        Assert.True(config.CheckForDataUpdates);
+        Assert.Equal(string.Empty, config.LastDataVersion);
     }
 
     [Fact]

@@ -52,4 +52,15 @@ public sealed class Configuration : IPluginConfiguration
     /// Optional path to a .ttf/.ttc/.otf file. Leave empty to use a Windows CJK system font.
     /// </summary>
     public string CustomFontPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Check the published translation data for a newer version when the plugin loads.
+    /// </summary>
+    public bool CheckForDataUpdates { get; set; } = true;
+
+    /// <summary>
+    /// Version of the translation data downloaded into the plugin config directory.
+    /// Empty when the copy embedded in the plugin is in use.
+    /// </summary>
+    public string LastDataVersion { get; set; } = string.Empty;
 }

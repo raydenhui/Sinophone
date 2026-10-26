@@ -8,25 +8,32 @@ namespace Sinophone.UI;
 public sealed class ConfigWindow : Window
 {
     private static readonly Vector4 SectionColor = new(1f, 0.82f, 0.38f, 1f);
+    private static readonly Vector4 ErrorColor = new(1f, 0.45f, 0.45f, 1f);
 
     private readonly Configuration _configuration;
     private readonly Action _applySettings;
     private readonly Action _showPreview;
     private readonly Func<string> _statusText;
+    private readonly TranslationDataUpdater _dataUpdater;
+    private readonly Func<string> _dataSourceText;
 
     public ConfigWindow(
         Configuration configuration,
         Action applySettings,
         Action showPreview,
-        Func<string> statusText)
+        Func<string> statusText,
+        TranslationDataUpdater dataUpdater,
+        Func<string> dataSourceText)
         : base("Sinophone###SinophoneConfig", ImGuiWindowFlags.NoCollapse)
     {
         _configuration = configuration;
         _applySettings = applySettings;
         _showPreview = showPreview;
         _statusText = statusText;
+        _dataUpdater = dataUpdater;
+        _dataSourceText = dataSourceText;
 
-        Size = new Vector2(480f, 660f);
+        Size = new Vector2(480f, 780f);
         SizeCondition = ImGuiCond.FirstUseEver;
         AllowPinning = false;
         ShowCloseButton = true;
@@ -42,6 +49,9 @@ public sealed class ConfigWindow : Window
         ImGui.Spacing();
 
         DrawOverlaySection();
+        ImGui.Spacing();
+
+        DrawDataSection();
         ImGui.Spacing();
 
         DrawStatusSection();
@@ -131,6 +141,42 @@ public sealed class ConfigWindow : Window
             ResetAll();
     }
 
+    private void DrawDataSection()
+    {
+        ImGui.TextColored(SectionColor, "Data");
+        ImGui.Separator();
+
+        ImGui.TextWrapped(_dataSourceText());
+
+        Checkbox("Check for data updates on load", _configuration.CheckForDataUpdates,
+            v => _configuration.CheckForDataUpdates = v);
+
+        var state = _dataUpdater.State;
+
+        if (state.IsBusy)
+        {
+            if (ImGui.Button("Cancel"))
+                _dataUpdater.Cancel();
+        }
+        else
+        {
+            if (ImGui.Button(state.HasUpdate ? "Download update" : "Download / update data"))
+                _dataUpdater.StartUpdate();
+
+            ImGui.SameLine();
+            if (ImGui.Button("Check for updates"))
+                _dataUpdater.StartCheck();
+        }
+
+        if (state.IsBusy)
+            ImGui.ProgressBar(state.Progress, new Vector2(-1f, 0f));
+
+        ImGui.TextWrapped(state.Status);
+
+        if (!string.IsNullOrEmpty(state.LastError))
+            ImGui.TextColored(ErrorColor, state.LastError);
+    }
+
     private void DrawStatusSection()
     {
         ImGui.Spacing();
@@ -180,6 +226,7 @@ public sealed class ConfigWindow : Window
         _configuration.OverlayWidth = defaults.OverlayWidth;
         _configuration.OffsetFromBottom = defaults.OffsetFromBottom;
         _configuration.CustomFontPath = defaults.CustomFontPath;
+        _configuration.CheckForDataUpdates = defaults.CheckForDataUpdates;
         _applySettings();
     }
 }
