@@ -105,24 +105,25 @@ public sealed class TalkHandler : IDisposable
         }
 
         _log.Info("[Sinophone] {Addon} supplied {Count} AtkValues.", addonName, count);
+        LogAtkValues(addonName, values, count);
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
         var englishName = _configuration.ShowSpeakerName
             ? ReadStringValue(values, NameValueIndex, count)
             : null;
 
-        _log.Debug("[Sinophone] {Event} for {Addon}: {TextLength} text chars, name: {HasName}.",
-            eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName));
-
-        if (!string.IsNullOrWhiteSpace(englishText))
-            _log.Debug("[Sinophone] {Addon} English text: {Text}", addonName, englishText);
+        _log.Info("[Sinophone] {Event} for {Addon}: {TextLength} text chars, name: {HasName}, text: {Text}",
+            eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName),
+            englishText ?? "(null)");
 
         var content = Resolve(store, _configuration, englishText, englishName);
 
         if (content is null)
         {
             _overlay.Hide();
-            _log.Info("[Sinophone] {Addon} line has no usable translation; overlay hidden.", addonName);
+            _log.Info("[Sinophone] {Addon} line has no usable translation; overlay hidden. " +
+                      "Text empty: {TextEmpty}, hide when no translation: {HideWhenMissing}.",
+                addonName, string.IsNullOrWhiteSpace(englishText), _configuration.HideWhenNoTranslation);
         }
         else
         {
@@ -160,6 +161,35 @@ public sealed class TalkHandler : IDisposable
     }
 
     internal readonly record struct OverlayContent(string ChineseText, string ChineseName);
+
+    /// <summary>
+    /// Diagnostic dump of every AtkValue in the event. Shows which index holds the
+    /// dialogue text and what the game actually passed.
+    /// </summary>
+    private unsafe void LogAtkValues(string addonName, AtkValue* values, uint count)
+    {
+        for (uint i = 0; i < count; i++)
+        {
+            ref var value = ref values[i];
+
+            if (value.Type != AtkValueType.String)
+            {
+                _log.Info("[Sinophone]   {Addon} AtkValue[{Index}] type {Type}.", addonName, i, value.Type);
+                continue;
+            }
+
+            var text = ReadStringValue(values, i, count);
+            if (text is null)
+            {
+                _log.Info("[Sinophone]   {Addon} AtkValue[{Index}] string, unreadable.", addonName, i);
+                continue;
+            }
+
+            var preview = text.Length > 120 ? string.Concat(text.AsSpan(0, 120), "...") : text;
+            _log.Info("[Sinophone]   {Addon} AtkValue[{Index}] string, {Length} chars: {Text}",
+                addonName, i, text.Length, preview);
+        }
+    }
 
     private static unsafe bool TryGetAtkValues(AddonArgs args, out AtkValue* values, out uint count)
     {
