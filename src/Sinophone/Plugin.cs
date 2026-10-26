@@ -14,6 +14,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IDataManager DataManager { get; private set; } = null!;
     [PluginService] public static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] public static ITargetManager TargetManager { get; private set; } = null!;
+    [PluginService] public static IGameGui GameGui { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
@@ -21,9 +22,11 @@ public sealed class Plugin : IDalamudPlugin
     private readonly FontManager _fontManager;
     private readonly OverlayWindow _overlay;
     private readonly TargetNameWindow _targetNameWindow;
+    private readonly ItemNameWindow _itemNameWindow;
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
     private readonly TargetNameHandler _targetNameHandler;
+    private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
 
     private TranslationStore? _store;
@@ -32,6 +35,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastFallback;
     private bool _lastEnabled;
     private bool _lastShowTargetName;
+    private bool _lastShowItemName;
     private bool _announceUpdate;
     private bool _updateWasBusy;
     private float _lastFontSize;
@@ -46,6 +50,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastFallback = _configuration.UseFallbackVariant;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
+        _lastShowItemName = _configuration.ShowItemName;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath;
 
@@ -57,6 +62,7 @@ public sealed class Plugin : IDalamudPlugin
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
+        _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -67,6 +73,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _windowSystem.AddWindow(_overlay);
         _windowSystem.AddWindow(_targetNameWindow);
+        _windowSystem.AddWindow(_itemNameWindow);
         _windowSystem.AddWindow(_configWindow);
 
         _talkHandler = new TalkHandler(AddonLifecycle, Log, _configuration, () => _store, _overlay);
@@ -76,6 +83,13 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _targetNameWindow);
+        _itemNameHandler = new ItemNameHandler(
+            GameGui,
+            DataManager,
+            _configuration,
+            () => _store,
+            _itemNameWindow,
+            Log);
 
         _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
 
@@ -231,6 +245,7 @@ public sealed class Plugin : IDalamudPlugin
         _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
         _overlay.Hide();
         _targetNameHandler.Refresh();
+        _itemNameHandler.Refresh();
     }
 
     private void SaveConfiguration()
@@ -249,10 +264,15 @@ public sealed class Plugin : IDalamudPlugin
                                  || _configuration.Enabled != _lastEnabled
                                  || _configuration.ShowTargetName != _lastShowTargetName;
 
+        var needsItemRefresh = needsStoreReload
+                               || _configuration.Enabled != _lastEnabled
+                               || _configuration.ShowItemName != _lastShowItemName;
+
         _lastVariant = _configuration.Variant;
         _lastFallback = _configuration.UseFallbackVariant;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
+        _lastShowItemName = _configuration.ShowItemName;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
 
@@ -271,6 +291,9 @@ public sealed class Plugin : IDalamudPlugin
         if (needsTargetRefresh)
             _targetNameHandler.Refresh();
 
+        if (needsItemRefresh)
+            _itemNameHandler.Refresh();
+
         SaveConfiguration();
     }
 
@@ -285,6 +308,7 @@ public sealed class Plugin : IDalamudPlugin
         _dataUpdater.Dispose();
         _talkHandler.Dispose();
         _targetNameHandler.Dispose();
+        _itemNameHandler.Dispose();
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();
     }
