@@ -1,0 +1,20 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+  <PropertyGroup>
+    <RootNamespace>Sinophone.IntegrationTests</RootNamespace>
+    <AssemblyName>Sinophone.IntegrationTests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sinophone\Sinophone.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DalaMock.Core" Version="6.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\fixtures\**\*" LinkBase="fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

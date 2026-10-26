@@ -88,35 +88,46 @@ public sealed class TalkHandler : IDisposable
             return;
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
-        if (string.IsNullOrWhiteSpace(englishText))
-        {
-            _overlay.Hide();
-            return;
-        }
-
         var englishName = _configuration.ShowSpeakerName
             ? ReadStringValue(values, NameValueIndex, count)
             : null;
 
+        var content = Resolve(store, _configuration, englishText, englishName);
+
+        if (content is null)
+            _overlay.Hide();
+        else
+            _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
+                englishName ?? string.Empty, isSubtitle);
+    }
+
+    /// <summary>
+    /// Decides what the overlay should show for one dialogue line. Pure apart from
+    /// the store lookup, so tests can call it without building addon args.
+    /// Returns null when nothing should be shown.
+    /// </summary>
+    internal static OverlayContent? Resolve(
+        TranslationStore store,
+        Configuration configuration,
+        string? englishText,
+        string? englishName)
+    {
+        if (string.IsNullOrWhiteSpace(englishText))
+            return null;
+
         var hasText = store.TryGetDialogue(englishText, out var chineseText);
 
-        if (!hasText && _configuration.HideWhenNoTranslation)
-        {
-            _overlay.Hide();
-            return;
-        }
+        if (!hasText && configuration.HideWhenNoTranslation)
+            return null;
 
         var chineseName = string.Empty;
-        if (_configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
+        if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
             store.TryGetName(englishName, out chineseName);
 
-        _overlay.SetContent(
-            chineseText ?? string.Empty,
-            englishText,
-            chineseName ?? string.Empty,
-            englishName ?? string.Empty,
-            isSubtitle);
+        return new OverlayContent(chineseText ?? string.Empty, chineseName ?? string.Empty);
     }
+
+    internal readonly record struct OverlayContent(string ChineseText, string ChineseName);
 
     private static unsafe bool TryGetAtkValues(AddonArgs args, out AtkValue* values, out uint count)
     {
