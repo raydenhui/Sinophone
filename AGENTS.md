@@ -75,7 +75,8 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
 
 Two files hold the same sheet list: `SheetCatalog.Create` and the `Sheets` array in
 `tools/Sinophone.DataPrep/Program.cs`. If you add, remove, or rename a sheet, change both in the
-same commit. A mismatch is silent: the artifact loads but rows are skipped.
+same commit. A mismatch is silent: the artifact loads but rows are skipped. The data workflow runs
+`--list-sheets` on the tool, so it does not keep a third copy of the list.
 
 ## Commands
 
@@ -114,6 +115,9 @@ dotnet test Sinophone.sln -c Release
 dotnet run --project tools/Sinophone.DataPrep -- \
   --source <csv-dir> --language CN \
   --output src/Sinophone/Resources/Sinophone.cn.json.gz --game-version <patch>
+
+# Print the sheet names the tool expects (the data workflow uses this)
+dotnet run --project tools/Sinophone.DataPrep -- --list-sheets
 ```
 
 The plugin finds artifacts by filename suffix (`Sinophone.cn.json.gz`, `Sinophone.tc.json.gz`).

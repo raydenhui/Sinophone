@@ -29,16 +29,32 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: List sheets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The sheet list lives in the DataPrep tool. Ask it instead of keeping
+          # a second copy here that could drift.
+          mapfile -t sheets < <(
+            dotnet run --project tools/Sinophone.DataPrep -c Release -- --list-sheets \
+              | sed -n 's/^sheet://p'
+          )
+
+          if (( ${#sheets[@]} == 0 )); then
+            echo "::error::DataPrep reported no sheets."
+            exit 1
+          fi
+
+          printf '%s\n' "${sheets[@]}" > sheets.txt
+          echo "Sheets: ${sheets[*]}"
+
       - name: Download datamining CSVs
         shell: bash
         run: |
           set -euo pipefail
 
-          sheets=(
-            DefaultTalk Balloon NpcYell InstanceContentTextData ContentTalk
-            SnipeTalk GuildleveAssignmentTalk CraftLeveTalk
-            ENpcResident BNpcName SnipeTalkName
-          )
+          mapfile -t sheets < sheets.txt
 
           mkdir -p csv/cn csv/tc
 
