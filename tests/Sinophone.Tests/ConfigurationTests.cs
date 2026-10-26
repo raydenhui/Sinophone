@@ -13,6 +13,8 @@ public class ConfigurationTests
         Assert.True(config.ShowInTalk);
         Assert.True(config.ShowInTalkSubtitle);
         Assert.True(config.ShowSpeakerName);
+        Assert.False(config.ShowTargetName);
+        Assert.Equal(170f, config.TargetNameOffsetY);
         Assert.True(config.ShowOriginal);
         Assert.True(config.HideWhenNoTranslation);
         Assert.True(config.LockOverlay);
@@ -24,6 +26,8 @@ public class ConfigurationTests
         Assert.Equal(string.Empty, config.CustomFontPath);
         Assert.True(config.CheckForDataUpdates);
         Assert.Equal(string.Empty, config.LastDataVersion);
+        Assert.False(config.HasSimplifiedData);
+        Assert.False(config.HasTraditionalData);
     }
 
     [Fact]

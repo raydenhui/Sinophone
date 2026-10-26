@@ -13,20 +13,25 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
     [PluginService] public static IDataManager DataManager { get; private set; } = null!;
     [PluginService] public static IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] public static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
     private readonly WindowSystem _windowSystem = new("Sinophone");
     private readonly FontManager _fontManager;
     private readonly OverlayWindow _overlay;
+    private readonly TargetNameWindow _targetNameWindow;
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
+    private readonly TargetNameHandler _targetNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
 
     private TranslationStore? _store;
 
     private ChineseVariant _lastVariant;
     private bool _lastFallback;
+    private bool _lastEnabled;
+    private bool _lastShowTargetName;
     private bool _announceUpdate;
     private bool _updateWasBusy;
     private float _lastFontSize;
@@ -39,6 +44,8 @@ public sealed class Plugin : IDalamudPlugin
 
         _lastVariant = _configuration.Variant;
         _lastFallback = _configuration.UseFallbackVariant;
+        _lastEnabled = _configuration.Enabled;
+        _lastShowTargetName = _configuration.ShowTargetName;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath;
 
@@ -49,6 +56,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
+        _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -58,11 +66,18 @@ public sealed class Plugin : IDalamudPlugin
             BuildDataSourceText);
 
         _windowSystem.AddWindow(_overlay);
+        _windowSystem.AddWindow(_targetNameWindow);
         _windowSystem.AddWindow(_configWindow);
 
         _talkHandler = new TalkHandler(AddonLifecycle, Log, _configuration, () => _store, _overlay);
+        _targetNameHandler = new TargetNameHandler(
+            AddonLifecycle,
+            TargetManager,
+            _configuration,
+            () => _store,
+            _targetNameWindow);
 
-        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -213,8 +228,9 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         SaveConfiguration();
-        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
         _overlay.Hide();
+        _targetNameHandler.Refresh();
     }
 
     private void SaveConfiguration()
@@ -229,16 +245,31 @@ public sealed class Plugin : IDalamudPlugin
                                || Math.Abs(_configuration.FontSize - _lastFontSize) > 0.01f
                                || !string.Equals(_configuration.CustomFontPath, _lastFontPath, StringComparison.OrdinalIgnoreCase);
 
+        var needsTargetRefresh = needsStoreReload
+                                 || _configuration.Enabled != _lastEnabled
+                                 || _configuration.ShowTargetName != _lastShowTargetName;
+
         _lastVariant = _configuration.Variant;
         _lastFallback = _configuration.UseFallbackVariant;
+        _lastEnabled = _configuration.Enabled;
+        _lastShowTargetName = _configuration.ShowTargetName;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
 
         if (needsStoreReload)
-            _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        {
+            _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
+
+            // The user now needs a variant that is not on disk.
+            if (!string.IsNullOrEmpty(_configuration.LastDataVersion) && _dataUpdater.IsMissingRequiredFile())
+                _dataUpdater.StartUpdate();
+        }
 
         if (needsFontRebuild)
             _fontManager.Rebuild();
+
+        if (needsTargetRefresh)
+            _targetNameHandler.Refresh();
 
         SaveConfiguration();
     }
@@ -253,6 +284,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _dataUpdater.Dispose();
         _talkHandler.Dispose();
+        _targetNameHandler.Dispose();
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();
     }

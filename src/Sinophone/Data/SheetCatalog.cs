@@ -110,6 +110,8 @@ public static class SheetCatalog
             static row => ExtractSingle(row.Singular));
         Add<BNpcName>(dataManager, descriptors, "BNpcName", "Singular", true,
             static row => ExtractSingle(row.Singular));
+        Add<EObjName>(dataManager, descriptors, "EObjName", "Singular", true,
+            static row => ExtractSingle(row.Singular));
         Add<SnipeTalkName>(dataManager, descriptors, "SnipeTalkName", "Name", true,
             static row => ExtractSingle(row.Name));
 

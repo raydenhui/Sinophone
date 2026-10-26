@@ -29,6 +29,15 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ShowSpeakerName { get; set; } = true;
 
+    /// <summary>
+    /// Show the Chinese name of the current target in a small overlay.
+    /// Off by default until the surface has been checked in game.
+    /// </summary>
+    public bool ShowTargetName { get; set; }
+
+    /// <summary>Distance in pixels from the top of the screen to the target name overlay.</summary>
+    public float TargetNameOffsetY { get; set; } = 170f;
+
     public bool ShowOriginal { get; set; } = true;
 
     /// <summary>
@@ -63,4 +72,10 @@ public sealed class Configuration : IPluginConfiguration
     /// Empty when the copy embedded in the plugin is in use.
     /// </summary>
     public string LastDataVersion { get; set; } = string.Empty;
+
+    /// <summary>True when the downloaded Simplified artifact matches <see cref="LastDataVersion"/>.</summary>
+    public bool HasSimplifiedData { get; set; }
+
+    /// <summary>True when the downloaded Traditional artifact matches <see cref="LastDataVersion"/>.</summary>
+    public bool HasTraditionalData { get; set; }
 }
