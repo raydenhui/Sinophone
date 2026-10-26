@@ -94,17 +94,30 @@ jobs:
           cn_sha=$(sha256sum out/Sinophone.cn.json.gz | cut -d' ' -f1)
           tc_sha=$(sha256sum out/Sinophone.tc.json.gz | cut -d' ' -f1)
 
-          # The version is derived from the content, so an unchanged weekly run
-          # keeps the same version and clients do not download again.
-          version=$(printf '%s%s' "$cn_sha" "$tc_sha" | sha256sum | cut -c1-16)
-
-          python3 - "$version" "$cn_sha" "$tc_sha" <<'PY'
+          python3 - "$cn_sha" "$tc_sha" <<'PY'
           import datetime
+          import gzip
+          import hashlib
           import json
           import os
           import sys
 
-          version, cn_sha, tc_sha = sys.argv[1:4]
+          cn_sha, tc_sha = sys.argv[1:3]
+
+          def sheets_digest(path):
+              with gzip.open(path, "rt", encoding="utf-8") as file:
+                  artifact = json.load(file)
+
+              # The version must change only when the translation data changes.
+              # GeneratedAt and GameVersion change on every build, so leave them out.
+              canonical = json.dumps(
+                  artifact["Sheets"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+              )
+              return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+          cn_digest = sheets_digest("out/Sinophone.cn.json.gz")
+          tc_digest = sheets_digest("out/Sinophone.tc.json.gz")
+          version = hashlib.sha256((cn_digest + tc_digest).encode("utf-8")).hexdigest()[:16]
 
           manifest = {
               "formatVersion": 1,
@@ -123,7 +136,33 @@ jobs:
           print(f"version {version}")
           PY
 
+      - name: Compare with the published data
+        id: compare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          published=""
+          mkdir -p published
+          if gh release download data --pattern manifest.json --dir published --clobber 2>/dev/null; then
+            published=$(python3 -c "import json; print(json.load(open('published/manifest.json')).get('version', ''))")
+          fi
+
+          built=$(python3 -c "import json; print(json.load(open('out/manifest.json'))['version'])")
+          echo "Published version: ${published:-none}"
+          echo "Built version:     $built"
+
+          if [[ -n "$published" && "$published" == "$built" ]]; then
+            echo "The translation data has not changed. Skipping the upload."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish data release
+        if: steps.compare.outputs.changed == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
