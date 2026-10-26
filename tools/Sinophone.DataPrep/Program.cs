@@ -130,6 +130,15 @@ internal static class Program
             return 2;
         }
 
+        if (options.ListSheets)
+        {
+            // The data workflow reads this list instead of keeping its own copy.
+            foreach (var spec in Sheets)
+                Console.WriteLine($"sheet:{spec.Sheet}");
+
+            return 0;
+        }
+
         if (options.FixtureOutputDirectory is not null)
         {
             return FixtureBuilder.Run(
@@ -310,6 +319,7 @@ internal static class Program
         Console.WriteLine("Usage:");
         Console.WriteLine("  Sinophone.DataPrep --source <csv-directory> --language <CN|TC> --output <file.json.gz> [--game-version <version>]");
         Console.WriteLine("  Sinophone.DataPrep --fixture --source <cn-csv> --tc-source <tc-csv> --en-source <en-csv> --fixture-output <dir> [--rows <n>]");
+        Console.WriteLine("  Sinophone.DataPrep --list-sheets");
         Console.WriteLine();
         Console.WriteLine("Example:");
         Console.WriteLine(@"  Sinophone.DataPrep --source C:\ffxiv-datamining-cn --language CN --output ..\src\Sinophone\Resources\Sinophone.cn.json.gz --game-version 7.4");
@@ -334,6 +344,9 @@ internal static class Program
         public string OutputPath { get; private init; } = string.Empty;
         public string GameVersion { get; private init; } = "unknown";
 
+        /// <summary>Print the sheet names the tool expects and exit.</summary>
+        public bool ListSheets { get; private init; }
+
         /// <summary>Set when building the test fixture instead of a full artifact.</summary>
         public string? FixtureOutputDirectory { get; private init; }
         public string? FixtureTcSource { get; private init; }
@@ -351,6 +364,7 @@ internal static class Program
             var gameVersion = "unknown";
             var rowCount = 8;
             var fixture = false;
+            var listSheets = false;
 
             for (var i = 0; i < args.Length; i++)
             {
@@ -378,6 +392,9 @@ internal static class Program
                     case "--fixture":
                         fixture = true;
                         break;
+                    case "--list-sheets":
+                        listSheets = true;
+                        break;
                     case "--fixture-output":
                         fixtureOutput = value ?? throw new ArgumentException("--fixture-output requires a directory.");
                         i++;
@@ -402,6 +419,9 @@ internal static class Program
                         throw new ArgumentException($"Unknown argument: {arg}");
                 }
             }
+
+            if (listSheets)
+                return new Options { ListSheets = true };
 
             if (string.IsNullOrWhiteSpace(source))
                 throw new ArgumentException("--source is required.");
