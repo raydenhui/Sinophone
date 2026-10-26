@@ -87,6 +87,10 @@ public sealed class TranslationDataUpdater : IDisposable
         return TranslationStore.OpenEmbeddedResource(variant);
     }
 
+    /// <summary>True when a file the current settings need is not on disk.</summary>
+    public bool IsMissingRequiredFile()
+        => RequiredVariants().Any(variant => !File.Exists(DataFilePath(variant)));
+
     /// <summary>Checks the release manifest without downloading anything.</summary>
     public void StartCheck() => Start("Checking for updates...", CheckAsync);
 
@@ -135,10 +139,23 @@ public sealed class TranslationDataUpdater : IDisposable
         }
     }
 
-    /// <summary>True when the published version differs from the installed one.</summary>
-    internal static bool ShouldUpdate(string? installedVersion, string? publishedVersion)
-        => !string.IsNullOrWhiteSpace(publishedVersion)
-           && !string.Equals(installedVersion ?? string.Empty, publishedVersion, StringComparison.Ordinal);
+    /// <summary>
+    /// The variants that should be on disk: the configured one, plus the other
+    /// one when fallback is on.
+    /// </summary>
+    internal static IReadOnlyList<ChineseVariant> RequiredVariants(ChineseVariant variant, bool useFallback)
+        => useFallback ? [variant, Other(variant)] : [variant];
+
+    /// <summary>True when the file on disk is the published version and usable.</summary>
+    internal static bool IsCurrent(
+        string? installedVersion,
+        string publishedVersion,
+        bool hasFlag,
+        bool fileExists)
+        => hasFlag
+           && fileExists
+           && !string.IsNullOrWhiteSpace(publishedVersion)
+           && string.Equals(installedVersion ?? string.Empty, publishedVersion, StringComparison.Ordinal);
 
     internal static bool TryValidateArtifact(string path, out string error)
     {
@@ -264,7 +281,7 @@ public sealed class TranslationDataUpdater : IDisposable
             return;
         }
 
-        var available = ShouldUpdate(_configuration.LastDataVersion, manifest.Version);
+        var available = NeedsUpdate(manifest);
 
         SetState(s => s with
         {
@@ -284,7 +301,7 @@ public sealed class TranslationDataUpdater : IDisposable
         if (manifest.FormatVersion != 1)
             throw new InvalidOperationException($"Unsupported data format version {manifest.FormatVersion}.");
 
-        if (!ShouldUpdate(_configuration.LastDataVersion, manifest.Version))
+        if (!NeedsUpdate(manifest))
         {
             SetState(s => s with
             {
@@ -295,23 +312,47 @@ public sealed class TranslationDataUpdater : IDisposable
             return;
         }
 
+        // A file from an older version is not current until it is downloaded again.
+        if (!string.Equals(_configuration.LastDataVersion, manifest.Version, StringComparison.Ordinal))
+        {
+            _configuration.HasSimplifiedData = false;
+            _configuration.HasTraditionalData = false;
+        }
+
+        var pending = RequiredVariants()
+            .Where(variant => !IsCurrent(variant, manifest.Version))
+            .ToList();
+
         Directory.CreateDirectory(_dataDirectory);
 
-        SetState(s => s with { Progress = 0.1f, Status = "Downloading simplified Chinese data..." });
-        await DownloadArtifactAsync(
-                TranslationStore.ResourceCnSuffix,
-                manifest.CnSha256,
-                DataFilePath(ChineseVariant.Simplified),
-                token)
-            .ConfigureAwait(false);
+        for (var i = 0; i < pending.Count; i++)
+        {
+            token.ThrowIfCancellationRequested();
 
-        SetState(s => s with { Progress = 0.55f, Status = "Downloading traditional Chinese data..." });
-        await DownloadArtifactAsync(
-                TranslationStore.ResourceTcSuffix,
-                manifest.TcSha256,
-                DataFilePath(ChineseVariant.Traditional),
-                token)
-            .ConfigureAwait(false);
+            var variant = pending[i];
+
+            SetState(s => s with
+            {
+                Progress = 0.1f + 0.8f * i / pending.Count,
+                Status = $"Downloading {Describe(variant)} data...",
+            });
+
+            var fileName = variant == ChineseVariant.Traditional
+                ? TranslationStore.ResourceTcSuffix
+                : TranslationStore.ResourceCnSuffix;
+
+            var checksum = variant == ChineseVariant.Traditional
+                ? manifest.TcSha256
+                : manifest.CnSha256;
+
+            await DownloadArtifactAsync(fileName, checksum, DataFilePath(variant), token)
+                .ConfigureAwait(false);
+
+            if (variant == ChineseVariant.Traditional)
+                _configuration.HasTraditionalData = true;
+            else
+                _configuration.HasSimplifiedData = true;
+        }
 
         // The caller persists the configuration on the game thread when it
         // handles the reload request; config writes stay off this worker.
@@ -322,7 +363,10 @@ public sealed class TranslationDataUpdater : IDisposable
             _reloadRequested = true;
         }
 
-        _log.Info("[Sinophone] Installed translation data version {Version}.", manifest.Version);
+        _log.Info(
+            "[Sinophone] Installed translation data version {Version} ({Variants}).",
+            manifest.Version,
+            string.Join(", ", pending));
 
         SetState(s => s with
         {
@@ -402,6 +446,31 @@ public sealed class TranslationDataUpdater : IDisposable
             return null;
         }
     }
+
+    private IReadOnlyList<ChineseVariant> RequiredVariants()
+        => RequiredVariants(_configuration.Variant, _configuration.UseFallbackVariant);
+
+    private bool NeedsUpdate(TranslationDataManifest manifest)
+        => RequiredVariants().Any(variant => !IsCurrent(variant, manifest.Version));
+
+    private bool IsCurrent(ChineseVariant variant, string publishedVersion)
+    {
+        var hasFlag = variant == ChineseVariant.Traditional
+            ? _configuration.HasTraditionalData
+            : _configuration.HasSimplifiedData;
+
+        return IsCurrent(
+            _configuration.LastDataVersion,
+            publishedVersion,
+            hasFlag,
+            File.Exists(DataFilePath(variant)));
+    }
+
+    private static ChineseVariant Other(ChineseVariant variant)
+        => variant == ChineseVariant.Traditional ? ChineseVariant.Simplified : ChineseVariant.Traditional;
+
+    private static string Describe(ChineseVariant variant)
+        => variant == ChineseVariant.Traditional ? "traditional Chinese" : "simplified Chinese";
 
     private void SetState(Func<DataUpdateState, DataUpdateState> update)
     {

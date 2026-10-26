@@ -72,4 +72,10 @@ public sealed class Configuration : IPluginConfiguration
     /// Empty when the copy embedded in the plugin is in use.
     /// </summary>
     public string LastDataVersion { get; set; } = string.Empty;
+
+    /// <summary>True when the downloaded Simplified artifact matches <see cref="LastDataVersion"/>.</summary>
+    public bool HasSimplifiedData { get; set; }
+
+    /// <summary>True when the downloaded Traditional artifact matches <see cref="LastDataVersion"/>.</summary>
+    public bool HasTraditionalData { get; set; }
 }

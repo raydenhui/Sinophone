@@ -67,11 +67,16 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
 - The manifest `version` is a hash of both artifacts, not a date. Unchanged data keeps the same
   version, so clients do not download again. `Configuration.LastDataVersion` records what is
   installed.
+- Only the configured variant is downloaded; the other one is fetched when fallback is on.
+  `HasSimplifiedData` and `HasTraditionalData` say which files match `LastDataVersion`, so a file
+  left over from an older version is not mistaken for current data.
 - `manifest.json` has an optional checksum per artifact. Downloads go to a `.download` temp file and
   are only moved into place after the gzip, artifact format version, and sheet count are validated.
   Keep that order: a partial file must never replace working data.
 - A completed download only raises a flag. `Plugin.OnTick` rebuilds the store on the game thread.
   Do not touch windows, fonts, or Lumina sheets from the updater's worker task.
+- If a downloaded file cannot be parsed, `TranslationStore` retries with the embedded copy instead
+  of running with no translations. The fallback opener is passed in by `Plugin`.
 - Bump `formatVersion` only together with a change to `TranslationArtifact`, and keep the updater
   rejecting versions it does not understand.
 
