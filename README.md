@@ -2,22 +2,19 @@
 
 A [Dalamud](https://github.com/goatcorp/Dalamud) plugin for **Final Fantasy XIV** that displays the
 official Simplified (CN) or Traditional (TC) Chinese translation of dialogue in an overlay above the
-game's Talk window, alongside the English original.
+game's Talk window.
 
 ## Game language support
 
 Currently only the **English** client is supported: dialogue is matched by the English text the
 game displays, which is then mapped to Chinese.
 
-Support for the other three game languages — **Japanese, German, and French** — is planned. Those
-clients need their own text indexed against the Chinese sheets, so each one requires additional
-lookup data rather than just a settings toggle.
+Support for the other three game languages — **Japanese, German, and French** — is planned.
 
 ## Requirements
 
 - Dalamud API 15 (`Dalamud.NET.SDK/15.0.0`)
 - .NET 10 (`net10.0-windows7.0`)
-- Windows (`win-x64`)
 
 ## Status
 
