@@ -45,7 +45,7 @@ public sealed class TranslationDataUpdater : IDisposable
 
     private DataUpdateState _state = new(false, "Not checked yet.", 0f, false, null);
     private CancellationTokenSource? _cts;
-    private bool _reloadRequested;
+    private volatile bool _reloadRequested;
     private bool _disposed;
 
     public TranslationDataUpdater(Configuration configuration, string dataDirectory, IPluginLog log)
@@ -112,6 +112,10 @@ public sealed class TranslationDataUpdater : IDisposable
     /// </summary>
     public bool ConsumeReloadRequest()
     {
+        // Called every frame, so the common case must not take the lock.
+        if (!_reloadRequested)
+            return false;
+
         lock (_gate)
         {
             if (!_reloadRequested)
