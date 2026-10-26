@@ -30,7 +30,8 @@ src/Sinophone/
   Configuration.cs        Saved settings. Changing a field changes the config schema.
   Data/
     TranslationArtifact.cs  Artifact shape: Sheets[sheet][rowId][field] = string[]
-    TranslationStore.cs     Loads embedded artifacts. Builds English -> Chinese lookups.
+    TranslationStore.cs     Loads artifacts. Builds English -> Chinese lookups.
+    TranslationDataUpdater.cs Downloads published artifacts into the plugin config directory.
     SheetCatalog.cs         Which game sheets to index and how to read each one.
     MacroNormalizer.cs      Text cleanup for matching and for display.
   Handlers/
@@ -46,11 +47,31 @@ tools/Sinophone.DataPrep/
 Data flow, in order:
 
 ```
-CSV dump --(DataPrep)--> Sinophone.<lang>.json.gz --(embedded)--> TranslationStore
+CSV dump --(DataPrep)--> Sinophone.<lang>.json.gz --(embedded or data release)--> TranslationStore
 live game sheet row --(SheetCatalog)--> English text --(MacroNormalizer)--> dictionary key
 Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> Chinese
 Chinese --(OverlayWindow)--> screen
 ```
+
+### Runtime data updates
+
+The plugin reads artifacts from its config directory first and falls back to the copies embedded in
+the assembly. `TranslationDataUpdater` fills that directory from the `data` GitHub release, which
+`.github/workflows/data.yml` rebuilds weekly from the datamining CSVs.
+
+- The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
+  `Sinophone.tc.json.gz`. The base URL is hardcoded in `TranslationDataUpdater`; renaming the
+  repository breaks every installed copy.
+- The manifest `version` is a hash of both artifacts, not a date. Unchanged data keeps the same
+  version, so clients do not download again. `Configuration.LastDataVersion` records what is
+  installed.
+- `manifest.json` has an optional checksum per artifact. Downloads go to a `.download` temp file and
+  are only moved into place after the gzip, artifact format version, and sheet count are validated.
+  Keep that order: a partial file must never replace working data.
+- A completed download only raises a flag. `Plugin.OnTick` rebuilds the store on the game thread.
+  Do not touch windows, fonts, or Lumina sheets from the updater's worker task.
+- Bump `formatVersion` only together with a change to `TranslationArtifact`, and keep the updater
+  rejecting versions it does not understand.
 
 Two files hold the same sheet list: `SheetCatalog.Create` and the `Sheets` array in
 `tools/Sinophone.DataPrep/Program.cs`. If you add, remove, or rename a sheet, change both in the
