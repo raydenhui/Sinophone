@@ -24,6 +24,8 @@ public class ConfigurationTests
         Assert.Equal(string.Empty, config.CustomFontPath);
         Assert.True(config.CheckForDataUpdates);
         Assert.Equal(string.Empty, config.LastDataVersion);
+        Assert.False(config.HasSimplifiedData);
+        Assert.False(config.HasTraditionalData);
     }
 
     [Fact]

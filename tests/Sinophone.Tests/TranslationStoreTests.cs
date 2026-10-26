@@ -13,6 +13,45 @@ public class TranslationStoreTests
     private const string FieldName = "Text[0]";
     private const string NameFieldName = "Singular";
 
+    [Fact]
+    public void Load_FallsBackToEmbedded_WhenPrimaryArtifactIsBroken()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var embedded = Artifact("TC", (SheetName, FieldName, 1, "你好。"));
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => new MemoryStream(new byte[] { 1, 2, 3, 4 }),
+            new FakePluginLog(),
+            _ => ToGzipStream(embedded));
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello there.", out var chinese));
+        Assert.Equal("你好。", chinese);
+    }
+
+    [Fact]
+    public void Load_UsesPrimary_WhenItIsValid()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var downloaded = Artifact("TC", (SheetName, FieldName, 1, "下載"));
+        var embedded = Artifact("TC", (SheetName, FieldName, 1, "內建"));
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(downloaded),
+            new FakePluginLog(),
+            _ => ToGzipStream(embedded));
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello there.", out var chinese));
+        Assert.Equal("下載", chinese);
+    }
+
     private static FakeSheetDescriptor TalkSheet(params (uint RowId, string Text)[] rows)
         => new(SheetName, FieldName, false,
             rows.ToDictionary(r => r.RowId, r => new[] { r.Text }));

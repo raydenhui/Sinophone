@@ -59,7 +59,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _talkHandler = new TalkHandler(AddonLifecycle, Log, _configuration, () => _store, _overlay);
 
-        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -139,7 +139,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         SaveConfiguration();
-        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
         _overlay.Hide();
     }
 
@@ -161,7 +161,13 @@ public sealed class Plugin : IDalamudPlugin
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
 
         if (needsStoreReload)
-            _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData);
+        {
+            _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
+
+            // The user now needs a variant that is not on disk.
+            if (!string.IsNullOrEmpty(_configuration.LastDataVersion) && _dataUpdater.IsMissingRequiredFile())
+                _dataUpdater.StartUpdate();
+        }
 
         if (needsFontRebuild)
             _fontManager.Rebuild();

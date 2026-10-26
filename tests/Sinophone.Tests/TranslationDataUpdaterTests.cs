@@ -7,15 +7,32 @@ namespace Sinophone.Tests;
 public class TranslationDataUpdaterTests
 {
     [Theory]
-    [InlineData(null, "abc", true)]
-    [InlineData("", "abc", true)]
-    [InlineData("abc", "abc", false)]
-    [InlineData("abc", "def", true)]
-    [InlineData("abc", null, false)]
-    [InlineData("abc", "", false)]
-    public void ShouldUpdate_ComparesPublishedVersionWithInstalled(
-        string? installed, string? published, bool expected)
-        => Assert.Equal(expected, TranslationDataUpdater.ShouldUpdate(installed, published));
+    [InlineData("abc", "abc", true, true, true)]
+    [InlineData("abc", "def", true, true, false)]
+    [InlineData(null, "abc", true, true, false)]
+    [InlineData("abc", "abc", false, true, false)]
+    [InlineData("abc", "abc", true, false, false)]
+    [InlineData("abc", "", true, true, false)]
+    public void IsCurrent_RequiresVersionFlagAndFile(
+        string? installed, string published, bool hasFlag, bool fileExists, bool expected)
+        => Assert.Equal(expected, TranslationDataUpdater.IsCurrent(installed, published, hasFlag, fileExists));
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 2)]
+    public void RequiredVariants_FollowsFallback(bool useFallback, int expected)
+        => Assert.Equal(
+            expected,
+            TranslationDataUpdater.RequiredVariants(ChineseVariant.Traditional, useFallback).Count);
+
+    [Fact]
+    public void RequiredVariants_PutsTheConfiguredVariantFirst()
+    {
+        var variants = TranslationDataUpdater.RequiredVariants(ChineseVariant.Simplified, true);
+
+        Assert.Equal(ChineseVariant.Simplified, variants[0]);
+        Assert.Equal(ChineseVariant.Traditional, variants[1]);
+    }
 
     [Fact]
     public void TryValidateArtifact_AcceptsArtifactWithSheets()

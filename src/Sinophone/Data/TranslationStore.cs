@@ -67,13 +67,15 @@ public sealed class TranslationStore
         Configuration configuration,
         IDataManager dataManager,
         IPluginLog log,
-        Func<ChineseVariant, Stream?> openResource)
+        Func<ChineseVariant, Stream?> openResource,
+        Func<ChineseVariant, Stream?>? fallbackResource = null)
         => Load(
             SheetCatalog.Create(dataManager),
             configuration.Variant,
             configuration.UseFallbackVariant,
             openResource,
-            log);
+            log,
+            fallbackResource);
 
     /// <summary>
     /// Builds a store from explicit inputs. Tests use this to supply their own
@@ -84,18 +86,19 @@ public sealed class TranslationStore
         ChineseVariant variant,
         bool useFallback,
         Func<ChineseVariant, Stream?> openResource,
-        IPluginLog log)
+        IPluginLog log,
+        Func<ChineseVariant, Stream?>? fallbackResource = null)
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var primary = LoadArtifact(variant, openResource, log);
+        var primary = LoadArtifact(variant, openResource, fallbackResource, log);
         if (primary is null)
         {
             log.Warning("[Sinophone] Primary artifact for {Variant} was not available.", variant);
         }
 
         var fallback = useFallback
-            ? LoadArtifact(Other(variant), openResource, log)
+            ? LoadArtifact(Other(variant), openResource, fallbackResource, log)
             : null;
 
         if (primary is null && fallback is null)
@@ -184,6 +187,23 @@ public sealed class TranslationStore
     }
 
     private static TranslationArtifact? LoadArtifact(
+        ChineseVariant variant,
+        Func<ChineseVariant, Stream?> openResource,
+        Func<ChineseVariant, Stream?>? fallbackResource,
+        IPluginLog log)
+    {
+        var artifact = TryLoadArtifact(variant, openResource, log);
+
+        if (artifact is not null || fallbackResource is null)
+            return artifact;
+
+        // The primary stream exists but could not be read. Keep working with the
+        // copy shipped in the assembly instead of running with no translations.
+        log.Warning("[Sinophone] Could not read the {Variant} artifact. Using the embedded copy.", variant);
+        return TryLoadArtifact(variant, fallbackResource, log);
+    }
+
+    private static TranslationArtifact? TryLoadArtifact(
         ChineseVariant variant,
         Func<ChineseVariant, Stream?> openResource,
         IPluginLog log)
