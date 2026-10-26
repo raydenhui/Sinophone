@@ -16,6 +16,17 @@ Support for the other three game languages — **Japanese, German, and French** 
 - Dalamud API 15 (`Dalamud.NET.SDK/15.0.0`)
 - .NET 10 (`net10.0-windows7.0`)
 
+## Install
+
+Sinophone is not in the official Dalamud plugin list. Add it as a custom repository:
+
+1. Open Dalamud settings (`/xlsettings`) and go to **Experimental** → **Custom Plugin Repositories**.
+2. Add `https://raw.githubusercontent.com/raydenhui/Sinophone/main/pluginmaster.json` and save.
+3. Open the plugin installer, search for **Sinophone**, and install it.
+
+On first use, run `/sinophone` and click **Download / update data**. Translation data is downloaded
+separately so it can be updated without a new plugin build.
+
 ## Status
 
 **Early development.** The plugin is a scaffold: core dialogue lookup, overlay rendering, and

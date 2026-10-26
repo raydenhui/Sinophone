@@ -175,6 +175,16 @@ as `data`, `ui`, `handler`, `tooling`.
 
 Never force-push to `main`. Never commit to `main` directly.
 
+### Releases
+
+Push a `vX.Y.Z` tag to release. `.github/workflows/release.yml` builds `latest.zip` with the
+Dalamud packager, attaches it to the release, and updates `pluginmaster.json` on `main` with the
+assembly version and a new `LastUpdate`.
+
+`pluginmaster.json` is the custom repository manifest users add in Dalamud. Its download links point
+at `releases/latest/download/latest.zip`, so they do not change per release. Keep the `data` release
+separate and out of "latest": it holds translation data, not plugin builds.
+
 ## Testing
 
 ### Unit tests
