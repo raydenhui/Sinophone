@@ -263,6 +263,9 @@ When a change needs in-game testing, put a checklist in the pull request body:
 
 Fill in the real steps and expected result. Do not write "test in game" and stop.
 
+Native text mode has a longer list that covers wrapping, stale text, and the font mod. Run
+[docs/native-mode-checklist.md](docs/native-mode-checklist.md) for every change to that path.
+
 ## Logging and performance
 
 ### Logging
