@@ -57,6 +57,17 @@ Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> 
 Chinese --(OverlayWindow)--> screen
 ```
 
+### Overlay window
+
+`OverlayWindow` is a Dalamud `Window`. Two Dalamud details are easy to get wrong:
+
+- `AllowClickthrough` only controls whether the title bar's "Make clickthrough" option exists.
+  `IsClickthrough` is the real state. Dalamud applies `NoInputs` only when `IsClickthrough` is true,
+  so set both.
+- Dalamud re-applies a non-null `Window.Position` every frame. Setting it once keeps forcing it
+  unless the plugin sets `Position = null`. The overlay snaps only on first show or while
+  `LockOverlay` is on, and clears `Position` otherwise so a drag sticks.
+
 ### Runtime data updates
 
 The plugin reads artifacts from its config directory first and falls back to the copies embedded in
@@ -385,7 +396,9 @@ premature interface.
 - **Exact match.** After normalization, a line must match exactly. One different character means
   a miss.
 - **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
-  not.
+  not. Some Talk windows show text that is not in the indexed sheets at all. Sundhimal's
+  "aetherial travel" line is absent from `DefaultTalk`, `Balloon`, and `CustomTalk`, so it stays
+  untranslated. Check the live sheet with a diagnostic test before assuming a lookup bug.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
