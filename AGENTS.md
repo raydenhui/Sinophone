@@ -224,22 +224,17 @@ copied next to the test assemblies. Without that, tests fail at runtime with
 ### Integration tests
 
 These cover the parts that wire systems together. Put them in `tests/Sinophone.IntegrationTests`.
+They use the checked-in fixture and run offline, so they do not need a game install.
 
 Required coverage:
 
 - `TranslationStore.Load` reads the fixture artifacts and resolves every fixture row.
 - The artifact on disk has the shape `TranslationStore` and `SheetCatalog` expect.
 - `TalkHandler.Resolve` picks the right content for a line, for both variants.
-- DalaMock can build a container with every service the plugin asks for.
 
-The DalaMock tests skip themselves when no FFXIV install is found, because DalaMock needs the
-game's sqpack files. Set `SINOPHONE_FFXIV_PATH` to the `sqpack` folder inside the install's
-`game/` folder, for example `...\FINAL FANTASY XIV Online\game\sqpack`. Pointing it at the
-folder above `sqpack` makes DalaMock report the path as invalid.
-
-DalaMock cannot drive addon events: `MockAddonLifecycle` accepts listeners and never calls them,
-and Dalamud keeps the addon args constructors internal. Do not try to fake addon events. Test the
-decision logic directly through `TalkHandler.Resolve`, and cover the rest in game.
+Addon events cannot be tested outside the game. Dalamud keeps the addon args constructors
+internal, so do not try to fake them. Test the decision logic directly through
+`TalkHandler.Resolve`, and cover the rest with the in-game checklist.
 
 ### Test data
 
@@ -251,17 +246,10 @@ variants, plus the English text in `rows.json`. It is checked in, so tests are f
 Regenerate it with `scripts/Update-TestFixture.ps1`, which runs DataPrep's `--fixture` mode. Never
 hand-edit `rows.json` or the `.json.gz` files.
 
-### DalaMock
-
-DalaMock runs the plugin outside the game. Use `DalaMock.Core` (currently 6.2.1, which targets
-`net10.0-windows7.0`). Build a `MockContainer` with `CreateWindow = false` and `askPath: false`;
-without those two flags it opens an ImGui window and a native folder picker.
-
-Do not mock what you can test directly. `MacroNormalizer` is a static class with no services;
-test it plainly.
-
 ### Writing tests
 
+- Do not mock what you can test directly. `MacroNormalizer` is a static class with no services;
+  test it plainly.
 - Each test checks one behaviour, and the name says which: `Load_FallsBackToOtherVariant_ForMissingKeys`.
 - A failing test should tell you what broke. Assert on the specific value, not just "not null".
 - When a test fails, decide whether the test or the code is wrong before changing either.
@@ -405,9 +393,7 @@ premature interface.
 - **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
   not. Some Talk windows show text that is not in the indexed sheets at all. Sundhimal's
   "aetherial travel" line is absent from `DefaultTalk`, `Balloon`, and `CustomTalk`, so it stays
-  untranslated. Before assuming a lookup bug, search the live sheets with
-  `tests/Sinophone.IntegrationTests/SundhimalDiagnosisTests.cs`. It writes matches to
-  `%TEMP%\sinophone-sundhimal.txt`.
+  untranslated. Check the datamining CSVs before assuming a lookup bug.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
@@ -420,7 +406,6 @@ premature interface.
 - [Dalamud source](https://github.com/goatcorp/Dalamud)
 - [ffxiv-datamining-cn](https://github.com/thewakingsands/ffxiv-datamining-cn)
 - [ffxiv-datamining-tc](https://github.com/thewakingsands/ffxiv-datamining-tc)
-- [DalaMock](https://github.com/Critical-Impact/DalaMock)
 - [AGENTS.md format](https://agents.md/)
 - [docs/text-coverage.md](docs/text-coverage.md) — which game sheets carry text, which are indexed,
   and the order to add the rest.
