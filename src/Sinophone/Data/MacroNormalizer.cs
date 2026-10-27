@@ -95,11 +95,23 @@ public static partial class MacroNormalizer
                 case '‌': // zero width non-joiner
                 case '‍': // zero width joiner
                 case '﻿': // zero width no-break space / BOM
+                case '�': // replacement character from malformed UTF-8
                     continue;
                 case ' ': // non-breaking space
                     builder.Append(' ');
                     break;
+                case '\t': // whitespace stays so key collapsing and display
+                case '\n': // line breaks keep working
+                case '\r':
+                    builder.Append(ch);
+                    break;
                 default:
+                    // The Talk addon wraps oblique words in raw SeString control
+                    // bytes (U+0002, U+0003, etc.). The sheet text has no such
+                    // markers, so drop every other control character.
+                    if (char.IsControl(ch))
+                        continue;
+
                     builder.Append(ch);
                     break;
             }
