@@ -29,8 +29,10 @@ separately so it can be updated without a new plugin build.
 
 ## Status
 
-**Early development.** The plugin is a scaffold: core dialogue lookup, overlay rendering, and
-settings are in place, but translation data, features, and settings may change without notice.
+**Not usable yet.** Some NPC dialogue is still not detected, so the overlay misses lines during
+normal play. Settings and the translation data format may change without notice.
+
+The first usable release is planned for **0.2.0**. Until then, expect gaps and changes.
 
 ## License
 
