@@ -35,16 +35,6 @@
         "resolved": "4.0.1",
         "contentHash": "8CoAaZkniVekR1ycJyxn+hOz+6ZQCDPcoIsIs6ujd4WyFcBMlxGNU15Qb8Uxd4iO4UmOuETb0M6vzBbwX/mfLA=="
       },
-      "Xunit.SkippableFact": {
-        "type": "Direct",
-        "requested": "[1.5.85, )",
-        "resolved": "1.5.85",
-        "contentHash": "zI3QsePulfENNjZC+POQYtqt/9HkUfe6qq+waSJ1xGVMU9v8LyWbr695IRAgg+UYDkPUgGnBjyULIVQ9Qdpgsg==",
-        "dependencies": {
-          "Validation": "2.6.68",
-          "xunit.extensibility.execution": "2.4.0"
-        }
-      },
       "DalamudPackager": {
         "type": "Transitive",
         "resolved": "15.0.0",
@@ -67,11 +57,6 @@
         "dependencies": {
           "Microsoft.TestPlatform.ObjectModel": "18.11.0"
         }
-      },
-      "Validation": {
-        "type": "Transitive",
-        "resolved": "2.6.68",
-        "contentHash": "5mZ+aXsYQnr3Wxz5O2tmbgPaa5kn9R+ZlfnPyGBogXI2sh4uTiHtvU++N4bURtn9vmDYIu2Zu323K9hFz9poXQ=="
       },
       "xunit.abstractions": {
         "type": "Transitive",
@@ -122,7 +107,6 @@
       "sinophone.dataprep": {
         "type": "Project"
       }
-    },
-    "net10.0-windows7.0/win-x64": {}
+    }
   }
 }
