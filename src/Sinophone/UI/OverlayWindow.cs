@@ -17,6 +17,7 @@ public sealed class OverlayWindow : Window
 
     private bool _hasContent;
     private bool _applyPosition;
+    private bool _positionInitialized;
 
     public OverlayWindow(Configuration configuration, FontManager fontManager)
         : base("Sinophone Overlay###SinophoneOverlay", ImGuiWindowFlags.NoTitleBar)
@@ -30,6 +31,7 @@ public sealed class OverlayWindow : Window
         AllowPinning = false;
         DisableWindowSounds = true;
         AllowClickthrough = configuration.Clickthrough;
+        IsClickthrough = configuration.Clickthrough;
         BgAlpha = configuration.OverlayOpacity;
     }
 
@@ -71,7 +73,10 @@ public sealed class OverlayWindow : Window
         }
 
         _hasContent = _blocks.Count > 0;
-        _applyPosition = _hasContent;
+
+        // Only snap to the computed position the first time the overlay appears or while
+        // the user asked to lock it. Otherwise every new line would undo a drag.
+        _applyPosition = _hasContent && (_configuration.LockOverlay || !_positionInitialized);
 
         _ = isSubtitle;
     }
@@ -103,8 +108,12 @@ public sealed class OverlayWindow : Window
         if (_configuration.LockOverlay)
             flags |= ImGuiWindowFlags.NoMove;
 
+        if (_configuration.Clickthrough)
+            flags |= ImGuiWindowFlags.NoInputs;
+
         Flags = flags;
         AllowClickthrough = _configuration.Clickthrough;
+        IsClickthrough = _configuration.Clickthrough;
         BgAlpha = _configuration.OverlayOpacity;
 
         var scale = ImGuiHelpers.GlobalScale;
@@ -123,6 +132,13 @@ public sealed class OverlayWindow : Window
             Position = new Vector2(x, y);
             PositionCondition = ImGuiCond.Always;
             _applyPosition = false;
+            _positionInitialized = true;
+        }
+        else
+        {
+            // Dalamud keeps applying a non-null Position every frame. Clear it so the
+            // window keeps the spot the user dragged it to.
+            Position = null;
         }
     }
 

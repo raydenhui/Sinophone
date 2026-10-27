@@ -87,7 +87,7 @@ public sealed class ItemNameHandler : IDisposable
         if (content is null)
         {
             if (itemId != 0 && !string.IsNullOrEmpty(englishName))
-                _log.Debug("[Sinophone] No Chinese name for item {ItemId} ({Name}).", itemId, englishName);
+                _log.Debug("No Chinese name for item {ItemId} ({Name}).", itemId, englishName);
 
             _window.Hide();
             return;

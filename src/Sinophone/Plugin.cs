@@ -106,7 +106,7 @@ public sealed class Plugin : IDalamudPlugin
         if (_configuration.CheckForDataUpdates)
             _dataUpdater.StartCheck();
 
-        Log.Info("[Sinophone] Loaded. Variant: {Variant}, entries: {Entries:N0}.",
+        Log.Info("Loaded. Variant: {Variant}, entries: {Entries:N0}.",
             _configuration.Variant, _store?.TextEntryCount ?? 0);
     }
 
@@ -189,6 +189,9 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ShowPreview()
     {
+        Log.Info("Preview requested. Font handle: {HasFont}, font: {Font}, plugin enabled: {Enabled}.",
+            _fontManager.Handle is not null, _fontManager.ActiveFontPath ?? "(none)", _configuration.Enabled);
+
         _overlay.SetContent(
             "這是 Sinophone 的預覽文字，用於檢查中文字型是否正常顯示。\n这是 Sinophone 的预览文字，用于检查中文字体是否正常显示。",
             "This is a preview of the Sinophone overlay.",

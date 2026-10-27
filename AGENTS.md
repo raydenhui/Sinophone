@@ -57,6 +57,17 @@ Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> 
 Chinese --(OverlayWindow)--> screen
 ```
 
+### Overlay window
+
+`OverlayWindow` is a Dalamud `Window`. Two Dalamud details are easy to get wrong:
+
+- `AllowClickthrough` only controls whether the title bar's "Make clickthrough" option exists.
+  `IsClickthrough` is the real state. Dalamud applies `NoInputs` only when `IsClickthrough` is true,
+  so set both.
+- Dalamud re-applies a non-null `Window.Position` every frame. Setting it once keeps forcing it
+  unless the plugin sets `Position = null`. The overlay snaps only on first show or while
+  `LockOverlay` is on, and clears `Position` otherwise so a drag sticks.
+
 ### Runtime data updates
 
 The plugin reads artifacts from its config directory first and falls back to the copies embedded in
@@ -222,7 +233,9 @@ Required coverage:
 - DalaMock can build a container with every service the plugin asks for.
 
 The DalaMock tests skip themselves when no FFXIV install is found, because DalaMock needs the
-game's sqpack files. Set `SINOPHONE_FFXIV_PATH` to the folder containing `game/` to run them.
+game's sqpack files. Set `SINOPHONE_FFXIV_PATH` to the `sqpack` folder inside the install's
+`game/` folder, for example `...\FINAL FANTASY XIV Online\game\sqpack`. Pointing it at the
+folder above `sqpack` makes DalaMock report the path as invalid.
 
 DalaMock cannot drive addon events: `MockAddonLifecycle` accepts listeners and never calls them,
 and Dalamud keeps the addon args constructors internal. Do not try to fake addon events. Test the
@@ -316,8 +329,12 @@ changes instead.
 Use structured logging. Pass values as parameters, not by string concatenation:
 
 ```csharp
-log.Debug("[Sinophone] No translation for {Length} char line.", text.Length);
+log.Debug("No translation for {Length} char line.", text.Length);
 ```
+
+Do not put `[Sinophone]` in log messages. Dalamud already shows the plugin name for each plugin
+log line, so the prefix appears twice. Chat messages (`ChatGui.Print`) are not plugin logs and do
+keep the prefix, because the game chat does not add it.
 
 ### Performance
 
@@ -386,7 +403,11 @@ premature interface.
 - **Exact match.** After normalization, a line must match exactly. One different character means
   a miss.
 - **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
-  not.
+  not. Some Talk windows show text that is not in the indexed sheets at all. Sundhimal's
+  "aetherial travel" line is absent from `DefaultTalk`, `Balloon`, and `CustomTalk`, so it stays
+  untranslated. Before assuming a lookup bug, search the live sheets with
+  `tests/Sinophone.IntegrationTests/SundhimalDiagnosisTests.cs`. It writes matches to
+  `%TEMP%\sinophone-sundhimal.txt`.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
