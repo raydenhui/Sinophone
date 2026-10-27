@@ -44,6 +44,8 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.RegisterListener(AddonEvent.PreSetup, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PreRefresh, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
     }
 
     private void Unregister(string addonName)
@@ -51,6 +53,8 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.UnregisterListener(AddonEvent.PreSetup, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PreRefresh, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
     }
 
     private unsafe void OnAddonEvent(AddonEvent eventType, AddonArgs args)
@@ -60,9 +64,10 @@ public sealed class TalkHandler : IDisposable
 
         var addonName = args.AddonName;
 
-        if (eventType == AddonEvent.PostClose)
+        if (ShouldHideOverlay(eventType))
         {
             _overlay.Hide();
+            _log.Debug("{Addon} {Event}; overlay hidden.", addonName, eventType);
             return;
         }
 
@@ -190,6 +195,14 @@ public sealed class TalkHandler : IDisposable
                 addonName, i, text.Length, preview);
         }
     }
+
+    /// <summary>
+    /// True for the events that mean the addon is gone. A conversation usually
+    /// ends by hiding the Talk addon, not by closing it, so listening for
+    /// <see cref="AddonEvent.PostClose"/> alone left the overlay on screen.
+    /// </summary>
+    internal static bool ShouldHideOverlay(AddonEvent eventType)
+        => eventType is AddonEvent.PostClose or AddonEvent.PostHide or AddonEvent.PreFinalize;
 
     /// <summary>
     /// True for both string kinds. The game sends dialogue as ManagedString

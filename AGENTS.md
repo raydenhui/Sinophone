@@ -67,6 +67,8 @@ Chinese --(OverlayWindow)--> screen
 - Dalamud re-applies a non-null `Window.Position` every frame. Setting it once keeps forcing it
   unless the plugin sets `Position = null`. The overlay snaps only on first show or while
   `LockOverlay` is on, and clears `Position` otherwise so a drag sticks.
+- A conversation ends by hiding the Talk addon, not by closing it. `PostClose` alone leaves the
+  last line on screen. `TalkHandler` hides the overlay on `PostHide` and `PreFinalize` too.
 
 ### Runtime data updates
 
