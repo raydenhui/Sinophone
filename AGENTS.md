@@ -100,6 +100,9 @@ Use the scripts. They check their inputs and give a clear error instead of faili
 # Build everything
 pwsh -File scripts/Build.ps1
 
+# Build and link the plugin into a Dalamud dev plugin folder for in-game testing
+pwsh -File scripts/Deploy-DevPlugin.ps1 -DevPluginPath <dev-plugin-folder>
+
 # Run all tests
 pwsh -File scripts/Test.ps1
 
@@ -256,6 +259,10 @@ test it plainly.
 
 Some behavior can only be checked in the game: overlay position, font rendering, and how the
 overlay behaves during cutscenes. Unit tests cannot cover these.
+
+Build and link the plugin into Dalamud's dev plugin folder with
+`scripts/Deploy-DevPlugin.ps1`. Add that folder under **Experimental** → **Dev Plugin Locations**
+once; the script creates the plugin folder inside it and links it to the build output.
 
 When a change needs in-game testing, put a checklist in the pull request body:
 
