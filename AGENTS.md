@@ -394,8 +394,10 @@ premature interface.
   a miss.
 - **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
   not. Some Talk windows show text that is not in the indexed sheets at all. Sundhimal's
-  "aetherial travel" line is absent from `DefaultTalk`, `Balloon`, and `CustomTalk`, so it stays
-  untranslated. Check the datamining CSVs before assuming a lookup bug.
+  "aetherial travel" line lives in `custom/000/RegSeaAetheGuid_00051.csv`, not in
+  `DefaultTalk`, `Balloon`, or `CustomTalk`; the matching `CustomTalk` row (720947) only names the
+  script. Custom script dumps are not Lumina sheets, so the current lookup cannot reach them.
+  Check the datamining CSVs before assuming a lookup bug.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
