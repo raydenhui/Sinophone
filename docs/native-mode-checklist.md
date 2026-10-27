@@ -1,7 +1,7 @@
 # Native mode checklist
 
-Native text mode writes Chinese into the game's own windows. Unit tests and DalaMock cannot check
-it: DalaMock cannot drive addon payloads, so someone has to look at the screen.
+Native text mode writes Chinese into the game's own windows. Tests cannot check it: addon payloads
+cannot be driven outside the game, so someone has to look at the screen.
 
 Run this list for every change that touches native mode, and put the result in the pull request.
 

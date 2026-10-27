@@ -6,8 +6,8 @@
     Runs dotnet test over Sinophone.sln. This is the command CI runs, so a green
     local run means a green pull request check.
 
-    Tests that need an FFXIV install skip themselves when none is found. To run
-    them, set SINOPHONE_FFXIV_PATH to the folder containing game/.
+    Tests use the checked-in fixture and run offline, so no FFXIV install is
+    needed.
 
 .PARAMETER Configuration
     Build configuration. Defaults to Release.
