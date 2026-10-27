@@ -13,4 +13,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sinophone.Tests" />
+  </ItemGroup>
+
 </Project>

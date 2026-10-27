@@ -117,6 +117,24 @@ internal static class Program
         new("QuickChatTransient", "Text", ["Text{Output}"]),
         new("PublicContentTextData", "TextData", ["TextData"]),
         new("PartyContentTextData", "Data", ["Data"]),
+
+        // The CN and TC dumps name no columns for these sheets, so the tool reads
+        // them by position. Column numbers count the row id as 0.
+        new("GimmickTalk", "Message", []) { UseLastColumn = true },
+        new("GimmickBill", "Text", []) { Indices = [1] },
+        new("GimmickYesNo", "Message", []) { Indices = [1] },
+        new("GimmickYesNo", "YesButton", []) { Indices = [2] },
+        new("GimmickYesNo", "NoButton", []) { Indices = [3] },
+        new("GoldSaucerTalk", "Message", []) { Indices = [18] },
+        new("GoldSaucerTalk", "ChoicesText", []) { RangeStart = 19 },
+        new("MassivePcContentTextData", "Text", []) { Indices = [1] },
+        new("WKSMissionText", "Text", []) { Indices = [1] },
+        new("WKSText", "Text", []) { Indices = [1] },
+        new("WKSEmergencyInfoText", "Text", []) { Indices = [1] },
+        new("HWDDevLevelWebText", "Unknown0", []) { Indices = [1] },
+        new("HWDDevLevelWebText", "Unknown1", []) { Indices = [2] },
+        new("InclusionShopWelcomText", "Unknown0", []) { Indices = [1] },
+
         new("MKDLore", "Name", ["Name"]),
         new("MKDLore", "Description", ["Description"]),
         new("ENpcResident", "Singular", ["Singular"]),
@@ -241,7 +259,7 @@ internal static class Program
         return 0;
     }
 
-    private static Dictionary<string, Dictionary<string, string[]>>? ProcessSheet(SheetSpec spec, string sourceDirectory)
+    internal static Dictionary<string, Dictionary<string, string[]>>? ProcessSheet(SheetSpec spec, string sourceDirectory)
     {
         var path = Path.Combine(sourceDirectory, spec.Sheet + ".csv");
         if (!File.Exists(path))
@@ -282,20 +300,24 @@ internal static class Program
                 columnMap[name] = i;
         }
 
-        var indices = new List<int>(spec.Columns.Length);
+        var namedIndices = new List<int>(spec.Columns.Length);
         foreach (var column in spec.Columns)
         {
             if (columnMap.TryGetValue(column, out var index))
-                indices.Add(index);
+                namedIndices.Add(index);
         }
 
-        if (indices.Count == 0)
+        if (!spec.IsPositional && namedIndices.Count == 0)
         {
             Console.Error.WriteLine($"  ! {spec.Sheet}.csv has none of the expected columns ({string.Join(", ", spec.Columns)})");
             return null;
         }
 
         var rows = new Dictionary<string, Dictionary<string, string[]>>(StringComparer.Ordinal);
+
+        var indices = ResolveIndices(spec, header.Length, namedIndices);
+        if (indices.Count == 0)
+            return rows;
 
         for (var i = headerIndex + 1; i < records.Count; i++)
         {
@@ -333,6 +355,32 @@ internal static class Program
         return rows;
     }
 
+    /// <summary>
+    /// Picks the columns to read from one sheet. Named specs use the "#" header row;
+    /// positional specs use fixed indices, the last column, or a range to the end.
+    /// </summary>
+    private static IReadOnlyList<int> ResolveIndices(SheetSpec spec, int columnCount, IReadOnlyList<int> namedIndices)
+    {
+        if (spec.UseLastColumn)
+            return columnCount > 1 ? [columnCount - 1] : [];
+
+        if (spec.RangeStart is int start)
+        {
+            if (columnCount <= start)
+                return [];
+
+            var range = new int[columnCount - start];
+            for (var i = 0; i < range.Length; i++)
+                range[i] = start + i;
+            return range;
+        }
+
+        if (spec.Indices is not null)
+            return spec.Indices;
+
+        return namedIndices;
+    }
+
     private static string NormalizeValue(string raw)
     {
         if (string.IsNullOrEmpty(raw))
@@ -357,7 +405,19 @@ internal static class Program
         Console.WriteLine(@"  Sinophone.DataPrep --fixture --source C:\ffxiv-datamining-cn --tc-source C:\ffxiv-datamining-tc --en-source C:\ffxiv-datamining\csv\en --fixture-output ..\tests\fixtures");
     }
 
-    internal sealed record SheetSpec(string Sheet, string Field, string[] Columns);
+    internal sealed record SheetSpec(string Sheet, string Field, string[] Columns)
+    {
+        /// <summary>Fixed zero-based column indices for dumps that name no columns.</summary>
+        public int[]? Indices { get; init; }
+
+        /// <summary>Read the last column of the row, whatever its position.</summary>
+        public bool UseLastColumn { get; init; }
+
+        /// <summary>Read from this zero-based column to the last column of the row.</summary>
+        public int? RangeStart { get; init; }
+
+        public bool IsPositional => Indices is not null || UseLastColumn || RangeStart is not null;
+    }
 
     internal sealed class Artifact
     {

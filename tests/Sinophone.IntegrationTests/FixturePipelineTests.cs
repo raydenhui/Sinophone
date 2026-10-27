@@ -78,6 +78,30 @@ public class FixturePipelineTests
         }
     }
 
+    [Theory]
+    [InlineData("WKSText")]
+    [InlineData("GimmickTalk")]
+    public void EveryFixturePositionalRow_ResolvesInBothVariants(string sheet)
+    {
+        var rows = FixtureData.Current.Rows.Where(r => r.Sheet == sheet).ToList();
+        Assert.NotEmpty(rows);
+
+        foreach (var variant in new[] { ChineseVariant.Traditional, ChineseVariant.Simplified })
+        {
+            var store = FixtureStore.Load(variant);
+            var expected = variant == ChineseVariant.Traditional ? "tc" : "cn";
+
+            foreach (var row in rows)
+            {
+                Assert.True(store.TryGetDialogue(row.English, out var chinese),
+                    $"No {variant} translation for {sheet} row {row.RowId}.");
+
+                var wanted = expected == "tc" ? row.Tc : row.Cn;
+                Assert.Equal(MacroNormalizer.CleanForDisplay(wanted), chinese);
+            }
+        }
+    }
+
     [Fact]
     public void EveryFixtureNameRow_ResolvesInBothVariants()
     {
@@ -102,7 +126,7 @@ public class FixturePipelineTests
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);
 
-        var expectedTalk = FixtureData.Current.Rows.Count(r => r.Sheet == "DefaultTalk");
+        var expectedTalk = FixtureData.Current.Rows.Count(r => r.Sheet is "DefaultTalk" or "WKSText" or "GimmickTalk");
         var expectedNames = FixtureData.Current.Rows.Count(r => r.Sheet is "ENpcResident" or "BNpcName");
 
         Assert.Equal(expectedTalk, store.TextEntryCount);

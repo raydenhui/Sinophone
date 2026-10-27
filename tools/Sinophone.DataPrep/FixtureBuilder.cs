@@ -17,20 +17,19 @@ namespace Sinophone.DataPrep;
 /// </remarks>
 internal static class FixtureBuilder
 {
-    private static readonly Program.SheetSpec[] FixtureSheets =
+    /// <summary>
+    /// Sheets to copy into the fixture. <see cref="EnglishColumn"/> is the column in
+    /// the English dump; <see cref="LocalizedIndex"/> and <see cref="UseLastColumn"/>
+    /// pick the CN/TC column for dumps that name none.
+    /// </summary>
+    private static readonly FixtureSheet[] FixtureSheets =
     [
-        new("DefaultTalk", "Text", ["Text[0]", "Text[1]", "Text[2]"]),
-        new("ENpcResident", "Singular", ["Singular"]),
-        new("BNpcName", "Singular", ["Singular"]),
+        new("DefaultTalk", "Text", "Text[0]"),
+        new("ENpcResident", "Singular", "Singular"),
+        new("BNpcName", "Singular", "Singular"),
+        new("WKSText", "Text", "Text", LocalizedIndex: 1),
+        new("GimmickTalk", "Message", "Message", UseLastColumn: true),
     ];
-
-    /// <summary>Column that holds the English text for each fixture sheet.</summary>
-    private static readonly Dictionary<string, string> EnglishColumns = new(StringComparer.Ordinal)
-    {
-        ["DefaultTalk"] = "Text[0]",
-        ["ENpcResident"] = "Singular",
-        ["BNpcName"] = "Singular",
-    };
 
     public static int Run(string cnSource, string tcSource, string enSource, string outputDirectory, int rowCount)
     {
@@ -55,9 +54,9 @@ internal static class FixtureBuilder
 
         foreach (var spec in FixtureSheets)
         {
-            var english = LoadEnglish(Path.Combine(enSource, spec.Sheet + ".csv"), EnglishColumns[spec.Sheet]);
-            var cn = LoadLocalized(Path.Combine(cnSource, spec.Sheet + ".csv"), EnglishColumns[spec.Sheet]);
-            var tc = LoadLocalized(Path.Combine(tcSource, spec.Sheet + ".csv"), EnglishColumns[spec.Sheet]);
+            var english = LoadEnglish(Path.Combine(enSource, spec.Sheet + ".csv"), spec.EnglishColumn);
+            var cn = LoadLocalized(Path.Combine(cnSource, spec.Sheet + ".csv"), spec.EnglishColumn, spec.LocalizedIndex, spec.UseLastColumn);
+            var tc = LoadLocalized(Path.Combine(tcSource, spec.Sheet + ".csv"), spec.EnglishColumn, spec.LocalizedIndex, spec.UseLastColumn);
 
             if (english.Count == 0 || cn.Count == 0 || tc.Count == 0)
             {
@@ -139,7 +138,7 @@ internal static class FixtureBuilder
     /// Reads a CN/TC dump, which has three header rows: positional names, then the
     /// "#" names, then the column types.
     /// </summary>
-    private static Dictionary<uint, string> LoadLocalized(string path, string column)
+    private static Dictionary<uint, string> LoadLocalized(string path, string column, int? index, bool useLastColumn)
     {
         var result = new Dictionary<uint, string>();
         if (!File.Exists(path))
@@ -149,21 +148,21 @@ internal static class FixtureBuilder
         if (headerIndex < 0)
             return result;
 
-        var index = Array.IndexOf(records[headerIndex], column);
-        if (index < 0)
+        var resolved = ResolveColumnIndex(records[headerIndex], column, index, useLastColumn);
+        if (resolved < 0)
             return result;
 
         // Skip the "#" row and the type row.
         for (var i = headerIndex + 2; i < records.Count; i++)
         {
             var record = records[i];
-            if (record.Length <= index)
+            if (record.Length <= resolved)
                 continue;
 
             if (!uint.TryParse(record[0].Trim(), out var rowId))
                 continue;
 
-            var value = record[index];
+            var value = record[resolved];
             if (!IsUsable(value))
                 continue;
 
@@ -171,6 +170,21 @@ internal static class FixtureBuilder
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Picks the CN/TC column for a sheet: a fixed index, the last column of the
+    /// header row, or the named column when the dump has names.
+    /// </summary>
+    private static int ResolveColumnIndex(string[] header, string column, int? index, bool useLastColumn)
+    {
+        if (useLastColumn)
+            return header.Length - 1;
+
+        if (index is int fixedIndex)
+            return fixedIndex;
+
+        return Array.IndexOf(header, column);
     }
 
     private static bool IsUsable(string value)
@@ -244,6 +258,13 @@ internal static class FixtureBuilder
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         WriteIndented = false,
     };
+
+    private sealed record FixtureSheet(
+        string Sheet,
+        string Field,
+        string EnglishColumn,
+        int? LocalizedIndex = null,
+        bool UseLastColumn = false);
 
     private sealed record PairedRow(string Sheet, uint RowId, string English, string Cn, string Tc);
 }

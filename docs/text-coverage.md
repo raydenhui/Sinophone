@@ -4,7 +4,7 @@ Which sheets Sinophone translates today, which ones are missing, and what to add
 
 The data comes from the CN and TC CSV dumps in the two datamining repositories. The reference for
 "all text" is [FFXIVChnTextPatch-GP](https://github.com/GpointChen/FFXIVChnTextPatch-GP): it patches
-444 top-level sheets. Sinophone indexes 19.
+444 top-level sheets. Sinophone indexes 30.
 
 Row counts below are rows containing Chinese text in the CN dump, counted on 2026-10-26. They show
 how much text a sheet adds. They do not predict how many lines the game will hit at runtime.
@@ -27,6 +27,16 @@ how much text a sheet adds. They do not predict how many lines the game will hit
 | `QuickChatTransient` | `Text` | Dialogue | Quick chat phrases |
 | `PublicContentTextData` | `TextData` | Dialogue | Public content narration |
 | `PartyContentTextData` | `Data` | Dialogue | Party content text |
+| `GimmickTalk` | `Message` | Dialogue | Object interaction text |
+| `GimmickBill` | `Text` | Dialogue | Signboards and world text |
+| `GimmickYesNo` | `Message`, `YesButton`, `NoButton` | Dialogue | Prompt, yes label, no label |
+| `GoldSaucerTalk` | `Message`, `ChoicesText` | Dialogue | Message, then choice labels |
+| `MassivePcContentTextData` | `Text` | Dialogue | Large-scale content text |
+| `WKSMissionText` | `Text` | Dialogue | Cosmic Exploration missions |
+| `WKSText` | `Text` | Dialogue | Cosmic Exploration text |
+| `WKSEmergencyInfoText` | `Text` | Dialogue | Cosmic Exploration alerts |
+| `HWDDevLevelWebText` | `Unknown0`, `Unknown1` | Dialogue | Firmament text, in-progress text |
+| `InclusionShopWelcomText` | `Unknown0` | Dialogue | Inclusive shop welcome |
 | `MKDLore` | `Name` | Name | Occult Crescent lore names |
 | `MKDLore` | `Description` | Dialogue | Occult Crescent lore text |
 | `ENpcResident` | `Singular` | Name | NPC speaker names |
@@ -40,13 +50,11 @@ Both files must change together: `SheetCatalog.Create` and the `Sheets` array in
 only needs sheets that the tests use. The Data workflow downloads whatever DataPrep lists, so it
 needs no change.
 
-## Missing dialogue
+## Positional sheets
 
-### Sheets with unnamed columns
-
-The CN and TC dumps give these a positional header (`#,,,,`) and a type row. Pick the column by
-index. The English community dump names the same fields, but its column order differs for some
-sheets, so do not copy its order.
+These sheets are indexed now. The CN and TC dumps give them a positional header (`#,,,,`) and a
+type row, so the plugin reads the text column by index. The English community dump names the same
+fields, but its column order differs for some sheets, so do not copy its order.
 
 | Sheet | Text column | Rows | What it contains |
 | --- | --- | ---: | --- |
@@ -64,8 +72,9 @@ sheets, so do not copy its order.
 Column numbers count the key column as 0, so "column 1" is the first field after the row id.
 
 `GimmickTalk`, `GimmickBill`, `GimmickYesNo`, and `GoldSaucerTalk` are likely shown in the Talk
-window. The others have their own UI and need a new handler. Verify each in game before claiming
-it works.
+window, so the overlay should pick them up with no new handler. The others have their own UI and
+need a handler before the text appears. The in-game check for each sheet is a checklist item on
+the pull request that added it.
 
 ## Checked and found empty
 
@@ -164,7 +173,7 @@ name in the artifact already identifies the rows.
 ## Size
 
 Measured on 2026-10-26 from the artifacts the Data workflow built and published on the `data`
-release, using the 11 sheets above:
+release, using the 11 sheets indexed at the time:
 
 | File | Size |
 | --- | ---: |
@@ -172,8 +181,8 @@ release, using the 11 sheets above:
 | `Sinophone.tc.json.gz` | 1.50 MiB |
 
 The updater downloads both variants, so one data update is about 3.1 MiB. These numbers were
-measured before the seven named-column dialogue sheets were added; those sheets are small and were
-not re-measured.
+measured before the seven named-column dialogue sheets and the ten positional dialogue sheets were
+added; those sheets are small and were not re-measured.
 
 `Item` is now indexed by `Name` only. An estimate with `Name` and `Description` for every row adds
 about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.
@@ -185,7 +194,7 @@ full sheet set pushes one variant past about 8 MiB, or if users report slow upda
 
 ## Order of work
 
-1. Unnamed-column dialogue sheets. Map one sheet, add it, check it in game, then the next.
+1. ~~Unnamed-column dialogue sheets.~~ Indexed in #19. Check each in game.
 2. The remaining name sheets. The target-info and item-tooltip overlays are done.
 3. Category filtering.
 4. Native UI replacement and the font mod.

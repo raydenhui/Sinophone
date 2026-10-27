@@ -1,6 +1,6 @@
 {
   "note": "Real rows from the CN/TC datamining dumps, paired with the English text the game shows. Generated once and checked in so tests are fast and offline. Do not hand-edit; regenerate with scripts/Update-TestFixture.ps1.",
-  "generatedAt": "2026-10-26",
+  "generatedAt": "2026-10-27",
   "sources": {
     "en": "https://github.com/xivapi/ffxiv-datamining (csv/en)",
     "cn": "https://github.com/thewakingsands/ffxiv-datamining-cn",
@@ -174,6 +174,118 @@
       "english": "miteling",
       "cn": "灵蛛蝎",
       "tc": "靈蛛蠍"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 1,
+      "english": "Completed stellar mission objective!",
+      "cn": "已达成探索任务的目标！",
+      "tc": "已達成探索任務的目標！"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 2,
+      "english": "Completed all stellar mission objectives!",
+      "cn": "已达成探索任务的目标！",
+      "tc": "已達成探索任務的目標！"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 3,
+      "english": "[Only available for use during cosmic exploration.]",
+      "cn": "宇宙探索相关任务专用道具。",
+      "tc": "宇宙探索相關任務專用道具。"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 4,
+      "english": "Goodness me, it seems you've completed all the  research we had prepared for!\nAhem... For the moment, please stand by!",
+      "cn": "现在<Sheet(ClassJob,IntegerParameter(1),0)/>能进行的研究已经全部完成了！\r\n请耐心等待接下来的研究方针敲定吧！",
+      "tc": "現在<Sheet(ClassJob,IntegerParameter(1),0)/>能進行的研究已經全部完成了！\r\n請耐心等待接下來的研究方針敲定吧！"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 5,
+      "english": "Ahem!  research has proceeded sufficiently, so you may report to headquarters for debriefing.",
+      "cn": "<Sheet(ClassJob,IntegerParameter(1),0)/>的研究数据分析工作有进展了！\r\n能劳驾来宇宙研究所一趟吗？",
+      "tc": "<Sheet(ClassJob,IntegerParameter(1),0)/>的研究資料分析工作有進展了！\r\n過來宇宙研究所一趟好嗎？"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 6,
+      "english": "Ahem. Your current progress in cosmic  research is as follows.",
+      "cn": "<Sheet(ClassJob,IntegerParameter(1),0)/>的研究数据分析进度如下！",
+      "tc": "<Sheet(ClassJob,IntegerParameter(1),0)/>的研究資料分析進度如下！"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 7,
+      "english": "If this goes like this...then that must go like...*that*...",
+      "cn": "唔……这个东西是这样……那个的话……",
+      "tc": "唔……這個東西是這樣……那個的話……"
+    },
+    {
+      "sheet": "WKSText",
+      "rowId": 8,
+      "english": "Our research modules are based on those of the Studium, you know.",
+      "cn": "宇宙研究使用的研究模块参考了魔法大学的设计。",
+      "tc": "宇宙研究使用的研究模塊參考了魔法大學的設計。"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 1,
+      "english": "You find the smoldering remains of magitek armor, no doubt left after a fierce battle.",
+      "cn": "魔导装甲的残骸。\r\n这里难道经历了激烈的战斗？",
+      "tc": "魔導裝甲的殘骸。\r\n這裡難道經歷了激烈的戰鬥？"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 2,
+      "english": "You find a pile of well-worn blades and shields, though not of imperial design.",
+      "cn": "久经使用的剑和盾。\r\n看起来不像是加雷马帝国军的装备。\r\n它们的主人究竟是谁？",
+      "tc": "久經使用的劍和盾。\r\n看起來不像是加雷馬帝國軍的裝備。\r\n它們的主人究竟是誰？"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 3,
+      "english": "You pick up the research documents and find page after page of meticulous calculations and observational data on Dalamud. Young Cid posits that the lesser moon may very well possess the ability to harness and manipulate solar power.\nMoreover, the vast stores of energy it has amassed over the millennia, should they be unleashed, would far exceed any parameters the transmission tower may have been designed to withstand.",
+      "cn": "好像是西德年轻时记录的卫月观测数据。\r\n上面书写着整整齐齐的文字和复杂的公式。\r\n\r\n根据西德推测，\r\n卫月拥有收集太阳能后进行转换、输送的机能。\r\n\r\n如果在未做好接收准备的情况下启动卫月，\r\n积蓄了数千年的庞大能量将会从天而降，\r\n造成重大的事故。",
+      "tc": "好像是希德年輕時記錄的衛月觀測資料。\r\n上面書寫著整整齊齊的文字和複雜的公式。\r\n\r\n根據希德推測，\r\n衛月擁有收集太陽能後進行轉換、輸送的機能。\r\n\r\n如果在未做好接收準備的情況下啟動衛月，\r\n累積了數千年的龐大能量將會從天而降，\r\n造成重大的事故。"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 4,
+      "english": "This magitek reaper's fighting days are over.",
+      "cn": "魔导死神的残骸。\r\n受损十分严重，已经无法再次使用了……",
+      "tc": "魔導死神的殘骸。\r\n受損十分嚴重，已經無法再次使用了……"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 5,
+      "english": "Due to your rough treatment, the magitek reaper has gone from merely immobile to entirely inoperational.",
+      "cn": "脚部不良の魔導リーパーだ。\r\n先程の戦闘で消耗し、もう使用できないようだ……。",
+      "tc": "脚部不良の魔導リーパーだ。\r\n先程の戦闘で消耗し、もう使用できないようだ……。"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 6,
+      "english": "Were you not trapped in borrowed flesh, this soldier's death may have been avoidable.\nTo avoid further casualties, you had best make your way to Camp Broken Glass as quickly and quietly as possible.",
+      "cn": "すでに事切れている。\r\n自分自身の身体でなら、救えたかもしれない……。\r\n\r\nキャンプ・ブロークングラスに急ぎ、ゼノスの凶行を阻止しよう。",
+      "tc": "すでに事切れている。\r\n自分自身の身体でなら、救えたかもしれない……。\r\n\r\nキャンプ・ブロークングラスに急ぎ、ゼノスの凶行を阻止しよう。"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 7,
+      "english": "This poor soul appears to have been slain by the tempered.\nUpon closer inspection, you discover a medical kit.",
+      "cn": "看样子是遭到了被控制的帝国兵袭击，已经咽气了。\r\n从怀中搜到了军用恢复药。",
+      "tc": "看樣子是遭到了被控制的帝國兵襲擊，已經斷氣了。\r\n從懷中搜到了軍用治療劑。"
+    },
+    {
+      "sheet": "GimmickTalk",
+      "rowId": 8,
+      "english": "Whoever this once was fought until the bitter end.\nUpon closer inspection, you discover a medical kit.",
+      "cn": "看样子是曾经拼命抵抗过，但已经咽气了。\r\n从怀中搜到了军用恢复药。",
+      "tc": "看樣子是曾經拼命抵抗過，但已經斷氣了。\r\n從懷中搜到了軍用治療劑。"
     }
   ]
 }
