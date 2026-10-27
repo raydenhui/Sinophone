@@ -7,10 +7,6 @@ namespace Sinophone.UI;
 /// </summary>
 public sealed class OverlayWindow : Window
 {
-    private static readonly Vector4 NameColor = new(1f, 0.84f, 0.35f, 1f);
-    private static readonly Vector4 ChineseColor = new(1f, 1f, 1f, 1f);
-    private static readonly Vector4 OriginalColor = new(0.72f, 0.76f, 0.82f, 1f);
-
     private readonly Configuration _configuration;
     private readonly FontManager _fontManager;
     private readonly List<TextBlock> _blocks = new(4);
@@ -18,6 +14,7 @@ public sealed class OverlayWindow : Window
     private bool _hasContent;
     private bool _applyPosition;
     private bool _positionInitialized;
+    private float _lastHeight;
 
     public OverlayWindow(Configuration configuration, FontManager fontManager)
         : base("Sinophone Overlay###SinophoneOverlay", ImGuiWindowFlags.NoTitleBar)
@@ -57,19 +54,19 @@ public sealed class OverlayWindow : Window
                     : string.Empty;
 
             if (!string.IsNullOrWhiteSpace(name))
-                _blocks.Add(new TextBlock(name.Trim(), NameColor));
+                _blocks.Add(new TextBlock(name.Trim(), TextKind.SpeakerName));
         }
 
         if (hasTranslation)
         {
-            _blocks.Add(new TextBlock(chineseText, ChineseColor));
+            _blocks.Add(new TextBlock(chineseText, TextKind.Translation));
 
             if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(originalText))
-                _blocks.Add(new TextBlock(originalText, OriginalColor));
+                _blocks.Add(new TextBlock(originalText, TextKind.Original));
         }
         else if (!string.IsNullOrWhiteSpace(originalText))
         {
-            _blocks.Add(new TextBlock(originalText, OriginalColor));
+            _blocks.Add(new TextBlock(originalText, TextKind.Original));
         }
 
         _hasContent = _blocks.Count > 0;
@@ -126,7 +123,8 @@ public sealed class OverlayWindow : Window
         if (_configuration.LockOverlay || _applyPosition)
         {
             var viewport = ImGuiHelpers.MainViewport;
-            var x = viewport.Pos.X + (viewport.Size.X - width) * 0.5f;
+            var x = viewport.Pos.X + (viewport.Size.X - width) * 0.5f
+                    + _configuration.OverlayOffsetX * scale;
             var y = viewport.Pos.Y + viewport.Size.Y - _configuration.OffsetFromBottom * scale - height;
 
             Position = new Vector2(x, y);
@@ -151,11 +149,43 @@ public sealed class OverlayWindow : Window
         {
             var block = _blocks[i];
 
-            ImGui.PushStyleColor(ImGuiCol.Text, block.Color);
+            ImGui.PushStyleColor(ImGuiCol.Text, ColorFor(block.Kind));
             ImGui.TextWrapped(block.Text);
             ImGui.PopStyleColor();
         }
+
+        KeepBottomFixed();
     }
+
+    /// <summary>
+    /// While the overlay is unlocked, ImGui keeps the top-left corner fixed and the box
+    /// grows downward, which can cover the Talk window. Shift the window up by the height
+    /// change instead, so the bottom line stays where the user put it.
+    /// </summary>
+    private void KeepBottomFixed()
+    {
+        var height = ImGui.GetWindowSize().Y;
+
+        if (!_configuration.LockOverlay && _configuration.AnchorOverlayBottom && _lastHeight > 0f)
+        {
+            var delta = height - _lastHeight;
+            if (MathF.Abs(delta) > 0.5f)
+            {
+                var position = ImGui.GetWindowPos();
+                ImGui.SetWindowPos(new Vector2(position.X, position.Y - delta));
+            }
+        }
+
+        _lastHeight = height;
+    }
+
+    private Vector4 ColorFor(TextKind kind)
+        => kind switch
+        {
+            TextKind.SpeakerName => _configuration.SpeakerNameColor,
+            TextKind.Original => _configuration.OriginalTextColor,
+            _ => _configuration.TranslatedTextColor,
+        };
 
     private float MeasureHeight(float width)
     {
@@ -177,5 +207,12 @@ public sealed class OverlayWindow : Window
         return height;
     }
 
-    private readonly record struct TextBlock(string Text, Vector4 Color);
+    private enum TextKind
+    {
+        SpeakerName,
+        Translation,
+        Original,
+    }
+
+    private readonly record struct TextBlock(string Text, TextKind Kind);
 }

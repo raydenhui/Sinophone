@@ -69,7 +69,8 @@ public sealed class Plugin : IDalamudPlugin
             ShowPreview,
             BuildStatusText,
             _dataUpdater,
-            BuildDataSourceText);
+            BuildDataSourceText,
+            BuildAboutText);
 
         _windowSystem.AddWindow(_overlay);
         _windowSystem.AddWindow(_targetNameWindow);
@@ -198,6 +199,16 @@ public sealed class Plugin : IDalamudPlugin
             "Sinophone",
             "Sinophone",
             false);
+    }
+
+    private string BuildAboutText()
+    {
+        var manifest = PluginInterface.Manifest;
+        var assemblyVersion = manifest.AssemblyVersion;
+        var version = assemblyVersion.ToString(assemblyVersion.Build >= 0 ? 3 : 2);
+        var author = string.IsNullOrWhiteSpace(manifest.Author) ? "raydenhui" : manifest.Author;
+
+        return $"Sinophone {version} by {author}";
     }
 
     private string BuildStatusText()

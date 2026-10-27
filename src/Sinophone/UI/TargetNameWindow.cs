@@ -7,9 +7,6 @@ namespace Sinophone.UI;
 /// </summary>
 public sealed class TargetNameWindow : Window
 {
-    private static readonly Vector4 NameColor = new(1f, 0.84f, 0.35f, 1f);
-    private static readonly Vector4 OriginalColor = new(0.72f, 0.76f, 0.82f, 1f);
-
     private readonly Configuration _configuration;
     private readonly FontManager _fontManager;
 
@@ -74,7 +71,8 @@ public sealed class TargetNameWindow : Window
         SizeCondition = ImGuiCond.Always;
 
         var viewport = ImGuiHelpers.MainViewport;
-        var x = viewport.Pos.X + (viewport.Size.X - size.X) * 0.5f;
+        var x = viewport.Pos.X + (viewport.Size.X - size.X) * 0.5f
+                + _configuration.TargetNameOffsetX * scale;
         var y = viewport.Pos.Y + _configuration.TargetNameOffsetY * scale;
 
         Position = new Vector2(x, y);
@@ -86,13 +84,13 @@ public sealed class TargetNameWindow : Window
         var fontHandle = _fontManager.Handle;
         using var font = fontHandle?.Push();
 
-        ImGui.PushStyleColor(ImGuiCol.Text, NameColor);
+        ImGui.PushStyleColor(ImGuiCol.Text, _configuration.SpeakerNameColor);
         ImGui.TextUnformatted(_chineseName);
         ImGui.PopStyleColor();
 
         if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName))
         {
-            ImGui.PushStyleColor(ImGuiCol.Text, OriginalColor);
+            ImGui.PushStyleColor(ImGuiCol.Text, _configuration.OriginalTextColor);
             ImGui.TextUnformatted(_englishName);
             ImGui.PopStyleColor();
         }

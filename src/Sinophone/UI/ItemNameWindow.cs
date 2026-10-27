@@ -7,9 +7,6 @@ namespace Sinophone.UI;
 /// </summary>
 public sealed class ItemNameWindow : Window
 {
-    private static readonly Vector4 NameColor = new(1f, 0.84f, 0.35f, 1f);
-    private static readonly Vector4 OriginalColor = new(0.72f, 0.76f, 0.82f, 1f);
-
     /// <summary>Distance from the cursor to the window, in unscaled pixels.</summary>
     private const float CursorOffset = 18f;
 
@@ -91,13 +88,13 @@ public sealed class ItemNameWindow : Window
         var fontHandle = _fontManager.Handle;
         using var font = fontHandle?.Push();
 
-        ImGui.PushStyleColor(ImGuiCol.Text, NameColor);
+        ImGui.PushStyleColor(ImGuiCol.Text, _configuration.TranslatedTextColor);
         ImGui.TextUnformatted(_chineseName);
         ImGui.PopStyleColor();
 
         if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName))
         {
-            ImGui.PushStyleColor(ImGuiCol.Text, OriginalColor);
+            ImGui.PushStyleColor(ImGuiCol.Text, _configuration.OriginalTextColor);
             ImGui.TextUnformatted(_englishName);
             ImGui.PopStyleColor();
         }
