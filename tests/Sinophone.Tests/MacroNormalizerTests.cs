@@ -57,6 +57,38 @@ public class MacroNormalizerTests
     }
 
     [Fact]
+    public void NormalizeKey_StripsReplacementCharacters_WhenTextContainsDiamonds()
+    {
+        // Malformed UTF-8 decodes to U+FFFD. Lumina text has no replacement
+        // characters, so they must not survive into the dictionary key.
+        var actual = MacroNormalizer.NormalizeKey("I'm the hired captain of the �Orion�.");
+        Assert.Equal("I'm the hired captain of the Orion.", actual);
+    }
+
+    [Fact]
+    public void NormalizeKey_StripsSeStringControlMarkers_WhenTextContainsObliqueWords()
+    {
+        // The Talk addon wraps oblique words in raw SeString control bytes.
+        // These are the exact code points logged around "Orion".
+        const string fromGame =
+            "I'm the hired captain of the \u0002\u001a\u0002\u0002\u0003Orion\u0002\u001a\u0002\u0001\u0003. " +
+            "She's a fine vessel.";
+        const string fromSheet =
+            "I'm the hired captain of the Orion. She's a fine vessel.";
+
+        Assert.Equal(fromSheet, MacroNormalizer.NormalizeKey(fromGame));
+    }
+
+    [Fact]
+    public void NormalizeKey_PreservesTabsAndLineBreaks_WhenStrippingControls()
+    {
+        // Control stripping must not eat the whitespace that key collapsing
+        // and display line breaks rely on.
+        var actual = MacroNormalizer.NormalizeKey("a\tb\nc\rd");
+        Assert.Equal("a b c d", actual);
+    }
+
+    [Fact]
     public void NormalizeKey_TreatsNonBreakingSpaceAsSpace()
     {
         var actual = MacroNormalizer.NormalizeKey("a b");

@@ -1,3 +1,5 @@
+using FFXIVClientStructs.FFXIV.Client.UI;
+
 namespace Sinophone.Handlers;
 
 /// <summary>
@@ -41,16 +43,20 @@ public sealed class TalkHandler : IDisposable
 
     private void Register(string addonName)
     {
-        _addonLifecycle.RegisterListener(AddonEvent.PreSetup, addonName, _onAddonEvent);
-        _addonLifecycle.RegisterListener(AddonEvent.PreRefresh, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostSetup, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
     }
 
     private void Unregister(string addonName)
     {
-        _addonLifecycle.UnregisterListener(AddonEvent.PreSetup, addonName, _onAddonEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PreRefresh, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
     }
 
     private unsafe void OnAddonEvent(AddonEvent eventType, AddonArgs args)
@@ -60,9 +66,10 @@ public sealed class TalkHandler : IDisposable
 
         var addonName = args.AddonName;
 
-        if (eventType == AddonEvent.PostClose)
+        if (ShouldHideOverlay(eventType))
         {
             _overlay.Hide();
+            _log.Debug("{Addon} {Event}; overlay hidden.", addonName, eventType);
             return;
         }
 
@@ -117,6 +124,21 @@ public sealed class TalkHandler : IDisposable
             englishText ?? "(null)");
 
         var content = Resolve(store, _configuration, englishText, englishName);
+
+        if (content is null && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+        {
+            foreach (var candidate in GetTextNodeCandidates(args, englishName))
+            {
+                _log.Debug("{Addon} AtkValue text missed; retrying with addon text nodes: {Text}",
+                    addonName, candidate);
+                content = Resolve(store, _configuration, candidate, englishName);
+                if (content is not null)
+                {
+                    englishText = candidate;
+                    break;
+                }
+            }
+        }
 
         if (content is null)
         {
@@ -192,6 +214,14 @@ public sealed class TalkHandler : IDisposable
     }
 
     /// <summary>
+    /// True for the events that mean the addon is gone. A conversation usually
+    /// ends by hiding the Talk addon, not by closing it, so listening for
+    /// <see cref="AddonEvent.PostClose"/> alone left the overlay on screen.
+    /// </summary>
+    internal static bool ShouldHideOverlay(AddonEvent eventType)
+        => eventType is AddonEvent.PostClose or AddonEvent.PostHide or AddonEvent.PreFinalize;
+
+    /// <summary>
     /// True for both string kinds. The game sends dialogue as ManagedString
     /// (Managed | String); the plain String kind is a caller-owned cstring. Both
     /// store the pointer in the same union field, so one read path serves both.
@@ -219,6 +249,76 @@ public sealed class TalkHandler : IDisposable
                 return false;
         }
     }
+
+    /// <summary>
+    /// Reads the addon's text nodes and joins the dialogue segments. A line
+    /// with oblique words is split across several text nodes while
+    /// <c>AtkValue[0]</c> carries only the first segment. Returns candidates in
+    /// preference order: segments without the speaker name first, then every
+    /// segment in case the name is part of the sentence.
+    /// </summary>
+    private unsafe List<string> GetTextNodeCandidates(AddonArgs args, string? englishName)
+    {
+        var candidates = new List<string>(2);
+
+        try
+        {
+            var addon = args.GetAddonPointer<AtkUnitBase>();
+            _log.Debug("Reading text nodes for {Addon}: addon found: {Found}.",
+                args.AddonName, addon is not null);
+            if (addon is null)
+                return candidates;
+
+            var talkAddon = (AddonTalk*)addon;
+            var textNodes = new[]
+            {
+                talkAddon->AtkTextNode220,
+                talkAddon->AtkTextNode228,
+                talkAddon->AtkTextNode238,
+                talkAddon->AtkTextNode240,
+                talkAddon->AtkTextNode248,
+            };
+
+            var segments = new List<string>(textNodes.Length);
+            foreach (var node in textNodes)
+            {
+                if (node is null)
+                {
+                    _log.Debug("  {Addon} text node: null.", args.AddonName);
+                    continue;
+                }
+
+                var text = node->NodeText.ToString().Trim();
+                _log.Debug("  {Addon} text node {NodeId}: {Length} chars: {Text}",
+                    args.AddonName, node->NodeId, text.Length, text);
+                if (string.IsNullOrWhiteSpace(text))
+                    continue;
+
+                segments.Add(text);
+            }
+
+            if (segments.Count == 0)
+                return candidates;
+
+            var withoutName = string.Join(" ", segments.Where(s => !IsName(s, englishName)));
+            if (!string.IsNullOrWhiteSpace(withoutName))
+                candidates.Add(withoutName);
+
+            var withName = string.Join(" ", segments);
+            if (!string.IsNullOrWhiteSpace(withName) && withName != withoutName)
+                candidates.Add(withName);
+        }
+        catch (Exception ex)
+        {
+            _log.Debug(ex, "Failed to read text nodes from {Addon}.", args.AddonName);
+        }
+
+        return candidates;
+    }
+
+    private static bool IsName(string text, string? englishName)
+        => !string.IsNullOrWhiteSpace(englishName)
+           && string.Equals(text.Trim(), englishName.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private unsafe string? ReadStringValue(AtkValue* values, uint index, uint count)
     {
