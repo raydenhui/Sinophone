@@ -29,6 +29,15 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ShowSpeakerName { get; set; } = true;
 
+    /// <summary>Color of the speaker name line in the dialogue overlay.</summary>
+    public Vector4 SpeakerNameColor { get; set; } = new(1f, 0.84f, 0.35f, 1f);
+
+    /// <summary>Color of the translated line in the dialogue overlay.</summary>
+    public Vector4 TranslatedTextColor { get; set; } = new(1f, 1f, 1f, 1f);
+
+    /// <summary>Color of the original English line in the dialogue overlay.</summary>
+    public Vector4 OriginalTextColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
+
     /// <summary>
     /// Show the Chinese name of the current target in a small overlay.
     /// Off by default until the surface has been checked in game.
@@ -37,6 +46,9 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>Distance in pixels from the top of the screen to the target name overlay.</summary>
     public float TargetNameOffsetY { get; set; } = 170f;
+
+    /// <summary>Horizontal offset from the screen center for the target name overlay.</summary>
+    public float TargetNameOffsetX { get; set; }
 
     /// <summary>
     /// Show the Chinese name of the item under the mouse in a small overlay.
@@ -62,6 +74,15 @@ public sealed class Configuration : IPluginConfiguration
     public float OverlayWidth { get; set; } = 620f;
 
     public float OffsetFromBottom { get; set; } = 180f;
+
+    /// <summary>Horizontal offset from the screen center for the dialogue overlay.</summary>
+    public float OverlayOffsetX { get; set; }
+
+    /// <summary>
+    /// When true, the overlay keeps its bottom edge fixed when the text height changes,
+    /// so new lines grow upward instead of covering the Talk window.
+    /// </summary>
+    public bool AnchorOverlayBottom { get; set; } = true;
 
     /// <summary>
     /// Optional path to a .ttf/.ttc/.otf file. Leave empty to use a Windows CJK system font.
