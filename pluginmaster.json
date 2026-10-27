@@ -10,10 +10,10 @@
   ],
   "InternalName": "Sinophone",
   "RepoUrl": "https://github.com/raydenhui/Sinophone",
-  "LastUpdate": 1793086318,
+  "LastUpdate": 1793113120,
   "DownloadLinkInstall": "https://github.com/raydenhui/Sinophone/releases/latest/download/latest.zip",
   "DownloadLinkUpdate": "https://github.com/raydenhui/Sinophone/releases/latest/download/latest.zip",
-  "AssemblyVersion": "0.1.1.0",
+  "AssemblyVersion": "0.1.2.0",
   "ApplicableVersion": "any",
   "DalamudApiLevel": "15"
 }
