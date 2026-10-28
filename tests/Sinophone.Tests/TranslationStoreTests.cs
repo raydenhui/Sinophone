@@ -487,6 +487,62 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_MatchesLine_WhenPlayerNameReplacesPlaceholder()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(("Hello, Player Player.", "你好。"))));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Alice Rivers");
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello, Alice Rivers.", out var chinese));
+        Assert.Equal("你好。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_DoesNotMatchPlayerName_WhenNoPlayerNameIsSupplied()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(("Hello, Player Player.", "你好。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("Hello, Alice Rivers.", out _));
+    }
+
+    [Fact]
+    public void TryGetDialogue_ResolvesPlayerNameInDisplay_OnEachLookup()
+    {
+        var playerName = "Alice Rivers";
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(("Hello, Player Player.", "你好，<Highlight>ObjectParameter(1)</Highlight>。"))));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            displayResolver: text => MacroNormalizer.CleanForDisplay(text, playerName: playerName),
+            playerName: () => playerName);
+
+        Assert.NotNull(store);
+
+        Assert.True(store.TryGetDialogue("Hello, Alice Rivers.", out var first));
+        Assert.Equal("你好，Alice Rivers。", first);
+
+        playerName = "Bob";
+        Assert.True(store.TryGetDialogue("Hello, Bob.", out var second));
+        Assert.Equal("你好，Bob。", second);
+    }
+
+    [Fact]
     public void Load_ResolvesPlainDisplay_OnceAtLoad()
     {
         var calls = 0;

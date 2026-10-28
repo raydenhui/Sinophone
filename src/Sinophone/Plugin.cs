@@ -118,7 +118,8 @@ public sealed class Plugin : IDalamudPlugin
             Log,
             _dataUpdater.OpenData,
             TranslationStore.OpenEmbeddedResource,
-            ResolveDisplayText);
+            ResolveDisplayText,
+            () => PlayerState.CharacterName);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -316,7 +317,7 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private string ResolveDisplayText(string text)
         => ChineseConverter.Convert(
-            MacroNormalizer.CleanForDisplay(text, EvaluateCondition),
+            MacroNormalizer.CleanForDisplay(text, EvaluateCondition, PlayerState.CharacterName),
             _configuration.Conversion);
 
     /// <summary>
@@ -349,7 +350,8 @@ public sealed class Plugin : IDalamudPlugin
             Log,
             _dataUpdater.OpenData,
             TranslationStore.OpenEmbeddedResource,
-            ResolveDisplayText);
+            ResolveDisplayText,
+            () => PlayerState.CharacterName);
         _overlay.Hide();
         _targetNameHandler.Refresh();
         _itemNameHandler.Refresh();
@@ -396,7 +398,8 @@ public sealed class Plugin : IDalamudPlugin
                 Log,
                 _dataUpdater.OpenData,
                 TranslationStore.OpenEmbeddedResource,
-                ResolveDisplayText);
+                ResolveDisplayText,
+                () => PlayerState.CharacterName);
 
             // The user now needs a variant that is not on disk.
             if (!string.IsNullOrEmpty(_configuration.LastDataVersion) && _dataUpdater.IsMissingRequiredFile())

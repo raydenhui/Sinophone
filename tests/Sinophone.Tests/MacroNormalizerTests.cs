@@ -173,4 +173,70 @@ public class MacroNormalizerTests
 
         Assert.Equal("甲", actual);
     }
+
+    [Fact]
+    public void CleanForDisplay_FillsPlayerNamePlaceholder()
+    {
+        var actual = MacroNormalizer.CleanForDisplay(
+            "你好，<Highlight>ObjectParameter(1)</Highlight>。",
+            playerName: "光之战士");
+
+        Assert.Equal("你好，光之战士。", actual);
+    }
+
+    [Fact]
+    public void CleanForDisplay_DropsPlayerNamePlaceholder_WhenNameIsMissing()
+    {
+        var actual = MacroNormalizer.CleanForDisplay("你好，<Highlight>ObjectParameter(1)</Highlight>。");
+
+        Assert.Equal("你好，。", actual);
+    }
+
+    [Fact]
+    public void CleanForDisplay_DropsOtherObjectParameters()
+    {
+        var actual = MacroNormalizer.CleanForDisplay(
+            "再見，ObjectParameter(55)。",
+            playerName: "光之战士");
+
+        Assert.Equal("再見，。", actual);
+    }
+
+    [Theory]
+    [InlineData("Hello, Player Player.", "Alice Rivers", "Hello, Player Player.")]
+    [InlineData("Hello, Alice Rivers.", "Alice Rivers", "Hello, Player Player.")]
+    [InlineData("  Alice Rivers  ", " Alice Rivers ", "  Player Player  ")]
+    public void RestorePlayerNamePlaceholder_ReplacesName_WhenKeyHasIt(
+        string key, string playerName, string expected)
+        => Assert.Equal(expected, MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName));
+
+    [Theory]
+    [InlineData("Hello there.", "Alice Rivers")]
+    [InlineData("Hello there.", null)]
+    [InlineData("Hello there.", "")]
+    [InlineData("", "Alice Rivers")]
+    public void RestorePlayerNamePlaceholder_ReturnsSameInstance_WhenNothingToReplace(
+        string key, string? playerName)
+    {
+        var actual = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
+
+        Assert.Same(key, actual);
+    }
+
+    [Fact]
+    public void RestorePlayerNamePlaceholder_ReturnsSameInstance_WhenNameIsTheDumpPlaceholder()
+    {
+        const string key = "Hello, Player Player.";
+
+        var actual = MacroNormalizer.RestorePlayerNamePlaceholder(key, "Player Player");
+
+        Assert.Same(key, actual);
+    }
+
+    [Theory]
+    [InlineData("你好，<Highlight>ObjectParameter(1)</Highlight>。", true)]
+    [InlineData("你好。", false)]
+    [InlineData(null, false)]
+    public void HasObjectParameter_DetectsParameterText(string? text, bool expected)
+        => Assert.Equal(expected, MacroNormalizer.HasObjectParameter(text));
 }
