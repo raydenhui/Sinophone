@@ -15,8 +15,12 @@ public interface ISheetDescriptor
     /// <summary>True when this sheet holds speaker / actor names instead of dialogue.</summary>
     bool IsNameSheet { get; }
 
-    /// <summary>Extracts the English text slots for a row. Empty when the row is unusable.</summary>
-    bool TryExtract(uint rowId, out IReadOnlyList<string> texts);
+    /// <summary>
+    /// Extracts the English text slots for a row. Each slot holds one string per
+    /// conditional branch, because a row with a gender conditional shows different
+    /// text to different players. Empty when the row is unusable.
+    /// </summary>
+    bool TryExtract(uint rowId, out IReadOnlyList<IReadOnlyList<string>> texts);
 }
 
 /// <summary>
@@ -25,9 +29,9 @@ public interface ISheetDescriptor
 public sealed class SheetDescriptor<T> : ISheetDescriptor where T : struct, IExcelRow<T>
 {
     private readonly ExcelSheet<T>? _sheet;
-    private readonly Func<T, IReadOnlyList<string>> _extract;
+    private readonly Func<T, IReadOnlyList<IReadOnlyList<string>>> _extract;
 
-    public SheetDescriptor(string name, string fieldName, bool isNameSheet, ExcelSheet<T>? sheet, Func<T, IReadOnlyList<string>> extract)
+    public SheetDescriptor(string name, string fieldName, bool isNameSheet, ExcelSheet<T>? sheet, Func<T, IReadOnlyList<IReadOnlyList<string>>> extract)
     {
         Name = name;
         FieldName = fieldName;
@@ -42,9 +46,9 @@ public sealed class SheetDescriptor<T> : ISheetDescriptor where T : struct, IExc
 
     public bool IsNameSheet { get; }
 
-    public bool TryExtract(uint rowId, out IReadOnlyList<string> texts)
+    public bool TryExtract(uint rowId, out IReadOnlyList<IReadOnlyList<string>> texts)
     {
-        texts = Array.Empty<string>();
+        texts = Array.Empty<IReadOnlyList<string>>();
 
         if (_sheet is null)
             return false;
@@ -153,41 +157,56 @@ public static class SheetCatalog
         return descriptors;
     }
 
-    private static void Add<T>(IDataManager dataManager, List<ISheetDescriptor> descriptors, string name, string fieldName, bool isNameSheet, Func<T, IReadOnlyList<string>> extract)
+    private static void Add<T>(IDataManager dataManager, List<ISheetDescriptor> descriptors, string name, string fieldName, bool isNameSheet, Func<T, IReadOnlyList<IReadOnlyList<string>>> extract)
         where T : struct, IExcelRow<T>
     {
         var sheet = dataManager.GetExcelSheet<T>();
         descriptors.Add(new SheetDescriptor<T>(name, fieldName, isNameSheet, sheet, extract));
     }
 
-    private static IReadOnlyList<string> ExtractSingle(ReadOnlySeString value)
+    private static IReadOnlyList<IReadOnlyList<string>> ExtractSingle(ReadOnlySeString value)
     {
-        var text = value.ExtractText();
-        return string.IsNullOrEmpty(text) ? Array.Empty<string>() : new[] { text };
+        var variants = SeStringVariants.Extract(value);
+
+        foreach (var variant in variants)
+        {
+            if (!string.IsNullOrEmpty(variant))
+                return new IReadOnlyList<string>[] { variants };
+        }
+
+        return Array.Empty<IReadOnlyList<string>>();
     }
 
     // Some Lumina sheets expose a text field as a plain string instead of a SeString.
-    private static IReadOnlyList<string> ExtractSingle(string value)
-        => string.IsNullOrEmpty(value) ? Array.Empty<string>() : new[] { value };
+    private static IReadOnlyList<IReadOnlyList<string>> ExtractSingle(string value)
+        => string.IsNullOrEmpty(value)
+            ? Array.Empty<IReadOnlyList<string>>()
+            : new IReadOnlyList<string>[] { new[] { value } };
 
-    private static IReadOnlyList<string> ExtractCollection(Collection<ReadOnlySeString> values)
+    private static IReadOnlyList<IReadOnlyList<string>> ExtractCollection(Collection<ReadOnlySeString> values)
     {
         var count = values.Count;
         if (count == 0)
-            return Array.Empty<string>();
+            return Array.Empty<IReadOnlyList<string>>();
 
-        var result = new string[count];
+        var result = new IReadOnlyList<string>[count];
         var any = false;
 
         for (var i = 0; i < count; i++)
         {
-            var text = values[i].ExtractText();
-            result[i] = text;
+            var variants = SeStringVariants.Extract(values[i]);
+            result[i] = variants;
 
-            if (!string.IsNullOrEmpty(text))
-                any = true;
+            foreach (var variant in variants)
+            {
+                if (!string.IsNullOrEmpty(variant))
+                {
+                    any = true;
+                    break;
+                }
+            }
         }
 
-        return any ? result : Array.Empty<string>();
+        return any ? result : Array.Empty<IReadOnlyList<string>>();
     }
 }

@@ -91,6 +91,10 @@ and row id. The English text travels with the artifact because there is no sheet
 Entries are paired across CN, TC, and English by text key. A line with no English counterpart is
 skipped, because the plugin has nothing to match it against.
 
+The English dump resolves conditionals to one branch, while the CN and TC dumps keep the tags.
+Script lines with a gender conditional therefore match only the branch the English dump chose.
+Sheet rows do not have this problem: the plugin reads the live SeString and keys every branch.
+
 `quest/` is not indexed. It holds quest journal text, which the Talk overlay never shows, and it
 has about 493,000 entries. See issue #34.
 

@@ -16,6 +16,7 @@ global using Dalamud.Game;
 global using Dalamud.Game.Addon.Lifecycle;
 global using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 global using Dalamud.Game.Command;
+global using Dalamud.Game.Player;
 global using Dalamud.Interface;
 global using Dalamud.Interface.ManagedFontAtlas;
 global using Dalamud.Interface.Utility;

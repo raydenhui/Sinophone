@@ -55,10 +55,16 @@ public static partial class MacroNormalizer
     }
 
     /// <summary>
-    /// Prepares Chinese text for display: macros are stripped, line breaks are
-    /// preserved, and trailing whitespace on each line is trimmed.
+    /// Prepares Chinese text for display: conditionals are resolved, macros are
+    /// stripped, line breaks are preserved, and trailing whitespace on each line is
+    /// trimmed.
     /// </summary>
-    public static string CleanForDisplay(string? text)
+    /// <param name="text">Text from the artifact.</param>
+    /// <param name="evaluate">
+    /// Answers a conditional expression. Null means the condition is unknown; the
+    /// first branch is shown.
+    /// </param>
+    public static string CleanForDisplay(string? text, Func<string, bool?>? evaluate = null)
     {
         if (string.IsNullOrEmpty(text))
             return string.Empty;
@@ -66,6 +72,7 @@ public static partial class MacroNormalizer
         var cleaned = StripInvisible(text);
         cleaned = cleaned.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         cleaned = LineBreakPattern().Replace(cleaned, "\n");
+        cleaned = ConditionalText.Resolve(cleaned, evaluate);
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
 
         var lines = cleaned.Split('\n');
