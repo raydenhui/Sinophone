@@ -12,8 +12,24 @@ namespace Sinophone.Diagnostics;
 /// </remarks>
 public sealed unsafe class NativeTextProbe : IDisposable
 {
+    /// <summary>
+    /// Traditional first, because the last run showed Traditional glyphs drawing and
+    /// some Simplified ones showing "=". Keep them on separate lines so a failure is
+    /// easy to place.
+    /// </summary>
     public const string DefaultSample =
         "這是中文樣本：遊戲字型能否顯示漢字？\n这是中文样本：游戏字体能否显示汉字？";
+
+    /// <summary>
+    /// Sample presets for the settings tab. Each one answers a different question.
+    /// </summary>
+    public static readonly (string Label, string Text)[] Presets =
+    [
+        ("Traditional only", "這是中文樣本：遊戲字型能否顯示漢字？"),
+        ("Simplified only", "这是中文样本：游戏字体能否显示汉字？"),
+        ("Traditional vs simplified pairs", "這这 樣样 遊游 戲戏 體体 顯显 漢汉"),
+        ("Latin control", "Latin control line ABC 123"),
+    ];
 
     private const string TalkAddonName = "Talk";
 

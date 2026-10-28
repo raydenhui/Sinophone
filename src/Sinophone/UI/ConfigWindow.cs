@@ -304,6 +304,16 @@ public sealed class ConfigWindow : Window
         ImGui.Spacing();
         ImGui.Separator();
 
+        ImGui.TextUnformatted("Presets");
+        foreach (var preset in NativeTextProbe.Presets)
+        {
+            if (ImGui.Button(preset.Label))
+                _nativeProbe.Sample = preset.Text;
+
+            if (preset.Label != NativeTextProbe.Presets[^1].Label)
+                ImGui.SameLine();
+        }
+
         var sample = _nativeProbe.Sample;
         ImGui.TextUnformatted("Dialogue text");
         ImGui.SetNextItemWidth(-1f);
@@ -329,6 +339,17 @@ public sealed class ConfigWindow : Window
 
             ImGui.EndCombo();
         }
+
+        if (ImGui.Button("Try next font"))
+        {
+            var fonts = Enum.GetValues<FontType>();
+            var index = Array.IndexOf(fonts, _nativeProbe.FontType);
+            _nativeProbe.FontType = fonts[(index + 1) % fonts.Length];
+            _nativeProbe.Write();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextDisabled("Cycles the six game fonts and writes each time.");
 
         var sticky = _nativeProbe.Sticky;
         if (ImGui.Checkbox("Keep the sample on every refresh", ref sticky))
