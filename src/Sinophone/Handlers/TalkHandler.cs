@@ -19,6 +19,7 @@ public sealed class TalkHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly OverlayWindow _overlay;
+    private readonly NativeTextWriter _nativeWriter;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private bool _disposed;
@@ -28,13 +29,15 @@ public sealed class TalkHandler : IDisposable
         IPluginLog log,
         Configuration configuration,
         Func<TranslationStore?> getStore,
-        OverlayWindow overlay)
+        OverlayWindow overlay,
+        NativeTextWriter nativeWriter)
     {
         _addonLifecycle = addonLifecycle;
         _log = log;
         _configuration = configuration;
         _getStore = getStore;
         _overlay = overlay;
+        _nativeWriter = nativeWriter;
         _onAddonEvent = OnAddonEvent;
 
         Register(TalkAddonName);
@@ -146,15 +149,46 @@ public sealed class TalkHandler : IDisposable
             _log.Debug("{Addon} line has no usable translation; overlay hidden. " +
                        "Text empty: {TextEmpty}, hide when no translation: {HideWhenMissing}.",
                 addonName, string.IsNullOrWhiteSpace(englishText), _configuration.HideWhenNoTranslation);
+            return;
         }
-        else
+
+        if (ShouldUseNativeText(_configuration, addonName) && WriteNativeText(content.Value))
         {
-            _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
-                englishName ?? string.Empty, isSubtitle);
-            _log.Debug("Overlay shown for {Addon}: {ChineseLength} Chinese chars.",
-                addonName, content.Value.ChineseText.Length);
+            _overlay.Hide();
+            _log.Debug("Native text written for {Addon}; overlay hidden.",
+                addonName);
+            return;
         }
+
+        _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
+            englishName ?? string.Empty, isSubtitle);
+        _log.Debug("Overlay shown for {Addon}: {ChineseLength} Chinese chars.",
+            addonName, content.Value.ChineseText.Length);
     }
+
+    /// <summary>
+    /// True when the translation should go into the game's own dialogue box. Native mode
+    /// covers the <c>Talk</c> addon only; subtitles keep the overlay until their nodes are
+    /// checked in game. A failed write falls back to the overlay.
+    /// </summary>
+    internal static bool ShouldUseNativeText(Configuration configuration, string addonName)
+        => configuration.NativeTextMode
+           && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Writes the Chinese line, and the Chinese speaker name when the name is shown, into
+    /// the Talk addon's text nodes. Returns true when the dialogue line was written.
+    /// </summary>
+    private bool WriteNativeText(OverlayContent content)
+    {
+        if (_configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(content.ChineseName))
+            _nativeWriter.Write(TalkAddonName, NativeTextWriter.TalkNameNodeId, content.ChineseName);
+
+        return _nativeWriter.Write(TalkAddonName, NativeTextWriter.TalkTextNodeId, content.ChineseText);
+    }
+
+    /// <summary>Puts the game's own text back into every node native mode changed.</summary>
+    public void RestoreNativeText() => _nativeWriter.RestoreAll();
 
     /// <summary>
     /// Decides what the overlay should show for one dialogue line. Pure apart from
@@ -356,6 +390,7 @@ public sealed class TalkHandler : IDisposable
         _disposed = true;
         Unregister(TalkAddonName);
         Unregister(TalkSubtitleAddonName);
+        _nativeWriter.RestoreAll();
         _overlay.Hide();
     }
 }
