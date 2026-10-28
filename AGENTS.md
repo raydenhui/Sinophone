@@ -409,6 +409,11 @@ premature interface.
   not a setting. Ask before starting that refactor.
 - **Exact match.** After normalization, a line must match exactly. One different character means
   a miss.
+- **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
+  shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
+  branch; a script line whose dump branch differs from the player's can still miss. For display,
+  `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition shows the
+  first branch.
 - **Coverage.** Dialogue comes from the indexed sheets and the script dumps. Text built at runtime
   is not covered. `quest/` dumps are not indexed yet (issue #34), and text that exists in no dump
   stays untranslated. Check the datamining CSVs before assuming a lookup bug.
