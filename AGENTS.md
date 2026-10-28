@@ -103,7 +103,7 @@ text** so it does not read as a finished feature.
   so the settings section warns and links the README font setup. The plugin cannot detect the mod.
 - A write saves the game's text for that node first. `RestoreAll` puts it back when the setting is
   turned off and on plugin unload. A second write must not save Chinese as the original, so the
-  writer only saves when the node does not already hold its own text.
+  writer only saves when the node does not already hold text this writer put there.
 - The write is event-driven: `PostSetup` and `PostRefresh`. If the game turns out to put its text
   back after one write, native mode will flicker, and the fix is a guarded re-write, not a
   per-frame one.
