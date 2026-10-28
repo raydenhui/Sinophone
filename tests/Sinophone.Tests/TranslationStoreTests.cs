@@ -442,4 +442,74 @@ public class TranslationStoreTests
         Assert.True(store.TryGetDialogue("First line<br>Second line", out var chinese));
         Assert.Equal("第一行\n第二行", chinese);
     }
+
+    [Fact]
+    public void Load_IndexesEveryConditionalVariant()
+    {
+        var rows = new Dictionary<uint, IReadOnlyList<IReadOnlyList<string>>>
+        {
+            [1] = new IReadOnlyList<string>[] { new[] { "Sir, hello.", "Madam, hello." } },
+        };
+
+        var descriptor = new FakeSheetDescriptor(SheetName, FieldName, false, rows);
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+
+        var store = TranslationStore.Load([descriptor], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Sir, hello.", out var sir));
+        Assert.True(store.TryGetDialogue("Madam, hello.", out var madam));
+        Assert.Equal("你好。", sir);
+        Assert.Equal("你好。", madam);
+        Assert.Equal(2, store.TextEntryCount);
+    }
+
+    [Fact]
+    public void Load_ResolvesConditionalDisplay_OnEachLookup()
+    {
+        var frame = 0;
+        var descriptor = TalkSheet((1, "Hello."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "<If(X)>甲<Else/>乙</If>")));
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            displayResolver: text => MacroNormalizer.CleanForDisplay(text, _ => frame++ == 0));
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello.", out var first));
+        Assert.True(store.TryGetDialogue("Hello.", out var second));
+        Assert.Equal("甲", first);
+        Assert.Equal("乙", second);
+    }
+
+    [Fact]
+    public void Load_ResolvesPlainDisplay_OnceAtLoad()
+    {
+        var calls = 0;
+        var descriptor = TalkSheet((1, "Hello."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            displayResolver: text =>
+            {
+                calls++;
+                return MacroNormalizer.CleanForDisplay(text);
+            });
+
+        Assert.NotNull(store);
+        Assert.Equal(1, calls);
+
+        Assert.True(store.TryGetDialogue("Hello.", out var chinese));
+        Assert.Equal("你好。", chinese);
+        Assert.Equal(1, calls);
+    }
 }

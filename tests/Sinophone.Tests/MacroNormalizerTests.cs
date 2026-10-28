@@ -155,4 +155,22 @@ public class MacroNormalizerTests
         var actual = MacroNormalizer.CleanForDisplay("a  b");
         Assert.Equal("a  b", actual);
     }
+
+    [Fact]
+    public void CleanForDisplay_ResolvesConditional_WhenEvaluatorIsProvided()
+    {
+        var actual = MacroNormalizer.CleanForDisplay(
+            "<If(PlayerParameter(4))>大姐<Else/>小哥</If>，<br>你好。",
+            _ => false);
+
+        Assert.Equal("小哥，\n你好。", actual);
+    }
+
+    [Fact]
+    public void CleanForDisplay_UsesFirstBranch_WhenConditionIsUnknown()
+    {
+        var actual = MacroNormalizer.CleanForDisplay("<If(X)>甲<Else/>乙</If>");
+
+        Assert.Equal("甲", actual);
+    }
 }
