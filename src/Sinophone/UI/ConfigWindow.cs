@@ -18,6 +18,29 @@ public sealed class ConfigWindow : Window
     private readonly TranslationDataUpdater _dataUpdater;
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
+#if DEBUG
+    // Set by the debug-only constructor, which chains into the main one.
+    private readonly NativeTextProbe _nativeProbe = null!;
+#endif
+
+#if DEBUG
+    /// <summary>
+    /// Debug build. Takes the native test probe, which adds a "Native test" tab.
+    /// </summary>
+    public ConfigWindow(
+        Configuration configuration,
+        Action applySettings,
+        Action showPreview,
+        Func<string> statusText,
+        TranslationDataUpdater dataUpdater,
+        Func<string> dataSourceText,
+        Func<string> aboutText,
+        NativeTextProbe nativeProbe)
+        : this(configuration, applySettings, showPreview, statusText, dataUpdater, dataSourceText, aboutText)
+    {
+        _nativeProbe = nativeProbe;
+    }
+#endif
 
     public ConfigWindow(
         Configuration configuration,
@@ -78,6 +101,14 @@ public sealed class ConfigWindow : Window
             DrawStatusTab();
             ImGui.EndTabItem();
         }
+
+#if DEBUG
+        if (ImGui.BeginTabItem("Native test"))
+        {
+            DrawNativeTestTab();
+            ImGui.EndTabItem();
+        }
+#endif
 
         ImGui.EndTabBar();
     }
@@ -278,6 +309,123 @@ public sealed class ConfigWindow : Window
         var status = _statusText();
         if (!string.IsNullOrEmpty(status))
             ImGui.TextWrapped(status);
+    }
+
+#if DEBUG
+    /// <summary>
+    /// Development-only tab for the native text probe. Writes Chinese into the game's
+    /// own text nodes, so we can see whether the game font has CJK glyphs.
+    /// </summary>
+    private void DrawNativeTestTab()
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "Test code. This writes into the game's dialogue box to check whether its font " +
+            "can draw Chinese. Reload the plugin to undo everything.");
+        ImGui.PopStyleColor();
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        // Target first: everything below acts on the addon and node picked here.
+        ImGui.TextColored(SectionColor, "Target");
+        if (ImGui.BeginCombo("##nativeAddon", _nativeProbe.AddonName))
+        {
+            foreach (var name in NativeTextProbe.KnownAddons)
+            {
+                if (ImGui.Selectable(name, name == _nativeProbe.AddonName))
+                    _nativeProbe.SetAddon(name);
+            }
+
+            ImGui.EndCombo();
+        }
+
+        var customAddon = _nativeProbe.AddonName;
+        ImGui.SetNextItemWidth(200f);
+        if (ImGui.InputText("Custom addon", ref customAddon, 64, ImGuiInputTextFlags.EnterReturnsTrue))
+            _nativeProbe.SetAddon(customAddon.Trim());
+
+        ImGui.SameLine();
+        if (ImGui.Button("Scan"))
+            _nativeProbe.Scan();
+
+        foreach (var node in _nativeProbe.ScannedNodes)
+        {
+            var label = $"Node {node.Id}: {Shorten(node.Text)}";
+            if (ImGui.Selectable(label, node.Id == _nativeProbe.NodeId))
+                _nativeProbe.NodeId = node.Id;
+        }
+
+        var nodeId = (int)_nativeProbe.NodeId;
+        ImGui.SetNextItemWidth(120f);
+        if (ImGui.InputInt("Node id", ref nodeId) && nodeId >= 0)
+            _nativeProbe.NodeId = (uint)nodeId;
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.TextColored(SectionColor, "Sample");
+        foreach (var preset in NativeTextProbe.Presets)
+        {
+            if (ImGui.Button(preset.Label))
+                _nativeProbe.Sample = preset.Text;
+
+            if (preset.Label != NativeTextProbe.Presets[^1].Label)
+                ImGui.SameLine();
+        }
+
+        var sample = _nativeProbe.Sample;
+        ImGui.SetNextItemWidth(-1f);
+        if (ImGui.InputTextMultiline("##nativeSample", ref sample, 2048, new Vector2(-1f, 70f)))
+            _nativeProbe.Sample = sample;
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Font");
+        var fontType = _nativeProbe.FontType;
+        if (ImGui.BeginCombo("##nativeFont", fontType.ToString()))
+        {
+            foreach (var value in Enum.GetValues<FontType>())
+            {
+                if (ImGui.Selectable(value.ToString(), value == fontType))
+                    _nativeProbe.FontType = value;
+            }
+
+            ImGui.EndCombo();
+        }
+
+        if (ImGui.Button("Try next font"))
+            _nativeProbe.WriteWithNextFont();
+
+        ImGui.SameLine();
+        ImGui.TextDisabled("Cycles the six game fonts and writes each time.");
+
+        var sticky = _nativeProbe.Sticky;
+        if (ImGui.Checkbox("Keep the sample on every refresh", ref sticky))
+            _nativeProbe.Sticky = sticky;
+        ImGui.TextDisabled("Turn on if the game puts its own text back after one write.");
+
+        ImGui.Spacing();
+        if (ImGui.Button("Write sample"))
+            _nativeProbe.Write();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Restore original"))
+            _nativeProbe.Restore();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Forget saved text"))
+            _nativeProbe.ResetSaved();
+
+        ImGui.Spacing();
+        ImGui.TextColored(SectionColor, "Last result");
+        ImGui.TextWrapped(_nativeProbe.LastResult);
+    }
+#endif
+
+    /// <summary>Keeps a scanned node label short enough to read in the list.</summary>
+    private static string Shorten(string text)
+    {
+        var flat = text.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return flat.Length <= 48 ? flat : string.Concat(flat.AsSpan(0, 48), "...");
     }
 
     private void Checkbox(string label, bool current, Action<bool> setter)

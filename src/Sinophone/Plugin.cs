@@ -29,6 +29,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TargetNameHandler _targetNameHandler;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
+#if DEBUG
+    private readonly NativeTextProbe _nativeProbe;
+#endif
 
     private TranslationStore? _store;
 
@@ -67,6 +70,18 @@ public sealed class Plugin : IDalamudPlugin
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
+#if DEBUG
+        _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, Log);
+        _configWindow = new ConfigWindow(
+            _configuration,
+            ApplySettings,
+            ShowPreview,
+            BuildStatusText,
+            _dataUpdater,
+            BuildDataSourceText,
+            BuildAboutText,
+            _nativeProbe);
+#else
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -75,6 +90,7 @@ public sealed class Plugin : IDalamudPlugin
             _dataUpdater,
             BuildDataSourceText,
             BuildAboutText);
+#endif
 
         _windowSystem.AddWindow(_overlay);
         _windowSystem.AddWindow(_targetNameWindow);
@@ -146,17 +162,44 @@ public sealed class Plugin : IDalamudPlugin
                 ChatGui.Print($"[Sinophone] {BuildStatusText().Replace('\n', ' ')} {BuildDataSourceText()}");
                 break;
 
+#if DEBUG
+            case CommandAction.NativeTest:
+                _nativeProbe.Write();
+                ChatGui.Print($"[Sinophone] Native test: {_nativeProbe.LastResult}");
+                break;
+
+            case CommandAction.NativeRestore:
+                _nativeProbe.Restore();
+                ChatGui.Print($"[Sinophone] Native test: {_nativeProbe.LastResult}");
+                break;
+#endif
+
             default:
-                ChatGui.Print("[Sinophone] Usage: /sinophone [update|status]");
+                ChatGui.Print(UsageText);
                 break;
         }
     }
+
+    /// <summary>
+    /// Shown when the command gets an argument it does not know. The native test
+    /// subcommands are only advertised in debug builds, where they exist.
+    /// </summary>
+    internal const string UsageText =
+#if DEBUG
+        "[Sinophone] Usage: /sinophone [update|status|native|native restore]";
+#else
+        "[Sinophone] Usage: /sinophone [update|status]";
+#endif
 
     internal enum CommandAction
     {
         Toggle,
         Update,
         Status,
+#if DEBUG
+        NativeTest,
+        NativeRestore,
+#endif
         Unknown,
     }
 
@@ -169,6 +212,10 @@ public sealed class Plugin : IDalamudPlugin
             "" or "toggle" => CommandAction.Toggle,
             "update" => CommandAction.Update,
             "status" => CommandAction.Status,
+#if DEBUG
+            "native" => CommandAction.NativeTest,
+            "native restore" => CommandAction.NativeRestore,
+#endif
             _ => CommandAction.Unknown,
         };
     }
@@ -385,6 +432,9 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(CommandName);
 
         _dataUpdater.Dispose();
+#if DEBUG
+        _nativeProbe.Dispose();
+#endif
         _talkHandler.Dispose();
         _targetNameHandler.Dispose();
         _itemNameHandler.Dispose();

@@ -34,5 +34,8 @@ global using Lumina.Text.ReadOnly;
 
 global using Sinophone;
 global using Sinophone.Data;
+#if DEBUG
+global using Sinophone.Diagnostics;
+#endif
 global using Sinophone.Handlers;
 global using Sinophone.UI;
