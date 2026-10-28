@@ -76,6 +76,24 @@ window, so the overlay should pick them up with no new handler. The others have 
 need a handler before the text appears. The in-game check for each sheet is a checklist item on
 the pull request that added it.
 
+## Script dumps
+
+Some dialogue has no Lumina row. It lives in the datamining repositories' script folders. The
+artifact stores it in its `Scripts` section, keyed by the text key (`TEXT_...`) instead of a sheet
+and row id. The English text travels with the artifact because there is no sheet to read it from.
+
+| Folder | CN entries | What it holds |
+| --- | ---: | --- |
+| `custom/` | 31,023 | NPC interaction dialogue, including the Sundhimal aetherial travel line |
+| `cut_scene/` | 27,141 | Voiced cutscene dialogue, shown in `TalkSubtitle` |
+| `content/`, `dungeon/`, `raid/`, `transport/`, and the rest | 1,779 | Instance, raid, leve, shop, and transport text |
+
+Entries are paired across CN, TC, and English by text key. A line with no English counterpart is
+skipped, because the plugin has nothing to match it against.
+
+`quest/` is not indexed. It holds quest journal text, which the Talk overlay never shows, and it
+has about 493,000 entries. See issue #34.
+
 ## Checked and found empty
 
 These sheets look like text sources but contain no prose. Do not spend time on them.
