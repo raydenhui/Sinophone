@@ -467,10 +467,10 @@ premature interface.
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
 - **Native text mode needs a font mod.** Alpha and off by default. The game only draws Chinese
-  once its font files are replaced. TexTools with a font from
-  [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts) is the route that works; Penumbra
-  does not change the game font. Without the mod, native mode shows the missing-glyph character
-  and the plugin cannot tell. See [README](README.md#font-setup-with-textools).
+  once its font files are replaced. TexTools and Penumbra both install the same modpack; the font
+  comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
+  mode shows the missing-glyph character and the plugin cannot tell. See
+  [README](README.md#font-setup).
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 
 ## References

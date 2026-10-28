@@ -13,7 +13,7 @@ public sealed class ConfigWindow : Window
     private static readonly Vector4 WarningColor = new(1f, 0.72f, 0.35f, 1f);
 
     private const string FontSetupUrl =
-        "https://github.com/raydenhui/Sinophone/blob/main/README.md#font-setup-with-textools";
+        "https://github.com/raydenhui/Sinophone/blob/main/README.md#font-setup";
 
     private readonly Configuration _configuration;
     private readonly Action _applySettings;
