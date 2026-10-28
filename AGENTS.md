@@ -426,6 +426,12 @@ premature interface.
   branch; a script line whose dump branch differs from the player's can still miss. For display,
   `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition shows the
   first branch.
+- **Player name.** The dumps write `Player Player` where a line names the player, and the game
+  writes the real name. The lookup puts the name back before the dictionary hit, and the display
+  fills `<Highlight>ObjectParameter(1)</Highlight>` from `IPlayerState.CharacterName`. The other
+  parameter indices (55 is a chocobo, 56 one other object) are dropped, so the sentence can read
+  with a gap. Text holding an `ObjectParameter` is resolved on each lookup, not at load, because
+  the name changes with the logged-in character.
 - **Coverage.** Dialogue comes from the indexed sheets and the script dumps, including quest
   dialogue. Quest journal and objective text is skipped because no overlay shows it. Text built at
   runtime is not covered, and text that exists in no dump stays untranslated. Check the datamining

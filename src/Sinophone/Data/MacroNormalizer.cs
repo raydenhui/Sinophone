@@ -15,6 +15,70 @@ public static partial class MacroNormalizer
     [GeneratedRegex(@"<[^<>]*>", RegexOptions.CultureInvariant)]
     private static partial Regex MacroPattern();
 
+    [GeneratedRegex(@"ObjectParameter\((\d+)\)", RegexOptions.CultureInvariant)]
+    private static partial Regex ObjectParameterPattern();
+
+    /// <summary>
+    /// What the dumps write where a line names the player. The live game writes the
+    /// player's real name there instead, so the two do not match without help.
+    /// </summary>
+    public const string PlayerNamePlaceholder = "Player Player";
+
+    /// <summary>
+    /// Parameter index that holds the player's name in stored Chinese text. Index 1
+    /// is the player; the only other indices in the current data are a chocobo (55)
+    /// and one other object (56).
+    /// </summary>
+    public const int PlayerNameParameter = 1;
+
+    /// <summary>
+    /// Puts <see cref="PlayerNamePlaceholder" /> back where a key has the player's
+    /// name. The dumps write the placeholder, so a line the game has filled in with
+    /// the real name only matches once the name is swapped back.
+    /// </summary>
+    /// <returns>
+    /// The same string instance when there is nothing to replace, so a miss does not
+    /// pay for a copy.
+    /// </returns>
+    public static string RestorePlayerNamePlaceholder(string key, string? playerName)
+    {
+        if (key.Length == 0 || string.IsNullOrWhiteSpace(playerName))
+            return key;
+
+        var name = playerName.Trim();
+
+        // Replacing the placeholder with itself would only churn the dictionary.
+        if (name.Length == 0
+            || name.Contains(PlayerNamePlaceholder, StringComparison.Ordinal)
+            || !key.Contains(name, StringComparison.Ordinal))
+        {
+            return key;
+        }
+
+        return key.Replace(name, PlayerNamePlaceholder, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// True when stored text carries <c>ObjectParameter(n)</c>. Such text cannot be
+    /// resolved at load time, because the answer depends on the player.
+    /// </summary>
+    public static bool HasObjectParameter(string? text)
+        => text is not null && text.Contains("ObjectParameter(", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Fills <c>ObjectParameter(n)</c> in stored Chinese text. Only the player's own
+    /// name is known to the plugin; other parameters are dropped rather than shown as
+    /// the literal macro text.
+    /// </summary>
+    private static string ResolveObjectParameters(string text, string? playerName)
+        => ObjectParameterPattern().Replace(text, match =>
+        {
+            if (int.TryParse(match.Groups[1].Value, out var index) && index == PlayerNameParameter)
+                return playerName?.Trim() ?? string.Empty;
+
+            return string.Empty;
+        });
+
     /// <summary>
     /// Normalizes text for use as a dictionary key. All whitespace, including
     /// line breaks, is collapsed to a single space.
@@ -64,7 +128,11 @@ public static partial class MacroNormalizer
     /// Answers a conditional expression. Null means the condition is unknown; the
     /// first branch is shown.
     /// </param>
-    public static string CleanForDisplay(string? text, Func<string, bool?>? evaluate = null)
+    /// <param name="playerName">
+    /// The player's full name, used to fill <c>ObjectParameter(1)</c>. Null leaves
+    /// that parameter empty.
+    /// </param>
+    public static string CleanForDisplay(string? text, Func<string, bool?>? evaluate = null, string? playerName = null)
     {
         if (string.IsNullOrEmpty(text))
             return string.Empty;
@@ -73,6 +141,10 @@ public static partial class MacroNormalizer
         cleaned = cleaned.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         cleaned = LineBreakPattern().Replace(cleaned, "\n");
         cleaned = ConditionalText.Resolve(cleaned, evaluate);
+
+        // Before the macro strip: that strip removes <Highlight> and </Highlight> but
+        // leaves the parameter text between them sitting in the sentence.
+        cleaned = ResolveObjectParameters(cleaned, playerName);
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
 
         var lines = cleaned.Split('\n');

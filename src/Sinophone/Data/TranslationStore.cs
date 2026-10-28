@@ -19,14 +19,20 @@ public sealed class TranslationStore
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.Ordinal);
     private readonly Func<string, string> _displayResolver;
+    private readonly Func<string?>? _playerName;
 
     private int _scriptEntryCount;
 
-    private TranslationStore(ChineseVariant primaryVariant, bool usedFallback, Func<string, string> displayResolver)
+    private TranslationStore(
+        ChineseVariant primaryVariant,
+        bool usedFallback,
+        Func<string, string> displayResolver,
+        Func<string?>? playerName)
     {
         PrimaryVariant = primaryVariant;
         UsedFallback = usedFallback;
         _displayResolver = displayResolver;
+        _playerName = playerName;
     }
 
     /// <summary>The variant whose rows were indexed first.</summary>
@@ -50,10 +56,39 @@ public sealed class TranslationStore
         if (key.Length == 0)
             return false;
 
-        if (!_textLookup.TryGetValue(key, out var stored))
+        if (!_textLookup.TryGetValue(key, out var stored)
+            && !TryLookupWithoutPlayerName(key, out stored))
+        {
             return false;
+        }
 
         chineseText = ResolveDisplay(stored);
+        return true;
+    }
+
+    /// <summary>
+    /// Second chance for a line the game filled in with the player's name. The dumps
+    /// store the placeholder instead, so putting the name back can match. Only tried
+    /// after a miss, so the common line still costs one dictionary hit.
+    /// </summary>
+    private bool TryLookupWithoutPlayerName(string key, out string stored)
+    {
+        stored = string.Empty;
+
+        var playerName = _playerName?.Invoke();
+        if (string.IsNullOrWhiteSpace(playerName))
+            return false;
+
+        var restored = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
+
+        // The placeholder was not in this key, so there is nothing new to try.
+        if (ReferenceEquals(restored, key))
+            return false;
+
+        if (!_textLookup.TryGetValue(restored, out var match))
+            return false;
+
+        stored = match;
         return true;
     }
 
@@ -84,7 +119,8 @@ public sealed class TranslationStore
         IPluginLog log,
         Func<ChineseVariant, Stream?> openResource,
         Func<ChineseVariant, Stream?>? fallbackResource = null,
-        Func<string, string>? displayResolver = null)
+        Func<string, string>? displayResolver = null,
+        Func<string?>? playerName = null)
         => Load(
             SheetCatalog.Create(dataManager),
             configuration.Variant,
@@ -92,7 +128,8 @@ public sealed class TranslationStore
             openResource,
             log,
             fallbackResource,
-            displayResolver);
+            displayResolver,
+            playerName);
 
     /// <summary>
     /// Builds a store from explicit inputs. Tests use this to supply their own
@@ -103,6 +140,10 @@ public sealed class TranslationStore
     /// resolved on each lookup, because the answer depends on the player. Lines
     /// without one are resolved once here.
     /// </param>
+    /// <param name="playerName">
+    /// The player's full name. A line the game filled in with it can still match the
+    /// dump's placeholder. Null skips that second lookup.
+    /// </param>
     internal static TranslationStore? Load(
         IReadOnlyList<ISheetDescriptor> descriptors,
         ChineseVariant variant,
@@ -110,7 +151,8 @@ public sealed class TranslationStore
         Func<ChineseVariant, Stream?> openResource,
         IPluginLog log,
         Func<ChineseVariant, Stream?>? fallbackResource = null,
-        Func<string, string>? displayResolver = null)
+        Func<string, string>? displayResolver = null,
+        Func<string?>? playerName = null)
     {
         var stopwatch = Stopwatch.StartNew();
 
@@ -133,7 +175,8 @@ public sealed class TranslationStore
         var store = new TranslationStore(
             variant,
             fallback is not null,
-            displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)));
+            displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)),
+            playerName);
 
         if (primary is not null)
             store.Index(primary, descriptors, log);
@@ -250,15 +293,22 @@ public sealed class TranslationStore
     }
 
     /// <summary>
-    /// Resolves text now when it has no conditional, so a lookup stays a dictionary
-    /// hit. Text with a conditional is kept raw and resolved per lookup, because the
-    /// answer depends on the player. Conditional lines are rare.
+    /// Resolves text now when nothing in it depends on the player, so a lookup stays a
+    /// dictionary hit. Conditionals and <c>ObjectParameter</c> text are kept raw and
+    /// resolved per lookup. Such lines are rare.
     /// </summary>
     private string PrepareDisplay(string rawText)
-        => ConditionalText.HasConditional(rawText) ? rawText : _displayResolver(rawText);
+        => NeedsLateResolution(rawText) ? rawText : _displayResolver(rawText);
 
     private string ResolveDisplay(string stored)
-        => ConditionalText.HasConditional(stored) ? _displayResolver(stored) : stored;
+        => NeedsLateResolution(stored) ? _displayResolver(stored) : stored;
+
+    /// <summary>
+    /// Text whose display depends on the player, so it cannot be resolved at load.
+    /// Both checks are cheaper than the work they guard against.
+    /// </summary>
+    private static bool NeedsLateResolution(string text)
+        => ConditionalText.HasConditional(text) || MacroNormalizer.HasObjectParameter(text);
 
     private static TranslationArtifact? LoadArtifact(
         ChineseVariant variant,
