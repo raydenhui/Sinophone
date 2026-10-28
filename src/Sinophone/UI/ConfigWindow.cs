@@ -18,6 +18,7 @@ public sealed class ConfigWindow : Window
     private readonly TranslationDataUpdater _dataUpdater;
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
+    private readonly NativeTextProbe _nativeProbe;
 
     public ConfigWindow(
         Configuration configuration,
@@ -26,7 +27,8 @@ public sealed class ConfigWindow : Window
         Func<string> statusText,
         TranslationDataUpdater dataUpdater,
         Func<string> dataSourceText,
-        Func<string> aboutText)
+        Func<string> aboutText,
+        NativeTextProbe nativeProbe)
         : base("Sinophone###SinophoneConfig", ImGuiWindowFlags.NoCollapse)
     {
         _configuration = configuration;
@@ -36,6 +38,7 @@ public sealed class ConfigWindow : Window
         _dataUpdater = dataUpdater;
         _dataSourceText = dataSourceText;
         _aboutText = aboutText;
+        _nativeProbe = nativeProbe;
 
         Size = new Vector2(500f, 640f);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -76,6 +79,12 @@ public sealed class ConfigWindow : Window
         if (ImGui.BeginTabItem("Status"))
         {
             DrawStatusTab();
+            ImGui.EndTabItem();
+        }
+
+        if (ImGui.BeginTabItem("Native test"))
+        {
+            DrawNativeTestTab();
             ImGui.EndTabItem();
         }
 
@@ -278,6 +287,69 @@ public sealed class ConfigWindow : Window
         var status = _statusText();
         if (!string.IsNullOrEmpty(status))
             ImGui.TextWrapped(status);
+    }
+
+    /// <summary>
+    /// Temporary probe for native text mode. Writes Chinese into the game's own
+    /// Talk nodes, so we can see whether the game font has CJK glyphs.
+    /// </summary>
+    private void DrawNativeTestTab()
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "Test code. This writes into the game's dialogue box to check whether its font " +
+            "can draw Chinese. Reload the plugin to undo everything.");
+        ImGui.PopStyleColor();
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        var sample = _nativeProbe.Sample;
+        ImGui.TextUnformatted("Dialogue text");
+        ImGui.SetNextItemWidth(-1f);
+        if (ImGui.InputTextMultiline("##nativeSample", ref sample, 2048, new Vector2(-1f, 70f)))
+            _nativeProbe.Sample = sample;
+
+        var nameSample = _nativeProbe.NameSample;
+        ImGui.TextUnformatted("Speaker name");
+        ImGui.SetNextItemWidth(-1f);
+        if (ImGui.InputText("##nativeNameSample", ref nameSample, 256))
+            _nativeProbe.NameSample = nameSample;
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Font");
+        var fontType = _nativeProbe.FontType;
+        if (ImGui.BeginCombo("##nativeFont", fontType.ToString()))
+        {
+            foreach (var value in Enum.GetValues<FontType>())
+            {
+                if (ImGui.Selectable(value.ToString(), value == fontType))
+                    _nativeProbe.FontType = value;
+            }
+
+            ImGui.EndCombo();
+        }
+
+        var sticky = _nativeProbe.Sticky;
+        if (ImGui.Checkbox("Keep the sample on every refresh", ref sticky))
+            _nativeProbe.Sticky = sticky;
+        ImGui.TextDisabled("Turn on if the game puts its own text back after one write.");
+
+        ImGui.Spacing();
+        if (ImGui.Button("Write sample"))
+            _nativeProbe.Write();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Restore original"))
+            _nativeProbe.Restore();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Forget saved text"))
+            _nativeProbe.ResetSaved();
+
+        ImGui.Spacing();
+        ImGui.TextColored(SectionColor, "Last result");
+        ImGui.TextWrapped(_nativeProbe.LastResult);
     }
 
     private void Checkbox(string label, bool current, Action<bool> setter)

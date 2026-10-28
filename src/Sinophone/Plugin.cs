@@ -29,6 +29,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TargetNameHandler _targetNameHandler;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
+    private readonly NativeTextProbe _nativeProbe;
 
     private TranslationStore? _store;
 
@@ -67,6 +68,7 @@ public sealed class Plugin : IDalamudPlugin
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
+        _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, Log);
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -74,7 +76,8 @@ public sealed class Plugin : IDalamudPlugin
             BuildStatusText,
             _dataUpdater,
             BuildDataSourceText,
-            BuildAboutText);
+            BuildAboutText,
+            _nativeProbe);
 
         _windowSystem.AddWindow(_overlay);
         _windowSystem.AddWindow(_targetNameWindow);
@@ -146,8 +149,18 @@ public sealed class Plugin : IDalamudPlugin
                 ChatGui.Print($"[Sinophone] {BuildStatusText().Replace('\n', ' ')} {BuildDataSourceText()}");
                 break;
 
+            case CommandAction.NativeTest:
+                _nativeProbe.Write();
+                ChatGui.Print($"[Sinophone] Native test: {_nativeProbe.LastResult}");
+                break;
+
+            case CommandAction.NativeRestore:
+                _nativeProbe.Restore();
+                ChatGui.Print($"[Sinophone] Native test: {_nativeProbe.LastResult}");
+                break;
+
             default:
-                ChatGui.Print("[Sinophone] Usage: /sinophone [update|status]");
+                ChatGui.Print("[Sinophone] Usage: /sinophone [update|status|native|native restore]");
                 break;
         }
     }
@@ -157,6 +170,8 @@ public sealed class Plugin : IDalamudPlugin
         Toggle,
         Update,
         Status,
+        NativeTest,
+        NativeRestore,
         Unknown,
     }
 
@@ -169,6 +184,8 @@ public sealed class Plugin : IDalamudPlugin
             "" or "toggle" => CommandAction.Toggle,
             "update" => CommandAction.Update,
             "status" => CommandAction.Status,
+            "native" => CommandAction.NativeTest,
+            "native restore" => CommandAction.NativeRestore,
             _ => CommandAction.Unknown,
         };
     }
@@ -385,6 +402,7 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(CommandName);
 
         _dataUpdater.Dispose();
+        _nativeProbe.Dispose();
         _talkHandler.Dispose();
         _targetNameHandler.Dispose();
         _itemNameHandler.Dispose();
