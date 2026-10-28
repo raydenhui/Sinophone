@@ -20,10 +20,10 @@ public class TranslationDataUpdaterTests
     [Theory]
     [InlineData(false, 1)]
     [InlineData(true, 2)]
-    public void RequiredVariants_FollowsFallback(bool useFallback, int expected)
+    public void RequiredVariants_FollowsDownloadSetting(bool downloadBoth, int expected)
         => Assert.Equal(
             expected,
-            TranslationDataUpdater.RequiredVariants(ChineseVariant.Traditional, useFallback).Count);
+            TranslationDataUpdater.RequiredVariants(ChineseVariant.Traditional, downloadBoth).Count);
 
     [Fact]
     public void RequiredVariants_PutsTheConfiguredVariantFirst()
@@ -32,6 +32,35 @@ public class TranslationDataUpdaterTests
 
         Assert.Equal(ChineseVariant.Simplified, variants[0]);
         Assert.Equal(ChineseVariant.Traditional, variants[1]);
+    }
+
+    [Fact]
+    public void RequiredVariants_DownloadsOnlyTheSelectedVariant_WhenDownloadBothIsOff()
+    {
+        var variants = TranslationDataUpdater.RequiredVariants(ChineseVariant.Simplified, false);
+
+        Assert.Equal([ChineseVariant.Simplified], variants);
+    }
+
+    [Theory]
+    [InlineData(true, "v1", true, true)]
+    [InlineData(true, "", true, false)]
+    [InlineData(false, "v1", true, false)]
+    [InlineData(true, "v1", false, false)]
+    public void ShouldUseDownloadedFile_RequiresInstalledVersionAndFile(
+        bool hasFlag, string installedVersion, bool fileExists, bool expected)
+    {
+        var configuration = new Configuration
+        {
+            HasTraditionalData = hasFlag,
+            LastDataVersion = installedVersion,
+        };
+        var updater = new TranslationDataUpdater(
+            configuration,
+            Path.GetTempPath(),
+            new FakePluginLog());
+
+        Assert.Equal(expected, updater.ShouldUseDownloadedFile(ChineseVariant.Traditional, fileExists));
     }
 
     [Fact]
