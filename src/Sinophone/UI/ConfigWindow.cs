@@ -18,8 +18,15 @@ public sealed class ConfigWindow : Window
     private readonly TranslationDataUpdater _dataUpdater;
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
-    private readonly NativeTextProbe _nativeProbe;
+#if DEBUG
+    // Set by the debug-only constructor, which chains into the main one.
+    private readonly NativeTextProbe _nativeProbe = null!;
+#endif
 
+#if DEBUG
+    /// <summary>
+    /// Debug build. Takes the native test probe, which adds a "Native test" tab.
+    /// </summary>
     public ConfigWindow(
         Configuration configuration,
         Action applySettings,
@@ -29,6 +36,20 @@ public sealed class ConfigWindow : Window
         Func<string> dataSourceText,
         Func<string> aboutText,
         NativeTextProbe nativeProbe)
+        : this(configuration, applySettings, showPreview, statusText, dataUpdater, dataSourceText, aboutText)
+    {
+        _nativeProbe = nativeProbe;
+    }
+#endif
+
+    public ConfigWindow(
+        Configuration configuration,
+        Action applySettings,
+        Action showPreview,
+        Func<string> statusText,
+        TranslationDataUpdater dataUpdater,
+        Func<string> dataSourceText,
+        Func<string> aboutText)
         : base("Sinophone###SinophoneConfig", ImGuiWindowFlags.NoCollapse)
     {
         _configuration = configuration;
@@ -38,7 +59,6 @@ public sealed class ConfigWindow : Window
         _dataUpdater = dataUpdater;
         _dataSourceText = dataSourceText;
         _aboutText = aboutText;
-        _nativeProbe = nativeProbe;
 
         Size = new Vector2(500f, 640f);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -82,11 +102,13 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
+#if DEBUG
         if (ImGui.BeginTabItem("Native test"))
         {
             DrawNativeTestTab();
             ImGui.EndTabItem();
         }
+#endif
 
         ImGui.EndTabBar();
     }
@@ -289,9 +311,10 @@ public sealed class ConfigWindow : Window
             ImGui.TextWrapped(status);
     }
 
+#if DEBUG
     /// <summary>
-    /// Temporary probe for native text mode. Writes Chinese into the game's own
-    /// Talk nodes, so we can see whether the game font has CJK glyphs.
+    /// Development-only tab for the native text probe. Writes Chinese into the game's
+    /// own text nodes, so we can see whether the game font has CJK glyphs.
     /// </summary>
     private void DrawNativeTestTab()
     {
@@ -396,6 +419,7 @@ public sealed class ConfigWindow : Window
         ImGui.TextColored(SectionColor, "Last result");
         ImGui.TextWrapped(_nativeProbe.LastResult);
     }
+#endif
 
     /// <summary>Keeps a scanned node label short enough to read in the list.</summary>
     private static string Shorten(string text)

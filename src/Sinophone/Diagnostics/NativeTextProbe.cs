@@ -1,13 +1,15 @@
+#if DEBUG
 namespace Sinophone.Diagnostics;
 
 /// <summary>
-/// Temporary probe for native text mode. Writes Chinese into a text node of any
-/// game addon, so we can see whether the game font draws CJK glyphs and whether a
-/// node can be changed at all.
+/// Development-only probe for native text mode. Writes Chinese into a text node of any
+/// game addon, so we can see whether the game font draws CJK glyphs and whether a node
+/// can be changed at all.
 /// </summary>
 /// <remarks>
-/// This is test code on a throwaway branch. It stores nothing on disk, so a plugin
-/// reload undoes everything it changed.
+/// Debug builds only. Everything that touches this class is also behind <c>#if DEBUG</c>,
+/// so a release build contains no probe code and no "Native test" tab.
+/// It stores nothing on disk, so a plugin reload undoes everything it changed.
 /// </remarks>
 public sealed unsafe class NativeTextProbe : IDisposable
 {
@@ -298,3 +300,4 @@ public sealed unsafe class NativeTextProbe : IDisposable
 
     public void Dispose() => UnregisterSticky();
 }
+#endif
