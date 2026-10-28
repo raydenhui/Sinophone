@@ -1,48 +1,56 @@
-using FFXIVClientStructs.FFXIV.Client.UI;
-
 namespace Sinophone.Diagnostics;
 
 /// <summary>
-/// Temporary probe for native text mode. Writes Chinese into the game's own Talk
-/// text nodes so we can see whether the game font has CJK glyphs.
+/// Temporary probe for native text mode. Writes Chinese into a text node of any
+/// game addon, so we can see whether the game font draws CJK glyphs and whether a
+/// node can be changed at all.
 /// </summary>
 /// <remarks>
-/// This is test code on a throwaway branch. It does not ship, and it keeps no
-/// settings, so a plugin reload clears everything it changed.
+/// This is test code on a throwaway branch. It stores nothing on disk, so a plugin
+/// reload undoes everything it changed.
 /// </remarks>
 public sealed unsafe class NativeTextProbe : IDisposable
 {
     /// <summary>
-    /// Traditional first, because the last run showed Traditional glyphs drawing and
-    /// some Simplified ones showing "=". Keep them on separate lines so a failure is
-    /// easy to place.
+    /// Traditional first, because the first run showed Traditional glyphs drawing and
+    /// some Simplified ones showing "=". The "=" is the game's missing-glyph glyph.
     /// </summary>
     public const string DefaultSample =
         "這是中文樣本：遊戲字型能否顯示漢字？\n这是中文样本：游戏字体能否显示汉字？";
 
-    /// <summary>
-    /// Sample presets for the settings tab. Each one answers a different question.
-    /// </summary>
+    /// <summary>Sample presets. Each one answers a different question.</summary>
     public static readonly (string Label, string Text)[] Presets =
     [
         ("Traditional only", "這是中文樣本：遊戲字型能否顯示漢字？"),
         ("Simplified only", "这是中文样本：游戏字体能否显示汉字？"),
         ("Traditional vs simplified pairs", "這这 樣样 遊游 戲戏 體体 顯显 漢汉"),
+        ("Rare Traditional", "歷閱臺灣龍鳳龜"),
         ("Latin control", "Latin control line ABC 123"),
     ];
 
-    private const string TalkAddonName = "Talk";
+    /// <summary>Addons with text worth trying. Any other name can be typed in.</summary>
+    public static readonly string[] KnownAddons =
+    [
+        "Talk",
+        "TalkSubtitle",
+        "Journal",
+        "JournalDetail",
+        "ItemDetail",
+        "TargetInfo",
+        "RecommendList",
+    ];
 
-    // Confirmed from the live addon: node 2 is the speaker name, node 3 is the dialogue.
-    private const uint NameNodeId = 2;
-    private const uint TextNodeId = 3;
+    private const int MaxTreeDepth = 64;
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
     private readonly IPluginLog _log;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
+    private readonly List<(uint Id, string Text)> _scanned = [];
 
-    private string _savedName = string.Empty;
+    private string _registeredAddon = string.Empty;
+    private string _savedAddon = string.Empty;
+    private uint _savedNodeId;
     private string _savedText = string.Empty;
     private bool _hasSaved;
 
@@ -53,119 +61,166 @@ public sealed unsafe class NativeTextProbe : IDisposable
         _log = log;
         _onAddonEvent = OnAddonEvent;
 
-        _addonLifecycle.RegisterListener(AddonEvent.PostSetup, TalkAddonName, _onAddonEvent);
-        _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, TalkAddonName, _onAddonEvent);
-        _addonLifecycle.RegisterListener(AddonEvent.PostShow, TalkAddonName, _onAddonEvent);
+        AddonName = "Talk";
+        NodeId = 3;
     }
 
-    /// <summary>Text written into the dialogue node.</summary>
-    public string Sample { get; set; } = DefaultSample;
+    /// <summary>Addon to read and write. Changing it moves the sticky listener.</summary>
+    public string AddonName { get; private set; }
 
-    /// <summary>Text written into the speaker name node.</summary>
-    public string NameSample { get; set; } = "中文名字";
+    /// <summary>Text node to write. Scanned from the addon's node tree.</summary>
+    public uint NodeId { get; set; }
+
+    /// <summary>Text written into the node.</summary>
+    public string Sample { get; set; } = DefaultSample;
 
     /// <summary>Font the sample is drawn with. The game only offers these six.</summary>
     public FontType FontType { get; set; } = FontType.Axis;
 
-    /// <summary>
-    /// Rewrite the sample every time the game refreshes the Talk window. Needed if
-    /// the game puts its own text back after a single write.
-    /// </summary>
-    public bool Sticky { get; set; }
-
-    /// <summary>What the last write did. Shown in the settings window.</summary>
-    public string LastResult { get; private set; } = "No write yet.";
+    private bool _sticky;
 
     /// <summary>
-    /// Writes the sample into the open Talk window. Returns false when Talk is not
-    /// open, which is the usual case outside a conversation.
+    /// Rewrite the sample every time the addon refreshes. Needed if the game puts its
+    /// own text back after a single write.
     /// </summary>
-    public bool Write()
+    public bool Sticky
     {
-        var talk = GetTalkAddon();
-        if (talk is null)
+        get => _sticky;
+        set
         {
-            LastResult = "Talk is not open. Talk to an NPC first.";
+            if (_sticky == value)
+                return;
+
+            _sticky = value;
+
+            if (value)
+                RegisterSticky();
+            else
+                UnregisterSticky();
+        }
+    }
+
+    /// <summary>Text nodes found by the last scan.</summary>
+    public IReadOnlyList<(uint Id, string Text)> ScannedNodes => _scanned;
+
+    /// <summary>What the last action did. Shown in the settings window.</summary>
+    public string LastResult { get; private set; } = "No action yet.";
+
+    /// <summary>Points the probe at another addon.</summary>
+    public void SetAddon(string addonName)
+    {
+        if (string.Equals(AddonName, addonName, StringComparison.Ordinal))
+            return;
+
+        UnregisterSticky();
+        AddonName = addonName;
+        _scanned.Clear();
+        LastResult = $"Target addon: {addonName}. Scan to list its text nodes.";
+
+        if (Sticky)
+            RegisterSticky();
+    }
+
+    /// <summary>
+    /// Walks the addon's node tree and records every text node with its node id and
+    /// current text. This is how we find the right node for an addon we have not
+    /// looked at before.
+    /// </summary>
+    public bool Scan()
+    {
+        _scanned.Clear();
+
+        var addon = GetAddon();
+        if (addon is null)
+        {
+            LastResult = $"{AddonName} is not open. Open it first.";
             return false;
         }
 
-        var textNode = talk->GetTextNodeById(TextNodeId);
-        if (textNode is null)
-        {
-            LastResult = $"Text node {TextNodeId} was not found.";
-            _log.Warning("Native probe: text node {NodeId} was not found.", TextNodeId);
-            return false;
-        }
+        if (addon->RootNode is not null)
+            CollectTextNodes(addon->RootNode, 0);
 
-        var nameNode = talk->GetTextNodeById(NameNodeId);
-
-        // Save the game's own text once, before the first write, so Restore can put
-        // it back without the sample being saved over it.
-        if (!_hasSaved)
-        {
-            _savedText = textNode->NodeText.ToString();
-            _savedName = nameNode is null ? string.Empty : nameNode->NodeText.ToString();
-            _hasSaved = true;
-        }
-
-        var before = textNode->NodeText.ToString();
-
-        // Set the font first: changing it can rebuild the layout, which would
-        // throw away the text set before it.
-        textNode->SetFont(FontType);
-        textNode->SetText(Sample);
-        textNode->ResizeNodeForCurrentText();
-
-        if (nameNode is not null)
-        {
-            nameNode->SetText(NameSample);
-            nameNode->ResizeNodeForCurrentText();
-        }
-
-        var after = textNode->NodeText.ToString();
-        LastResult = after == Sample
-            ? $"Wrote {Sample.Length} chars to node {TextNodeId} with font {FontType}. " +
-              $"Name node: {(nameNode is null ? "missing" : "written")}. Was: \"{Truncate(before)}\"."
-            : $"Write did not stick. Node {TextNodeId} still reads \"{Truncate(after)}\".";
+        LastResult = _scanned.Count == 0
+            ? $"{AddonName} has no text nodes."
+            : $"Found {_scanned.Count} text nodes in {AddonName}. Pick one below.";
 
         _log.Info("Native probe: {Result}", LastResult);
         return true;
     }
 
-    /// <summary>Puts the game's own text back into both nodes.</summary>
-    public bool Restore()
+    /// <summary>Writes the sample into the selected node.</summary>
+    public bool Write()
     {
-        var talk = GetTalkAddon();
-        if (talk is null)
+        var addon = GetAddon();
+        if (addon is null)
         {
-            LastResult = "Talk is not open. Open a conversation, then restore.";
+            LastResult = $"{AddonName} is not open. Open it first.";
             return false;
         }
 
+        var node = addon->GetTextNodeById(NodeId);
+        if (node is null)
+        {
+            LastResult = $"Node {NodeId} is not a text node in {AddonName}. Scan and pick one.";
+            _log.Warning("Native probe: node {NodeId} missing in {Addon}.", NodeId, AddonName);
+            return false;
+        }
+
+        // Save the game's own text once, before the first write, so Restore can put it
+        // back without the sample being saved over it.
+        if (!_hasSaved || _savedNodeId != NodeId || _savedAddon != AddonName)
+        {
+            _savedText = node->NodeText.ToString();
+            _savedAddon = AddonName;
+            _savedNodeId = NodeId;
+            _hasSaved = true;
+        }
+
+        var before = node->NodeText.ToString();
+
+        // Set the font first: changing it can rebuild the layout, which would throw
+        // away text set before it.
+        node->SetFont(FontType);
+        node->SetText(Sample);
+        node->ResizeNodeForCurrentText();
+
+        var after = node->NodeText.ToString();
+        LastResult = after == Sample
+            ? $"Wrote {Sample.Length} chars to {AddonName} node {NodeId} with font {FontType}. " +
+              $"Was: \"{Truncate(before)}\"."
+            : $"Write did not stick. {AddonName} node {NodeId} still reads \"{Truncate(after)}\".";
+
+        _log.Info("Native probe: {Result}", LastResult);
+        return true;
+    }
+
+    /// <summary>Puts the game's own text back into the saved node.</summary>
+    public bool Restore()
+    {
         if (!_hasSaved)
         {
             LastResult = "Nothing was saved, so there is nothing to restore.";
             return false;
         }
 
-        var textNode = talk->GetTextNodeById(TextNodeId);
-        if (textNode is null)
+        var addon = GetAddon();
+        if (addon is null)
         {
-            LastResult = $"Text node {TextNodeId} was not found.";
+            LastResult = $"{_savedAddon} is not open. Open it to restore the text.";
             return false;
         }
 
-        textNode->SetText(_savedText);
-        textNode->ResizeNodeForCurrentText();
-
-        var nameNode = talk->GetTextNodeById(NameNodeId);
-        if (nameNode is not null)
+        var node = addon->GetTextNodeById(_savedNodeId);
+        if (node is null)
         {
-            nameNode->SetText(_savedName);
-            nameNode->ResizeNodeForCurrentText();
+            LastResult = $"Node {_savedNodeId} is gone from {_savedAddon}.";
+            return false;
         }
 
-        LastResult = $"Restored the saved text ({_savedText.Length} chars).";
+        node->SetText(_savedText);
+        node->ResizeNodeForCurrentText();
+
+        LastResult = $"Restored {_savedText.Length} chars to {_savedAddon} node {_savedNodeId}.";
         _log.Info("Native probe: {Result}", LastResult);
         return true;
     }
@@ -175,8 +230,17 @@ public sealed unsafe class NativeTextProbe : IDisposable
     {
         _hasSaved = false;
         _savedText = string.Empty;
-        _savedName = string.Empty;
+        _savedAddon = string.Empty;
         LastResult = "Saved text cleared.";
+    }
+
+    /// <summary>Draws the sample with the next font in the list and writes it.</summary>
+    public void WriteWithNextFont()
+    {
+        var fonts = Enum.GetValues<FontType>();
+        var index = Array.IndexOf(fonts, FontType);
+        FontType = fonts[(index + 1) % fonts.Length];
+        Write();
     }
 
     private void OnAddonEvent(AddonEvent eventType, AddonArgs args)
@@ -184,25 +248,53 @@ public sealed unsafe class NativeTextProbe : IDisposable
         if (!Sticky)
             return;
 
-        // The game rewrites the nodes from AtkValues on every refresh, so the sample
-        // has to go back in after the game is done with them.
-        _log.Debug("Native probe: sticky rewrite on {Event}.", eventType);
+        _log.Debug("Native probe: sticky rewrite of {Addon} on {Event}.", AddonName, eventType);
         Write();
     }
 
-    private AddonTalk* GetTalkAddon()
+    private void RegisterSticky()
     {
-        var addon = _gameGui.GetAddonByName<AtkUnitBase>(TalkAddonName, 1);
-        return addon is null ? null : (AddonTalk*)addon;
+        UnregisterSticky();
+        _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, AddonName, _onAddonEvent);
+        _registeredAddon = AddonName;
+    }
+
+    private void UnregisterSticky()
+    {
+        if (_registeredAddon.Length == 0)
+            return;
+
+        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, _registeredAddon, _onAddonEvent);
+        _registeredAddon = string.Empty;
+    }
+
+    private void CollectTextNodes(AtkResNode* node, int depth)
+    {
+        if (depth > MaxTreeDepth)
+            return;
+
+        for (var current = node; current is not null; current = current->NextSiblingNode)
+        {
+            if (current->Type == NodeType.Text)
+            {
+                var textNode = current->GetAsAtkTextNode();
+                if (textNode is not null)
+                    _scanned.Add((current->NodeId, textNode->NodeText.ToString()));
+            }
+
+            if (current->ChildNode is not null)
+                CollectTextNodes(current->ChildNode, depth + 1);
+        }
+    }
+
+    private AtkUnitBase* GetAddon()
+    {
+        var addon = _gameGui.GetAddonByName<AtkUnitBase>(AddonName, 1);
+        return addon is null ? null : addon;
     }
 
     private static string Truncate(string text)
         => text.Length <= 60 ? text : string.Concat(text.AsSpan(0, 60), "...");
 
-    public void Dispose()
-    {
-        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, TalkAddonName, _onAddonEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, TalkAddonName, _onAddonEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostShow, TalkAddonName, _onAddonEvent);
-    }
+    public void Dispose() => UnregisterSticky();
 }

@@ -304,7 +304,43 @@ public sealed class ConfigWindow : Window
         ImGui.Spacing();
         ImGui.Separator();
 
-        ImGui.TextUnformatted("Presets");
+        // Target first: everything below acts on the addon and node picked here.
+        ImGui.TextColored(SectionColor, "Target");
+        if (ImGui.BeginCombo("##nativeAddon", _nativeProbe.AddonName))
+        {
+            foreach (var name in NativeTextProbe.KnownAddons)
+            {
+                if (ImGui.Selectable(name, name == _nativeProbe.AddonName))
+                    _nativeProbe.SetAddon(name);
+            }
+
+            ImGui.EndCombo();
+        }
+
+        var customAddon = _nativeProbe.AddonName;
+        ImGui.SetNextItemWidth(200f);
+        if (ImGui.InputText("Custom addon", ref customAddon, 64, ImGuiInputTextFlags.EnterReturnsTrue))
+            _nativeProbe.SetAddon(customAddon.Trim());
+
+        ImGui.SameLine();
+        if (ImGui.Button("Scan"))
+            _nativeProbe.Scan();
+
+        foreach (var node in _nativeProbe.ScannedNodes)
+        {
+            var label = $"Node {node.Id}: {Shorten(node.Text)}";
+            if (ImGui.Selectable(label, node.Id == _nativeProbe.NodeId))
+                _nativeProbe.NodeId = node.Id;
+        }
+
+        var nodeId = (int)_nativeProbe.NodeId;
+        ImGui.SetNextItemWidth(120f);
+        if (ImGui.InputInt("Node id", ref nodeId) && nodeId >= 0)
+            _nativeProbe.NodeId = (uint)nodeId;
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.TextColored(SectionColor, "Sample");
         foreach (var preset in NativeTextProbe.Presets)
         {
             if (ImGui.Button(preset.Label))
@@ -315,16 +351,9 @@ public sealed class ConfigWindow : Window
         }
 
         var sample = _nativeProbe.Sample;
-        ImGui.TextUnformatted("Dialogue text");
         ImGui.SetNextItemWidth(-1f);
         if (ImGui.InputTextMultiline("##nativeSample", ref sample, 2048, new Vector2(-1f, 70f)))
             _nativeProbe.Sample = sample;
-
-        var nameSample = _nativeProbe.NameSample;
-        ImGui.TextUnformatted("Speaker name");
-        ImGui.SetNextItemWidth(-1f);
-        if (ImGui.InputText("##nativeNameSample", ref nameSample, 256))
-            _nativeProbe.NameSample = nameSample;
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Font");
@@ -341,12 +370,7 @@ public sealed class ConfigWindow : Window
         }
 
         if (ImGui.Button("Try next font"))
-        {
-            var fonts = Enum.GetValues<FontType>();
-            var index = Array.IndexOf(fonts, _nativeProbe.FontType);
-            _nativeProbe.FontType = fonts[(index + 1) % fonts.Length];
-            _nativeProbe.Write();
-        }
+            _nativeProbe.WriteWithNextFont();
 
         ImGui.SameLine();
         ImGui.TextDisabled("Cycles the six game fonts and writes each time.");
@@ -371,6 +395,13 @@ public sealed class ConfigWindow : Window
         ImGui.Spacing();
         ImGui.TextColored(SectionColor, "Last result");
         ImGui.TextWrapped(_nativeProbe.LastResult);
+    }
+
+    /// <summary>Keeps a scanned node label short enough to read in the list.</summary>
+    private static string Shorten(string text)
+    {
+        var flat = text.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return flat.Length <= 48 ? flat : string.Concat(flat.AsSpan(0, 48), "...");
     }
 
     private void Checkbox(string label, bool current, Action<bool> setter)
