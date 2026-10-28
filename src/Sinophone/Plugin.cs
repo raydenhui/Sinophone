@@ -35,6 +35,7 @@ public sealed class Plugin : IDalamudPlugin
     private ChineseVariant _lastVariant;
     private ChineseConversion _lastConversion;
     private bool _lastFallback;
+    private bool _lastDownloadBoth;
     private bool _lastEnabled;
     private bool _lastShowTargetName;
     private bool _lastShowItemName;
@@ -50,6 +51,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _lastVariant = _configuration.Variant;
         _lastFallback = _configuration.UseFallbackVariant;
+        _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastShowItemName = _configuration.ShowItemName;
@@ -246,12 +248,16 @@ public sealed class Plugin : IDalamudPlugin
         if (!hasCn && !hasTc)
             return "Using the translation data built into the plugin.";
 
-        if (!hasCn || !hasTc)
-            return "Using downloaded data. One variant is missing and uses the built-in copy.";
-
         var version = string.IsNullOrEmpty(_configuration.LastDataVersion)
             ? "unknown version"
             : $"version {_configuration.LastDataVersion}";
+
+        if (!hasCn || !hasTc)
+        {
+            return _configuration.DownloadBothVariants
+                ? "Using downloaded data. One variant is missing and uses the built-in copy."
+                : $"Using downloaded data ({version}) for the selected variant only.";
+        }
 
         return $"Using downloaded data ({version}).";
     }
@@ -311,6 +317,8 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.Conversion != _lastConversion
                                || _configuration.UseFallbackVariant != _lastFallback;
 
+        var needsDownloadCheck = _configuration.DownloadBothVariants != _lastDownloadBoth;
+
         var needsFontRebuild = needsStoreReload
                                || Math.Abs(_configuration.FontSize - _lastFontSize) > 0.01f
                                || !string.Equals(_configuration.CustomFontPath, _lastFontPath, StringComparison.OrdinalIgnoreCase);
@@ -326,6 +334,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastVariant = _configuration.Variant;
         _lastConversion = _configuration.Conversion;
         _lastFallback = _configuration.UseFallbackVariant;
+        _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastShowItemName = _configuration.ShowItemName;
@@ -345,6 +354,14 @@ public sealed class Plugin : IDalamudPlugin
             // The user now needs a variant that is not on disk.
             if (!string.IsNullOrEmpty(_configuration.LastDataVersion) && _dataUpdater.IsMissingRequiredFile())
                 _dataUpdater.StartUpdate();
+        }
+
+        // Turning the second variant back on needs its file, which may never have been downloaded.
+        if (needsDownloadCheck
+            && !string.IsNullOrEmpty(_configuration.LastDataVersion)
+            && _dataUpdater.IsMissingRequiredFile())
+        {
+            _dataUpdater.StartUpdate();
         }
 
         if (needsFontRebuild)

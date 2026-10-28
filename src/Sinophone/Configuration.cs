@@ -39,6 +39,12 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public bool UseFallbackVariant { get; set; } = true;
 
+    /// <summary>
+    /// Download both language variants. Off downloads only <see cref="Variant"/>,
+    /// which keeps updates small but leaves the fallback variant without data.
+    /// </summary>
+    public bool DownloadBothVariants { get; set; } = true;
+
     public bool ShowInTalk { get; set; } = true;
 
     public bool ShowInTalkSubtitle { get; set; } = true;
