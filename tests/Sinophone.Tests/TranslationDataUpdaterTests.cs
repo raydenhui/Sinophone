@@ -126,7 +126,13 @@ public class TranslationDataUpdaterTests
         var directory = CreateTemporaryDirectory();
         try
         {
-            var updater = CreateUpdater(directory);
+            // The file is only used when the last update installed it.
+            var configuration = new Configuration
+            {
+                HasSimplifiedData = true,
+                LastDataVersion = "v1",
+            };
+            var updater = new TranslationDataUpdater(configuration, directory, new FakePluginLog());
             var path = updater.DataFilePath(ChineseVariant.Simplified);
             File.WriteAllBytes(path, [10, 20, 30]);
 
