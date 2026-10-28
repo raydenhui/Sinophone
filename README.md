@@ -27,22 +27,31 @@ Sinophone is not in the official Dalamud plugin list. Add it as a custom reposit
 On first use, run `/sinophone` and click **Download / update data**. Translation data is downloaded
 separately so it can be updated without a new plugin build.
 
-## Font setup with TexTools
+## Font setup
 
 The overlay does not need this: it loads a Chinese font from Windows (or the font path set in the
 plugin settings). This is only for the alpha in-game text mode, which writes the translation into
 the game's own dialogue box and needs the game to draw Chinese itself.
 
-The game's font files have no Chinese glyphs, so replace them:
+The game's font files have no Chinese glyphs, so replace them with a font that has them. Pick one
+from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts): the repository has several
+fonts and each folder holds one as a `.ttmp2` modpack. Then install it with either tool.
+
+### TexTools
 
 1. Install [TexTools](https://github.com/TexTools/FFXIV_TexTools_UI/releases).
-2. Pick a font from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). There are
-   several fonts; each folder holds one as a `.ttmp2` modpack. Use whichever you like.
-3. Import the `.ttmp2` in TexTools and let it patch the game.
-4. In `/sinophone`, turn on **Alpha: In-game text** → **Write the translation into the game's
-   dialogue box**.
+2. Import the `.ttmp2` and let it patch the game.
 
-Penumbra does not replace the game font, so the text stays as boxes or `=` there.
+### Penumbra
+
+1. Install [Penumbra](https://github.com/xivdev/Penumbra) and turn it on.
+2. Import the same `.ttmp2` and enable it. Restart the game if the font does not change.
+
+### After either route
+
+In `/sinophone`, turn on **Alpha: In-game text** → **Write the translation into the game's dialogue
+box**. Without a font mod, every native-mode line shows the missing-glyph character instead of
+Chinese.
 
 ## Status
 
