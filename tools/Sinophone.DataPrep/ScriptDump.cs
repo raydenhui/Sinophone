@@ -8,12 +8,20 @@ namespace Sinophone.DataPrep;
 /// The CN and TC dumps start with three header rows; the English dump has none.
 /// </summary>
 /// <remarks>
-/// <c>quest/</c> is deliberately left out. It holds quest journal text, which the
-/// Talk overlay never shows, and it is about ten times the size of everything else.
-/// See issue #34.
+/// <c>quest/</c> mixes spoken lines with text no Talk window shows. Only the spoken
+/// lines are indexed; journal steps, objectives, system messages, and unused markers
+/// are skipped. See <see cref="QuestJournalMarkers"/>.
 /// </remarks>
 internal static class ScriptDump
 {
+    private const string QuestDirectory = "quest";
+
+    /// <summary>
+    /// Markers in a quest text key for text the overlay never sees: journal steps,
+    /// objectives, system messages, and unused entries.
+    /// </summary>
+    private static readonly string[] QuestJournalMarkers = ["_SEQ_", "_TODO_", "_SYSTEM_", "_QIB_"];
+
     /// <summary>Script folders to index, in the order they are reported.</summary>
     public static readonly string[] Directories =
     [
@@ -24,6 +32,7 @@ internal static class ScriptDump
         "guild_order",
         "leve",
         "opening",
+        "quest",
         "raid",
         "shop",
         "story",
@@ -81,6 +90,8 @@ internal static class ScriptDump
         if (!Directory.Exists(localizedDirectory) || !Directory.Exists(englishDirectory))
             return result;
 
+        var dialogueOnly = IsQuestDirectory(localizedDirectory);
+
         foreach (var path in SortedCsvFiles(localizedDirectory))
         {
             if (result.Count >= count)
@@ -91,7 +102,7 @@ internal static class ScriptDump
             if (!File.Exists(englishPath))
                 continue;
 
-            var localized = LoadFile(path);
+            var localized = LoadFile(path, dialogueOnly);
             var english = LoadFile(englishPath);
 
             foreach (var key in localized.Keys.OrderBy(k => k, StringComparer.Ordinal))
@@ -122,9 +133,11 @@ internal static class ScriptDump
             return result;
         }
 
+        var dialogueOnly = IsQuestDirectory(directory);
+
         foreach (var path in SortedCsvFiles(directory))
         {
-            foreach (var (key, text) in LoadFile(path))
+            foreach (var (key, text) in LoadFile(path, dialogueOnly))
                 result.TryAdd(key, text);
         }
 
@@ -132,7 +145,11 @@ internal static class ScriptDump
     }
 
     /// <summary>Reads one dump file. Returns text key to text.</summary>
-    internal static Dictionary<string, string> LoadFile(string path)
+    /// <param name="path">File to read.</param>
+    /// <param name="dialogueOnly">
+    /// Skip keys for journal, objective, system, and unused text. Set for <c>quest/</c>.
+    /// </param>
+    internal static Dictionary<string, string> LoadFile(string path, bool dialogueOnly = false)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -153,10 +170,30 @@ internal static class ScriptDump
             if (key.Length == 0)
                 continue;
 
+            if (dialogueOnly && IsQuestJournalKey(key))
+                continue;
+
             result.TryAdd(key, record[2]);
         }
 
         return result;
+    }
+
+    private static bool IsQuestDirectory(string directory)
+        => string.Equals(
+            Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            QuestDirectory,
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsQuestJournalKey(string key)
+    {
+        foreach (var marker in QuestJournalMarkers)
+        {
+            if (key.Contains(marker, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
     }
 
     private static IEnumerable<string> SortedCsvFiles(string directory)
