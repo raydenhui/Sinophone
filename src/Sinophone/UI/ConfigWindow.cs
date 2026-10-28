@@ -105,6 +105,31 @@ public sealed class ConfigWindow : Window
             v => _configuration.UseFallbackVariant = v);
 
         ImGui.Spacing();
+        ImGui.TextUnformatted("Convert Chinese text");
+        ImGui.TextDisabled("Only changes what is shown; the data that is loaded stays the same.");
+
+        if (ImGui.RadioButton("Keep the official script", _configuration.Conversion == ChineseConversion.None))
+        {
+            _configuration.Conversion = ChineseConversion.None;
+            _applySettings();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Simplified to Traditional",
+                _configuration.Conversion == ChineseConversion.SimplifiedToTraditional))
+        {
+            _configuration.Conversion = ChineseConversion.SimplifiedToTraditional;
+            _applySettings();
+        }
+
+        if (ImGui.RadioButton("Traditional to Simplified",
+                _configuration.Conversion == ChineseConversion.TraditionalToSimplified))
+        {
+            _configuration.Conversion = ChineseConversion.TraditionalToSimplified;
+            _applySettings();
+        }
+
+        ImGui.Spacing();
         Checkbox("Show in Talk dialog", _configuration.ShowInTalk, v => _configuration.ShowInTalk = v);
         Checkbox("Show in Talk subtitles", _configuration.ShowInTalkSubtitle,
             v => _configuration.ShowInTalkSubtitle = v);
@@ -299,6 +324,7 @@ public sealed class ConfigWindow : Window
         var defaults = new Configuration();
         _configuration.Enabled = defaults.Enabled;
         _configuration.Variant = defaults.Variant;
+        _configuration.Conversion = defaults.Conversion;
         _configuration.UseFallbackVariant = defaults.UseFallbackVariant;
         _configuration.ShowInTalk = defaults.ShowInTalk;
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;

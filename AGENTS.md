@@ -34,6 +34,9 @@ src/Sinophone/
     TranslationDataUpdater.cs Downloads published artifacts into the plugin config directory.
     SheetCatalog.cs         Which game sheets to index and how to read each one.
     MacroNormalizer.cs      Text cleanup for matching and for display.
+    ConditionalText.cs      Picks a branch when the CN/TC text carries <If> tags.
+    SeStringVariants.cs     Splits a conditional SeString into one string per branch.
+    ChineseConverter.cs     Optional simplified/traditional conversion, built from OpenCC.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
     TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name window.
@@ -56,7 +59,8 @@ CSV dump --(DataPrep)--> Sinophone.<lang>.json.gz --(embedded or data release)--
 live game sheet row --(SheetCatalog)--> English text --(MacroNormalizer)--> dictionary key
 script dump --(DataPrep)--> Scripts section (English + translation) --(TranslationStore)--> dictionary key
 Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> Chinese
-Chinese --(OverlayWindow)--> screen
+Chinese --(ChineseConverter)--> converted Chinese, when the setting is on
+converted Chinese --(OverlayWindow)--> screen
 ```
 
 Some dialogue has no Lumina row at all. It lives in the game's script dumps, which the dumps
@@ -144,6 +148,9 @@ pwsh -File scripts/New-TranslationData.ps1 -CnSource <cn-csv> -TcSource <tc-csv>
 
 # Regenerate the test fixture (rarely needed)
 pwsh -File scripts/Update-TestFixture.ps1 -CnSource <cn-csv> -TcSource <tc-csv> -EnSource <en-csv>
+
+# Regenerate the simplified/traditional conversion tables from OpenCC
+pwsh -File scripts/New-ConversionData.ps1
 ```
 
 The underlying commands, if you need to run one step by hand:
@@ -417,6 +424,9 @@ premature interface.
 - **Coverage.** Dialogue comes from the indexed sheets and the script dumps. Text built at runtime
   is not covered. `quest/` dumps are not indexed yet (issue #34), and text that exists in no dump
   stays untranslated. Check the datamining CSVs before assuming a lookup bug.
+- **Conversion is not exact.** The optional simplified/traditional layer uses OpenCC tables with
+  one candidate per key. Converting back can pick a different variant, for example 為 becomes 为
+  and then 爲. It is a reading aid, not a replacement for the official text of that variant.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
