@@ -9,6 +9,7 @@ public class ConfigurationTests
 
         Assert.True(config.Enabled);
         Assert.Equal(ChineseVariant.Traditional, config.Variant);
+        Assert.Equal(ChineseConversion.None, config.Conversion);
         Assert.True(config.UseFallbackVariant);
         Assert.True(config.ShowInTalk);
         Assert.True(config.ShowInTalkSubtitle);
@@ -48,5 +49,14 @@ public class ConfigurationTests
         // would silently flip a user's setting.
         Assert.Equal(0, (int)ChineseVariant.Simplified);
         Assert.Equal(1, (int)ChineseVariant.Traditional);
+    }
+
+    [Fact]
+    public void Conversion_HasStableNumericValues()
+    {
+        // Persisted the same way as the variant.
+        Assert.Equal(0, (int)ChineseConversion.None);
+        Assert.Equal(1, (int)ChineseConversion.SimplifiedToTraditional);
+        Assert.Equal(2, (int)ChineseConversion.TraditionalToSimplified);
     }
 }
