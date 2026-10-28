@@ -70,7 +70,7 @@ public static class SheetCatalog
 {
     public static IReadOnlyList<ISheetDescriptor> Create(IDataManager dataManager)
     {
-        var descriptors = new List<ISheetDescriptor>(11);
+        var descriptors = new List<ISheetDescriptor>(35);
 
         Add<DefaultTalk>(dataManager, descriptors, "DefaultTalk", "Text", false,
             static row => ExtractCollection(row.Text));
@@ -101,6 +101,39 @@ public static class SheetCatalog
             static row => ExtractSingle(row.TextData));
         Add<PartyContentTextData>(dataManager, descriptors, "PartyContentTextData", "Data", false,
             static row => ExtractSingle(row.Data));
+
+        // Dialogue sheets added for issue #19. HWDDevLevelWebText and
+        // InclusionShopWelcomText expose unnamed columns, which Lumina surfaces as
+        // Unknown0 and Unknown1.
+        Add<GimmickTalk>(dataManager, descriptors, "GimmickTalk", "Message", false,
+            static row => ExtractSingle(row.Message));
+        Add<GimmickBill>(dataManager, descriptors, "GimmickBill", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<GimmickYesNo>(dataManager, descriptors, "GimmickYesNo", "Message", false,
+            static row => ExtractSingle(row.Message));
+        Add<GimmickYesNo>(dataManager, descriptors, "GimmickYesNo", "YesButton", false,
+            static row => ExtractSingle(row.YesButton));
+        Add<GimmickYesNo>(dataManager, descriptors, "GimmickYesNo", "NoButton", false,
+            static row => ExtractSingle(row.NoButton));
+        Add<GoldSaucerTalk>(dataManager, descriptors, "GoldSaucerTalk", "Message", false,
+            static row => ExtractSingle(row.Message));
+        Add<GoldSaucerTalk>(dataManager, descriptors, "GoldSaucerTalk", "ChoicesText", false,
+            static row => ExtractCollection(row.ChoicesText));
+        Add<MassivePcContentTextData>(dataManager, descriptors, "MassivePcContentTextData", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<WKSMissionText>(dataManager, descriptors, "WKSMissionText", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<WKSText>(dataManager, descriptors, "WKSText", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<WKSEmergencyInfoText>(dataManager, descriptors, "WKSEmergencyInfoText", "Text", false,
+            static row => ExtractSingle(row.Text));
+        Add<HWDDevLevelWebText>(dataManager, descriptors, "HWDDevLevelWebText", "Unknown0", false,
+            static row => ExtractSingle(row.Unknown0));
+        Add<HWDDevLevelWebText>(dataManager, descriptors, "HWDDevLevelWebText", "Unknown1", false,
+            static row => ExtractSingle(row.Unknown1));
+        Add<InclusionShopWelcomText>(dataManager, descriptors, "InclusionShopWelcomText", "Unknown0", false,
+            static row => ExtractSingle(row.Unknown0));
+
         Add<MKDLore>(dataManager, descriptors, "MKDLore", "Name", true,
             static row => ExtractSingle(row.Name));
         Add<MKDLore>(dataManager, descriptors, "MKDLore", "Description", false,
