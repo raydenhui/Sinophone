@@ -64,11 +64,14 @@ converted Chinese --(OverlayWindow)--> screen
 ```
 
 Some dialogue has no Lumina row at all. It lives in the game's script dumps, which the dumps
-repositories store under `custom/`, `cut_scene/`, and a few smaller folders. `ScriptDump` reads
-those files, pairs them across languages by text key (`TEXT_...`), and writes a `Scripts` section
-into the artifact. The English text travels in the artifact because there is no sheet to read it
-from. `quest/` is not indexed: it is journal text the overlay never shows, and it is about ten
-times the size of everything else. See issue #34.
+repositories store under `custom/`, `cut_scene/`, `quest/`, and a few smaller folders. `ScriptDump`
+reads those files, pairs them across languages by text key (`TEXT_...`), and writes a `Scripts`
+section into the artifact. The English text travels in the artifact because there is no sheet to
+read it from.
+
+`quest/` also holds journal steps, objectives, system messages, and unused entries, which no Talk
+window shows. `ScriptDump` skips keys with `_SEQ_`, `_TODO_`, `_SYSTEM_`, or `_QIB_` and keeps the
+spoken lines. That is still about 212,000 lines, the largest part of the artifact.
 
 ### Overlay window
 
@@ -421,9 +424,10 @@ premature interface.
   branch; a script line whose dump branch differs from the player's can still miss. For display,
   `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition shows the
   first branch.
-- **Coverage.** Dialogue comes from the indexed sheets and the script dumps. Text built at runtime
-  is not covered. `quest/` dumps are not indexed yet (issue #34), and text that exists in no dump
-  stays untranslated. Check the datamining CSVs before assuming a lookup bug.
+- **Coverage.** Dialogue comes from the indexed sheets and the script dumps, including quest
+  dialogue. Quest journal and objective text is skipped because no overlay shows it. Text built at
+  runtime is not covered, and text that exists in no dump stays untranslated. Check the datamining
+  CSVs before assuming a lookup bug.
 - **Conversion is not exact.** The optional simplified/traditional layer uses OpenCC tables with
   one candidate per key. Converting back can pick a different variant, for example 為 becomes 为
   and then 爲. It is a reading aid, not a replacement for the official text of that variant.

@@ -32,7 +32,7 @@ internal static class FixtureBuilder
     ];
 
     /// <summary>Script folders the fixture covers. The full build indexes more.</summary>
-    private static readonly string[] FixtureScriptDirectories = ["custom", "cut_scene"];
+    private static readonly string[] FixtureScriptDirectories = ["custom", "cut_scene", "quest"];
 
     private const int FixtureScriptsPerDirectory = 3;
 

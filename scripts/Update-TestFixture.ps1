@@ -54,7 +54,7 @@ foreach ($source in @($CnSource, $TcSource, $EnSource)) {
         throw "Source folder not found: $source"
     }
 
-    foreach ($scriptDirectory in @('custom', 'cut_scene')) {
+    foreach ($scriptDirectory in @('custom', 'cut_scene', 'quest')) {
         if (-not (Test-Path -LiteralPath (Join-Path $source $scriptDirectory))) {
             throw "Script folder '$scriptDirectory' not found under $source."
         }
