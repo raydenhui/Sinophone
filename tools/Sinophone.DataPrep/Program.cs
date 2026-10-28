@@ -169,8 +169,8 @@ internal static class Program
 
         if (options.ListScripts)
         {
-            foreach (var directory in ScriptDump.Directories)
-                Console.WriteLine($"script:{directory}");
+            foreach (var scriptDirectory in ScriptDump.Directories)
+                Console.WriteLine($"script:{scriptDirectory}");
 
             return 0;
         }
