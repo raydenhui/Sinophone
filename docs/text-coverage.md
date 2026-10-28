@@ -2,9 +2,14 @@
 
 Which sheets Sinophone translates today, which ones are missing, and what to add next.
 
-The data comes from the CN and TC CSV dumps in the two datamining repositories. The reference for
-"all text" is [FFXIVChnTextPatch-GP](https://github.com/GpointChen/FFXIVChnTextPatch-GP): it patches
-444 top-level sheets. Sinophone indexes 30.
+The data comes from the CN and TC CSV dumps in the two datamining repositories. The dump has 1,235
+root CSVs, and 402 of them contain Chinese text. Sinophone indexes 30; 372 are left. Issue #38
+records the measured totals.
+
+The reference for "all text" is
+[FFXIVChnTextPatch-GP](https://github.com/GpointChen/FFXIVChnTextPatch-GP). It ships 444 top-level
+CSVs, but only 382 of them contain Chinese, and the dump covers all 382. The other 62 carry no
+Chinese.
 
 Row counts below are rows containing Chinese text in the CN dump, counted on 2026-10-26. They show
 how much text a sheet adds. They do not predict how many lines the game will hit at runtime.
@@ -213,6 +218,11 @@ Only the selected fields are stored, and most of `Item.csv` is numbers, so it co
 **Decision: keep one artifact per variant.** Splitting into core and full artifacts would add a
 manifest, updater, and settings path for a download that is still only a few MiB. Revisit when the
 full sheet set pushes one variant past about 8 MiB, or if users report slow updates.
+
+**Full coverage estimate.** Measured on 2026-10-28: indexing every string column of all 402
+sheets is about 6.1 MiB gzipped per variant. The script dumps add about 5 MiB, so a full artifact
+lands near 11 MiB. That is past the 8 MiB point above, so revisit the split decision before the
+sheet set gets there.
 
 ## Order of work
 
