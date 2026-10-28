@@ -101,9 +101,11 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
   so clients do not download again. `Configuration.LastDataVersion` records what is installed.
 - `Scripts` is optional. Old readers ignore it, and a missing section means no script lines, so
   the artifact format version stays at 1.
-- Only the configured variant is downloaded; the other one is fetched when fallback is on.
-  `HasSimplifiedData` and `HasTraditionalData` say which files match `LastDataVersion`, so a file
-  left over from an older version is not mistaken for current data.
+- Both variants are downloaded by default. Turning off **Download both language variants**
+  downloads only the selected one, which keeps an update small; the fallback then has no other
+  data to read. `HasSimplifiedData` and `HasTraditionalData` say which files match
+  `LastDataVersion`, and `OpenData` ignores a file without the matching flag, so a file left over
+  from an older version is never mixed with current data.
 - `manifest.json` has an optional checksum per artifact. Downloads go to a `.download` temp file and
   are only moved into place after the gzip, artifact format version, and sheet count are validated.
   Keep that order: a partial file must never replace working data.
