@@ -16,8 +16,14 @@ Three ideas explain the whole plugin:
    gzipped JSON. Those files are embedded in the plugin assembly.
 2. **English text is the key.** At load, the plugin reads each row of the live game sheets and
    maps the English text to the Chinese text. Lookup is a dictionary hit at runtime.
-3. **The game cannot draw Chinese.** Its fonts have no CJK glyphs, so the plugin draws the
-   translation in its own ImGui window and loads a separate CJK font.
+3. **The game font draws only part of Chinese.** The Axis font carries the Japanese kanji set,
+   so it draws most Traditional Chinese and almost no Simplified Chinese. Characters it lacks,
+   such as 歷 and 閱, draw as `=`. The other five game fonts draw no CJK at all. So the plugin
+   draws the translation in its own ImGui window with a separate CJK font.
+
+   To draw Chinese in the game's own dialogue box instead, the game font must be replaced by a
+   mod. That is a game-file replacement, not something the plugin can do at runtime. See
+   [Fonts](#fonts).
 
 The project is in early development. Expect the config format, artifact format, and sheet list
 to change.
@@ -41,6 +47,8 @@ src/Sinophone/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
     TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name window.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
+  Fonts/
+    FontModDetector.cs    Asks Penumbra whether a mod replaces the game font.
   UI/
     OverlayWindow.cs      The translation overlay.
     TargetNameWindow.cs   Small window under the target info with the target's Chinese name.
@@ -123,6 +131,33 @@ same commit. A mismatch is silent: the artifact loads but rows are skipped. The 
 
 Script folders have one list, `ScriptDump.Directories`. `--list-scripts` exposes it, and the data
 workflow uses that output for its sparse checkouts.
+
+### Fonts
+
+The game draws text from `common/font/*.fdt` (a table mapping a codepoint to a glyph) and
+`common/font/font*.tex` (the atlas those glyphs live in). A font mod replaces both. The Axis
+font is the one dialogue uses.
+
+- **Penumbra** can be asked. `Penumbra.ResolveInterfacePath` returns the file Penumbra would load
+  for a game path, so a path that comes back different was replaced by a mod. This needs no
+  reference to `Penumbra.Api`: the plugin calls the IPC label through
+  `IDalamudPluginInterface.GetIpcSubscriber`. Check `HasFunction` first, because it is absent when
+  Penumbra is not running.
+- **TexTools and FFXIVChnTextPatch** write the game's own sqpack files on disk. Neither is a
+  Dalamud plugin and neither leaves a marker, so a plugin cannot tell whether one of them
+  replaced the font. Do not pretend otherwise in the UI.
+- `FontModDetector.ProbePaths` holds the paths worth asking about. `Evaluate` turns Penumbra's
+  answers into a state, and `Describe` turns a state into a line for the user.
+- The status text is drawn every frame, so the Penumbra check is cached. Do not call IPC from a
+  per-frame path.
+
+A font mod must ship both the `.fdt` and the `.tex`. Replacing only the atlas adds pictures with
+no glyph table entries, so the characters still draw as `=`.
+
+Generated fonts come from [FFXIV-FontChanger](https://github.com/Soreepeong/FFXIV-FontChanger),
+which exports a TexTools `.ttmp2` that Penumbra can also import. Its presets are `AXIS` for the
+international client, `ChnAXIS` for Simplified, and `tcaxis` for Traditional. After importing,
+reload fonts from Penumbra's settings; a mod swap alone does not re-read them.
 
 ## Commands
 
@@ -435,6 +470,9 @@ premature interface.
   and then 爲. It is a reading aid, not a replacement for the official text of that variant.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
+- **The game font needs a mod for Chinese.** Native text mode draws with the game's own font,
+  which shows `=` for characters it lacks. Only a font mod fixes that, and only Penumbra can be
+  detected. See [Fonts](#fonts).
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 

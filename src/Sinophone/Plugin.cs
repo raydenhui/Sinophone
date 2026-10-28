@@ -35,6 +35,12 @@ public sealed class Plugin : IDalamudPlugin
 
     private TranslationStore? _store;
 
+    /// <summary>How long a Penumbra font check stays fresh. The status text is drawn every frame.</summary>
+    private static readonly TimeSpan FontModCacheTime = TimeSpan.FromSeconds(10);
+
+    private string _fontModText = FontModDetector.Describe(FontModState.Unchecked);
+    private DateTime _fontModCheckedAt = DateTime.MinValue;
+
     private ChineseVariant _lastVariant;
     private ChineseConversion _lastConversion;
     private bool _lastFallback;
@@ -272,6 +278,49 @@ public sealed class Plugin : IDalamudPlugin
         return $"Sinophone {version} by {author}";
     }
 
+    /// <summary>
+    /// Asks Penumbra whether a mod replaces the game font. Cached, because the
+    /// settings window calls the status text every frame and IPC is not free.
+    /// </summary>
+    private string BuildFontModText()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _fontModCheckedAt < FontModCacheTime)
+            return _fontModText;
+
+        _fontModCheckedAt = now;
+        _fontModText = CheckFontMod();
+        return _fontModText;
+    }
+
+    private string CheckFontMod()
+    {
+        try
+        {
+            var penumbra = PluginInterface.GetIpcSubscriber<string, string>(FontModDetector.ResolveLabel);
+            if (!penumbra.HasFunction)
+            {
+                Log.Debug("Font mod check: {Label} has no provider; Penumbra is not running.",
+                    FontModDetector.ResolveLabel);
+                return FontModDetector.Describe(FontModState.PenumbraMissing);
+            }
+
+            var answers = new List<(string Requested, string Resolved)>(FontModDetector.ProbePaths.Length);
+            foreach (var path in FontModDetector.ProbePaths)
+                answers.Add((path, penumbra.InvokeFunc(path)));
+
+            var state = FontModDetector.Evaluate(answers);
+            Log.Debug("Font mod check: {State} for {Paths}.", state, string.Join(", ", FontModDetector.ProbePaths));
+            return FontModDetector.Describe(state);
+        }
+        catch (Exception exception)
+        {
+            // IPC throws when Penumbra unloads between the check and the call.
+            Log.Debug(exception, "Font mod check failed; treating Penumbra as missing.");
+            return FontModDetector.Describe(FontModState.PenumbraMissing);
+        }
+    }
+
     private string BuildStatusText()
     {
         var store = _store;
@@ -284,7 +333,8 @@ public sealed class Plugin : IDalamudPlugin
             : $"Font: {font}{(_fontManager.UsingSystemFont ? " (system font)" : string.Empty)}";
 
         return $"{store.PrimaryVariant}{(store.UsedFallback ? " + fallback" : string.Empty)}: " +
-               $"{store.TextEntryCount:N0} dialogue entries, {store.NameEntryCount:N0} name entries.\n{fontText}";
+               $"{store.TextEntryCount:N0} dialogue entries, {store.NameEntryCount:N0} name entries.\n{fontText}" +
+               $"\n{BuildFontModText()}";
     }
 
     private string BuildDataSourceText()
