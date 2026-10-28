@@ -80,7 +80,12 @@ public static class ConditionalText
                     continue;
                 }
 
-                var condition = text[(open + 4)..tagEnd].Trim();
+                var conditionStart = open + 4;
+                var conditionEnd = tagEnd;
+                if (conditionEnd > conditionStart && text[conditionEnd - 1] == ')')
+                    conditionEnd--;
+
+                var condition = text[conditionStart..conditionEnd].Trim();
                 var takeTrue = evaluate?.Invoke(condition) ?? true;
 
                 if (takeTrue)

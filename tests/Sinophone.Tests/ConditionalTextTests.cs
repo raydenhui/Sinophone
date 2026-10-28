@@ -48,6 +48,22 @@ public class ConditionalTextTests
     }
 
     [Fact]
+    public void Resolve_PassesConditionWithoutTagSyntax()
+    {
+        // The evaluator compares against "PlayerParameter(4)", so the closing
+        // parenthesis of <If(...)> must not end up in the condition.
+        string? seen = null;
+
+        ConditionalText.Resolve("<If(PlayerParameter(4))>大姐<Else/>小哥</If>", condition =>
+        {
+            seen = condition;
+            return true;
+        });
+
+        Assert.Equal("PlayerParameter(4)", seen);
+    }
+
+    [Fact]
     public void Resolve_PicksFirstCase_ForSwitch()
     {
         var text = "<Switch(X)><Case(1)>一</Case><Case(2)>二</Case></Switch>";
