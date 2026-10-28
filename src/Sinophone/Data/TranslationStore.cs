@@ -19,6 +19,8 @@ public sealed class TranslationStore
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.Ordinal);
 
+    private int _scriptEntryCount;
+
     private TranslationStore(ChineseVariant primaryVariant, bool usedFallback)
     {
         PrimaryVariant = primaryVariant;
@@ -34,6 +36,9 @@ public sealed class TranslationStore
     public int TextEntryCount => _textLookup.Count;
 
     public int NameEntryCount => _nameLookup.Count;
+
+    /// <summary>Script-dump lines in the text lookup. Already counted in <see cref="TextEntryCount"/>.</summary>
+    public int ScriptEntryCount => _scriptEntryCount;
 
     public bool TryGetDialogue(string? englishText, out string chineseText)
     {
@@ -114,21 +119,24 @@ public sealed class TranslationStore
 
         var primaryTextCount = store._textLookup.Count;
         var primaryNameCount = store._nameLookup.Count;
+        var primaryScriptCount = store._scriptEntryCount;
 
         if (fallback is not null)
             store.Index(fallback, descriptors, log);
 
         stopwatch.Stop();
         log.Info(
-            "Loaded {Variant}{Fallback} translations: {Text:N0} dialogue and {Name:N0} name entries in {Elapsed} ms " +
-            "(fallback added {AddedText:N0} dialogue / {AddedName:N0} name entries).",
+            "Loaded {Variant}{Fallback} translations: {Text:N0} dialogue, {Name:N0} names and {Script:N0} script lines " +
+            "in {Elapsed} ms (fallback added {AddedText:N0} dialogue / {AddedName:N0} names / {AddedScript:N0} script lines).",
             store.PrimaryVariant,
             store.UsedFallback ? " + fallback" : string.Empty,
             store._textLookup.Count,
             store._nameLookup.Count,
+            store._scriptEntryCount,
             stopwatch.ElapsedMilliseconds,
             store._textLookup.Count - primaryTextCount,
-            store._nameLookup.Count - primaryNameCount);
+            store._nameLookup.Count - primaryNameCount,
+            store._scriptEntryCount - primaryScriptCount);
 
         return store;
     }
@@ -182,8 +190,38 @@ public sealed class TranslationStore
             }
         }
 
-        log.Debug("Indexed {Rows:N0} rows and {Slots:N0} text slots from the {Language} artifact.",
-            indexedRows, indexedSlots, artifact.Language);
+        var indexedScripts = IndexScripts(artifact);
+
+        log.Debug("Indexed {Rows:N0} rows, {Slots:N0} text slots and {Scripts:N0} script lines from the {Language} artifact.",
+            indexedRows, indexedSlots, indexedScripts, artifact.Language);
+    }
+
+    /// <summary>
+    /// Indexes dialogue that has no Lumina row. The artifact carries both the English
+    /// key and the translated text, because there is no sheet to read the English from.
+    /// </summary>
+    private int IndexScripts(TranslationArtifact artifact)
+    {
+        var added = 0;
+
+        foreach (var entry in artifact.Scripts.Values)
+        {
+            var key = MacroNormalizer.NormalizeKey(entry.English);
+            if (key.Length == 0)
+                continue;
+
+            var display = MacroNormalizer.CleanForDisplay(entry.Text);
+            if (display.Length == 0)
+                continue;
+
+            if (_textLookup.TryAdd(key, display))
+            {
+                added++;
+                _scriptEntryCount++;
+            }
+        }
+
+        return added;
     }
 
     private static TranslationArtifact? LoadArtifact(

@@ -31,6 +31,11 @@ internal static class FixtureBuilder
         new("GimmickTalk", "Message", "Message", UseLastColumn: true),
     ];
 
+    /// <summary>Script folders the fixture covers. The full build indexes more.</summary>
+    private static readonly string[] FixtureScriptDirectories = ["custom", "cut_scene"];
+
+    private const int FixtureScriptsPerDirectory = 3;
+
     public static int Run(string cnSource, string tcSource, string enSource, string outputDirectory, int rowCount)
     {
         foreach (var path in new[] { cnSource, tcSource, enSource })
@@ -51,6 +56,10 @@ internal static class FixtureBuilder
         var cnRows = new Dictionary<string, Dictionary<string, Dictionary<string, string[]>>>(StringComparer.Ordinal);
         var tcRows = new Dictionary<string, Dictionary<string, Dictionary<string, string[]>>>(StringComparer.Ordinal);
         var paired = new List<PairedRow>();
+
+        var cnScripts = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal);
+        var tcScripts = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal);
+        var pairedScripts = new List<PairedScript>();
 
         foreach (var spec in FixtureSheets)
         {
@@ -90,14 +99,36 @@ internal static class FixtureBuilder
             tcRows[spec.Sheet] = tcSheet;
         }
 
+        foreach (var directory in FixtureScriptDirectories)
+        {
+            var cn = ScriptDump.TakePaired(cnSource, enSource, directory, FixtureScriptsPerDirectory);
+            var tc = ScriptDump.TakePaired(tcSource, enSource, directory, FixtureScriptsPerDirectory)
+                .ToDictionary(entry => entry.Key, StringComparer.Ordinal);
+
+            var kept = 0;
+            foreach (var entry in cn)
+            {
+                if (!tc.TryGetValue(entry.Key, out var translated))
+                    continue;
+
+                cnScripts[entry.Key] = new ScriptEntry { English = entry.English, Text = entry.Text };
+                tcScripts[entry.Key] = new ScriptEntry { English = entry.English, Text = translated.Text };
+                pairedScripts.Add(new PairedScript(entry.Key, entry.English, entry.Text, translated.Text));
+                kept++;
+            }
+
+            Console.WriteLine($"script/{directory,-9} {kept,4} line(s)");
+        }
+
         Directory.CreateDirectory(outputDirectory);
 
-        WriteArtifact(Path.Combine(outputDirectory, "Sinophone.cn.json.gz"), "CN", cnRows);
-        WriteArtifact(Path.Combine(outputDirectory, "Sinophone.tc.json.gz"), "TC", tcRows);
-        WriteRows(Path.Combine(outputDirectory, "rows.json"), paired);
+        WriteArtifact(Path.Combine(outputDirectory, "Sinophone.cn.json.gz"), "CN", cnRows, cnScripts);
+        WriteArtifact(Path.Combine(outputDirectory, "Sinophone.tc.json.gz"), "TC", tcRows, tcScripts);
+        WriteRows(Path.Combine(outputDirectory, "rows.json"), paired, pairedScripts);
 
         Console.WriteLine();
-        Console.WriteLine($"Fixture written to {outputDirectory} ({paired.Count} paired rows).");
+        Console.WriteLine(
+            $"Fixture written to {outputDirectory} ({paired.Count} paired rows, {pairedScripts.Count} script lines).");
         return 0;
     }
 
@@ -210,7 +241,8 @@ internal static class FixtureBuilder
     private static void WriteArtifact(
         string path,
         string language,
-        Dictionary<string, Dictionary<string, Dictionary<string, string[]>>> sheets)
+        Dictionary<string, Dictionary<string, Dictionary<string, string[]>>> sheets,
+        Dictionary<string, ScriptEntry> scripts)
     {
         var artifact = new Program.Artifact
         {
@@ -219,6 +251,7 @@ internal static class FixtureBuilder
             GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
             GameVersion = "fixture",
             Sheets = sheets,
+            Scripts = scripts,
         };
 
         using var file = File.Create(path);
@@ -226,7 +259,7 @@ internal static class FixtureBuilder
         JsonSerializer.Serialize(gzip, artifact, JsonOptions);
     }
 
-    private static void WriteRows(string path, List<PairedRow> rows)
+    private static void WriteRows(string path, List<PairedRow> rows, List<PairedScript> scripts)
     {
         var payload = new
         {
@@ -241,6 +274,7 @@ internal static class FixtureBuilder
                 tc = "https://github.com/thewakingsands/ffxiv-datamining-tc",
             },
             rows,
+            scripts,
         };
 
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
@@ -267,4 +301,6 @@ internal static class FixtureBuilder
         bool UseLastColumn = false);
 
     private sealed record PairedRow(string Sheet, uint RowId, string English, string Cn, string Tc);
+
+    private sealed record PairedScript(string Key, string English, string Cn, string Tc);
 }
