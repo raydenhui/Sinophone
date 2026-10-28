@@ -391,6 +391,7 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.ShowItemName != _lastShowItemName;
 
         var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
+        var pluginDisabled = _lastEnabled && !_configuration.Enabled;
 
         _lastVariant = _configuration.Variant;
         _lastConversion = _configuration.Conversion;
@@ -403,14 +404,13 @@ public sealed class Plugin : IDalamudPlugin
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
 
-        if (nativeTextModeChanged)
+        if (nativeTextModeChanged || pluginDisabled)
         {
-            // Turning native mode off must put the game's own line back, not leave Chinese
-            // in the dialogue box until the next line. Turning it on hides the overlay,
-            // which native mode replaces.
-            if (!_configuration.NativeTextMode)
-                _talkHandler.RestoreNativeText();
-
+            // Turning native mode off, or disabling the plugin, must put the game's own
+            // line back instead of leaving Chinese in the dialogue box until the next line.
+            // Turning native mode on hides the overlay, which it replaces. The restore is
+            // a no-op when native mode wrote nothing.
+            _talkHandler.RestoreNativeText();
             _overlay.Hide();
         }
 

@@ -81,6 +81,7 @@ public sealed class TalkHandler : IDisposable
 
         if (!_configuration.Enabled)
         {
+            _nativeWriter.RestoreAll();
             _overlay.Hide();
             _log.Debug("Plugin disabled in settings; overlay hidden.");
             return;
