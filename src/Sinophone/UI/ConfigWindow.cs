@@ -1,4 +1,5 @@
 using Action = System.Action;
+using Dalamud.Utility;
 
 namespace Sinophone.UI;
 
@@ -10,6 +11,9 @@ public sealed class ConfigWindow : Window
     private static readonly Vector4 SectionColor = new(1f, 0.82f, 0.38f, 1f);
     private static readonly Vector4 ErrorColor = new(1f, 0.45f, 0.45f, 1f);
     private static readonly Vector4 WarningColor = new(1f, 0.72f, 0.35f, 1f);
+
+    private const string FontSetupUrl =
+        "https://github.com/raydenhui/Sinophone/blob/main/README.md#font-setup-with-textools";
 
     private readonly Configuration _configuration;
     private readonly Action _applySettings;
@@ -164,6 +168,25 @@ public sealed class ConfigWindow : Window
         Checkbox("Show in Talk dialog", _configuration.ShowInTalk, v => _configuration.ShowInTalk = v);
         Checkbox("Show in Talk subtitles", _configuration.ShowInTalkSubtitle,
             v => _configuration.ShowInTalkSubtitle = v);
+
+        ImGui.Spacing();
+        ImGui.TextColored(SectionColor, "Alpha: In-game text");
+        ImGui.Separator();
+
+        Checkbox("Write the translation into the game's dialogue box", _configuration.NativeTextMode,
+            v => _configuration.NativeTextMode = v);
+        ImGui.TextDisabled("Alpha. The overlay is the default; this replaces it for the Talk dialog only.");
+
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "The game's font has no Chinese glyphs. Install a font mod first, " +
+            "or every line shows the missing-glyph character instead of Chinese.");
+        ImGui.PopStyleColor();
+
+        if (ImGui.Selectable("Open the font setup guide"))
+            Util.OpenLink(FontSetupUrl);
+
+        ImGui.TextDisabled(FontSetupUrl);
 
         ImGui.Spacing();
         if (ImGui.Button("Reset all settings"))
@@ -481,6 +504,7 @@ public sealed class ConfigWindow : Window
         _configuration.DownloadBothVariants = defaults.DownloadBothVariants;
         _configuration.ShowInTalk = defaults.ShowInTalk;
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;
+        _configuration.NativeTextMode = defaults.NativeTextMode;
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;
         _configuration.SpeakerNameColor = defaults.SpeakerNameColor;
         _configuration.TranslatedTextColor = defaults.TranslatedTextColor;

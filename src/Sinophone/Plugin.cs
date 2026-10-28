@@ -22,6 +22,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem _windowSystem = new("Sinophone");
     private readonly FontManager _fontManager;
     private readonly OverlayWindow _overlay;
+    private readonly NativeTextWriter _nativeTextWriter;
     private readonly TargetNameWindow _targetNameWindow;
     private readonly ItemNameWindow _itemNameWindow;
     private readonly ConfigWindow _configWindow;
@@ -42,6 +43,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastEnabled;
     private bool _lastShowTargetName;
     private bool _lastShowItemName;
+    private bool _lastNativeTextMode;
     private bool _announceUpdate;
     private bool _updateWasBusy;
     private float _lastFontSize;
@@ -58,6 +60,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastShowItemName = _configuration.ShowItemName;
+        _lastNativeTextMode = _configuration.NativeTextMode;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath;
 
@@ -68,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
+        _nativeTextWriter = new NativeTextWriter(GameGui, Log);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
@@ -97,7 +101,13 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_itemNameWindow);
         _windowSystem.AddWindow(_configWindow);
 
-        _talkHandler = new TalkHandler(AddonLifecycle, Log, _configuration, () => _store, _overlay);
+        _talkHandler = new TalkHandler(
+            AddonLifecycle,
+            Log,
+            _configuration,
+            () => _store,
+            _overlay,
+            _nativeTextWriter);
         _targetNameHandler = new TargetNameHandler(
             AddonLifecycle,
             TargetManager,
@@ -380,6 +390,9 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.Enabled != _lastEnabled
                                || _configuration.ShowItemName != _lastShowItemName;
 
+        var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
+        var pluginDisabled = _lastEnabled && !_configuration.Enabled;
+
         _lastVariant = _configuration.Variant;
         _lastConversion = _configuration.Conversion;
         _lastFallback = _configuration.UseFallbackVariant;
@@ -387,8 +400,19 @@ public sealed class Plugin : IDalamudPlugin
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastShowItemName = _configuration.ShowItemName;
+        _lastNativeTextMode = _configuration.NativeTextMode;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
+
+        if (nativeTextModeChanged || pluginDisabled)
+        {
+            // Turning native mode off, or disabling the plugin, must put the game's own
+            // line back instead of leaving Chinese in the dialogue box until the next line.
+            // Turning native mode on hides the overlay, which it replaces. The restore is
+            // a no-op when native mode wrote nothing.
+            _talkHandler.RestoreNativeText();
+            _overlay.Hide();
+        }
 
         if (needsStoreReload)
         {

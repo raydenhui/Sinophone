@@ -17,7 +17,9 @@ Three ideas explain the whole plugin:
 2. **English text is the key.** At load, the plugin reads each row of the live game sheets and
    maps the English text to the Chinese text. Lookup is a dictionary hit at runtime.
 3. **The game cannot draw Chinese.** Its fonts have no CJK glyphs, so the plugin draws the
-   translation in its own ImGui window and loads a separate CJK font.
+   translation in its own ImGui window and loads a separate CJK font. A font mod replaces the
+   game's font files and makes the game itself draw Chinese; the alpha native mode uses that to
+   write into the game's own dialogue box. It is off by default.
 
 The project is in early development. Expect the config format, artifact format, and sheet list
 to change.
@@ -39,6 +41,7 @@ src/Sinophone/
     ChineseConverter.cs     Optional simplified/traditional conversion, built from OpenCC.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
+    NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name window.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
   UI/
@@ -85,6 +88,27 @@ spoken lines. That is still about 212,000 lines, the largest part of the artifac
   `LockOverlay` is on, and clears `Position` otherwise so a drag sticks.
 - A conversation ends by hiding the Talk addon, not by closing it. `PostClose` alone leaves the
   last line on screen. `TalkHandler` hides the overlay on `PostHide` and `PreFinalize` too.
+
+### Native text mode
+
+Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialog from the overlay
+to the game's own dialogue box: `TalkHandler` resolves the line as usual, then `NativeTextWriter`
+writes the Chinese into the addon's text node. The settings section is labelled **Alpha: In-game
+text** so it does not read as a finished feature.
+
+- Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
+  live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds
+  only) before changing either constant.
+- The game's font has no CJK glyphs. Without a font mod the line shows the missing-glyph character,
+  so the settings section warns and links the README font setup. The plugin cannot detect the mod.
+- A write saves the game's text for that node first. `RestoreAll` puts it back when the setting is
+  turned off and on plugin unload. A second write must not save Chinese as the original, so the
+  writer only saves when the node does not already hold text this writer put there.
+- The write is event-driven: `PostSetup` and `PostRefresh`. If the game turns out to put its text
+  back after one write, native mode will flicker, and the fix is a guarded re-write, not a
+  per-frame one.
+- Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
+  are checked in game. A failed write falls back to the overlay.
 
 ### Runtime data updates
 
@@ -442,6 +466,11 @@ premature interface.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
+- **Native text mode needs a font mod.** Alpha and off by default. The game only draws Chinese
+  once its font files are replaced. TexTools with a font from
+  [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts) is the route that works; Penumbra
+  does not change the game font. Without the mod, native mode shows the missing-glyph character
+  and the plugin cannot tell. See [README](README.md#font-setup-with-textools).
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 
 ## References

@@ -14,6 +14,7 @@ public class ConfigurationTests
         Assert.True(config.DownloadBothVariants);
         Assert.True(config.ShowInTalk);
         Assert.True(config.ShowInTalkSubtitle);
+        Assert.False(config.NativeTextMode);
         Assert.True(config.ShowSpeakerName);
         Assert.Equal(new System.Numerics.Vector4(1f, 0.84f, 0.35f, 1f), config.SpeakerNameColor);
         Assert.Equal(new System.Numerics.Vector4(1f, 1f, 1f, 1f), config.TranslatedTextColor);

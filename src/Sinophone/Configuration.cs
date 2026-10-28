@@ -49,6 +49,13 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ShowInTalkSubtitle { get; set; } = true;
 
+    /// <summary>
+    /// Alpha. Write the translation into the game's own dialogue box instead of drawing
+    /// the overlay. Needs a font mod: without one the game font has no CJK glyphs and the
+    /// line shows the missing-glyph character. Off by default.
+    /// </summary>
+    public bool NativeTextMode { get; set; }
+
     public bool ShowSpeakerName { get; set; } = true;
 
     /// <summary>Color of the speaker name line in the dialogue overlay.</summary>

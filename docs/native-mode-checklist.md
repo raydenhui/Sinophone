@@ -9,22 +9,24 @@ Run this list for every change that touches native mode, and put the result in t
 
 Two runs are needed:
 
-- **Without the font mod.** Native mode should warn and not show boxes.
-- **With the font mod installed.** Chinese should be readable.
+- **Without the font mod.** Every line shows the missing-glyph character. The plugin cannot detect
+  the mod, so this is the only warning the user gets.
+- **With the font mod installed.** Chinese should be readable. See the README font setup section.
 
 ## Checks
 
 | Check | Expected |
 | --- | --- |
-| Talk to an NPC with a short line | Chinese in the dialogue box, original hidden or shown per setting |
+| Talk to an NPC with a short line | Chinese in the dialogue box, no overlay above it |
 | Talk to an NPC with a long line | Text wraps inside the box, nothing clipped |
 | Speaker name | Chinese name in the name field |
 | Close the dialogue, talk again | No stale text from the previous line |
 | Disable the plugin while dialogue is open | Original text comes back |
-| Cutscene subtitle | Chinese subtitle, correct position |
-| Chat bubble from an NPC | Bubble grows to fit, not clipped |
 | Toggle native mode off | Game text returns immediately |
 | Change Chinese variant in settings | Next line uses the new variant |
+| Cutscene subtitle | Overlay still used; native mode does not cover subtitles yet |
+| Chat bubble from an NPC | Overlay still used; native mode does not cover bubbles yet |
+| Line with oblique words | Note whether the English fragments stay on screen. If they do, open an issue |
 
 ## Done when
 
