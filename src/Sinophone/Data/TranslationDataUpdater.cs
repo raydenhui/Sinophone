@@ -71,21 +71,35 @@ public sealed class TranslationDataUpdater : IDisposable
     public Stream? OpenData(ChineseVariant variant)
     {
         var path = DataFilePath(variant);
+        var fileExists = File.Exists(path);
 
-        if (File.Exists(path))
+        if (!ShouldUseDownloadedFile(variant, fileExists))
         {
-            try
-            {
-                return File.OpenRead(path);
-            }
-            catch (Exception ex)
-            {
-                _log.Warning(ex, "Could not open downloaded data at {Path}; using the embedded copy.", path);
-            }
+            if (fileExists)
+                _log.Debug("Ignoring {Variant} data because it is not the installed version.", variant);
+
+            return TranslationStore.OpenEmbeddedResource(variant);
+        }
+
+        try
+        {
+            return File.OpenRead(path);
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Could not open downloaded data at {Path}; using the embedded copy.", path);
         }
 
         return TranslationStore.OpenEmbeddedResource(variant);
     }
+
+    /// <summary>
+    /// True when the file on disk came from the last completed update. A file left
+    /// behind by an older version must not be mixed with the current one, which can
+    /// happen once downloading both variants is turned off.
+    /// </summary>
+    internal bool ShouldUseDownloadedFile(ChineseVariant variant, bool fileExists)
+        => fileExists && IsInstalled(variant);
 
     /// <summary>True when a file the current settings need is not on disk.</summary>
     public bool IsMissingRequiredFile()
@@ -140,11 +154,11 @@ public sealed class TranslationDataUpdater : IDisposable
     }
 
     /// <summary>
-    /// The variants that should be on disk: the configured one, plus the other
-    /// one when fallback is on.
+    /// The variants that should be on disk: the configured one, plus the other one
+    /// when the user downloads both.
     /// </summary>
-    internal static IReadOnlyList<ChineseVariant> RequiredVariants(ChineseVariant variant, bool useFallback)
-        => useFallback ? [variant, Other(variant)] : [variant];
+    internal static IReadOnlyList<ChineseVariant> RequiredVariants(ChineseVariant variant, bool downloadBoth)
+        => downloadBoth ? [variant, Other(variant)] : [variant];
 
     /// <summary>True when the file on disk is the published version and usable.</summary>
     internal static bool IsCurrent(
@@ -448,23 +462,26 @@ public sealed class TranslationDataUpdater : IDisposable
     }
 
     private IReadOnlyList<ChineseVariant> RequiredVariants()
-        => RequiredVariants(_configuration.Variant, _configuration.UseFallbackVariant);
+        => RequiredVariants(_configuration.Variant, _configuration.DownloadBothVariants);
 
     private bool NeedsUpdate(TranslationDataManifest manifest)
         => RequiredVariants().Any(variant => !IsCurrent(variant, manifest.Version));
 
     private bool IsCurrent(ChineseVariant variant, string publishedVersion)
-    {
-        var hasFlag = variant == ChineseVariant.Traditional
-            ? _configuration.HasTraditionalData
-            : _configuration.HasSimplifiedData;
-
-        return IsCurrent(
+        => IsCurrent(
             _configuration.LastDataVersion,
             publishedVersion,
-            hasFlag,
+            HasInstalledFlag(variant),
             File.Exists(DataFilePath(variant)));
-    }
+
+    /// <summary>True when this variant was installed by the last completed update.</summary>
+    private bool IsInstalled(ChineseVariant variant)
+        => HasInstalledFlag(variant) && !string.IsNullOrWhiteSpace(_configuration.LastDataVersion);
+
+    private bool HasInstalledFlag(ChineseVariant variant)
+        => variant == ChineseVariant.Traditional
+            ? _configuration.HasTraditionalData
+            : _configuration.HasSimplifiedData;
 
     private static ChineseVariant Other(ChineseVariant variant)
         => variant == ChineseVariant.Traditional ? ChineseVariant.Simplified : ChineseVariant.Traditional;

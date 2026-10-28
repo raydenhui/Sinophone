@@ -215,9 +215,9 @@ measured before the seven named-column dialogue sheets and the ten positional di
 added; those sheets are small and were not re-measured.
 
 Quest dialogue changes this. Measured on 2026-10-28, the 211,790 kept quest lines add about
-20.5 MiB of gzipped `Scripts` data per variant, so a built artifact is roughly 28 MiB and one
-update downloads both variants, near 56 MiB. At load the extra entries cost roughly 80 MB of
-memory per loaded variant.
+20.5 MiB of gzipped `Scripts` data per variant, so a built artifact is roughly 28 MiB. One update
+downloads both variants by default, near 56 MiB; turning off **Download both language variants**
+halves that. At load the extra entries cost roughly 80 MB of memory per loaded variant.
 
 `Item` is now indexed by `Name` only. An estimate with `Name` and `Description` for every row adds
 about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.

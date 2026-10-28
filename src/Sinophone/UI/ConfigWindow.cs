@@ -232,6 +232,10 @@ public sealed class ConfigWindow : Window
         Checkbox("Check for data updates on load", _configuration.CheckForDataUpdates,
             v => _configuration.CheckForDataUpdates = v);
 
+        Checkbox("Download both language variants", _configuration.DownloadBothVariants,
+            v => _configuration.DownloadBothVariants = v);
+        ImGui.TextDisabled("Off downloads only the selected variant. Fallback uses the other variant only if it is already on disk.");
+
         var state = _dataUpdater.State;
 
         if (state.IsBusy)
@@ -326,6 +330,7 @@ public sealed class ConfigWindow : Window
         _configuration.Variant = defaults.Variant;
         _configuration.Conversion = defaults.Conversion;
         _configuration.UseFallbackVariant = defaults.UseFallbackVariant;
+        _configuration.DownloadBothVariants = defaults.DownloadBothVariants;
         _configuration.ShowInTalk = defaults.ShowInTalk;
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;

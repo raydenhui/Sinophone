@@ -11,6 +11,7 @@ public class ConfigurationTests
         Assert.Equal(ChineseVariant.Traditional, config.Variant);
         Assert.Equal(ChineseConversion.None, config.Conversion);
         Assert.True(config.UseFallbackVariant);
+        Assert.True(config.DownloadBothVariants);
         Assert.True(config.ShowInTalk);
         Assert.True(config.ShowInTalkSubtitle);
         Assert.True(config.ShowSpeakerName);
