@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Rebuilds tests/fixtures/ from the CN, TC and English CSV dumps. The fixture is
-    a handful of real rows per sheet, enough to prove the pipeline end to end
-    without committing megabytes of game text.
+    a handful of real rows per sheet plus a few script lines, enough to prove the
+    pipeline end to end without committing megabytes of game text.
 
     Run this when you want the fixture to follow a new game patch. Tests do not
     need it: the fixture is checked in.
@@ -52,6 +52,12 @@ $fixtureDir = Join-Path $repoRoot 'tests/fixtures'
 foreach ($source in @($CnSource, $TcSource, $EnSource)) {
     if (-not (Test-Path -LiteralPath $source)) {
         throw "Source folder not found: $source"
+    }
+
+    foreach ($scriptDirectory in @('custom', 'cut_scene')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $source $scriptDirectory))) {
+            throw "Script folder '$scriptDirectory' not found under $source."
+        }
     }
 }
 

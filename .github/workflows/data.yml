@@ -29,7 +29,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: List sheets
+      - name: List sheets and scripts
         shell: bash
         run: |
           set -euo pipefail
@@ -49,6 +49,21 @@ jobs:
           printf '%s\n' "${sheets[@]}" > sheets.txt
           echo "Sheets: ${sheets[*]}"
 
+          # Script folders live in the same repositories, so the list is kept in
+          # DataPrep too instead of being copied here.
+          mapfile -t scripts < <(
+            dotnet run --project tools/Sinophone.DataPrep -c Release -- --list-scripts \
+              | sed -n 's/^script://p'
+          )
+
+          if (( ${#scripts[@]} == 0 )); then
+            echo "::error::DataPrep reported no script folders."
+            exit 1
+          fi
+
+          printf '%s\n' "${scripts[@]}" > scripts.txt
+          echo "Script folders: ${scripts[*]}"
+
       - name: Download datamining CSVs
         shell: bash
         run: |
@@ -67,6 +82,35 @@ jobs:
               || echo "::warning::TC $sheet.csv is not available"
           done
 
+      - name: Download script dumps
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t scripts < scripts.txt
+
+          # Sparse clones fetch only the script folders. Downloading thousands of
+          # files one by one would be slow and hit the raw file rate limit.
+          clone_dump() {
+            local url=$1
+            local destination=$2
+            local prefix=$3
+
+            rm -rf "$destination"
+            git clone --depth 1 --filter=blob:none --sparse "$url" "$destination"
+
+            local paths=()
+            for directory in "${scripts[@]}"; do
+              paths+=("${prefix}${directory}")
+            done
+
+            git -C "$destination" sparse-checkout set "${paths[@]}"
+          }
+
+          clone_dump https://github.com/thewakingsands/ffxiv-datamining-cn.git dumps/cn ""
+          clone_dump https://github.com/thewakingsands/ffxiv-datamining-tc.git dumps/tc ""
+          clone_dump https://github.com/xivapi/ffxiv-datamining.git dumps/en "csv/en/"
+
       - name: Build artifacts
         shell: bash
         run: |
@@ -77,10 +121,12 @@ jobs:
 
           dotnet run --project tools/Sinophone.DataPrep -c Release -- \
             --source csv/cn --language CN \
+            --script-source dumps/cn --en-source dumps/en/csv/en \
             --output out/Sinophone.cn.json.gz --game-version "CN $cn_commit"
 
           dotnet run --project tools/Sinophone.DataPrep -c Release -- \
             --source csv/tc --language TC \
+            --script-source dumps/tc --en-source dumps/en/csv/en \
             --output out/Sinophone.tc.json.gz --game-version "TC $tc_commit"
 
           echo "CN_COMMIT=$cn_commit" >> "$GITHUB_ENV"
@@ -110,8 +156,13 @@ jobs:
 
               # The version must change only when the translation data changes.
               # GeneratedAt and GameVersion change on every build, so leave them out.
+              # Scripts carry their own English text, so they are part of the data too.
+              payload = {
+                  "sheets": artifact["Sheets"],
+                  "scripts": artifact.get("Scripts", {}),
+              }
               canonical = json.dumps(
-                  artifact["Sheets"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                  payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
               )
               return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

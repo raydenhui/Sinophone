@@ -33,12 +33,23 @@ internal static class FixtureData
     {
         [JsonPropertyName("rows")]
         public List<FixtureRow> Rows { get; set; } = [];
+
+        [JsonPropertyName("scripts")]
+        public List<FixtureScript> Scripts { get; set; } = [];
     }
 
     internal sealed class FixtureRow
     {
         public string Sheet { get; set; } = string.Empty;
         public uint RowId { get; set; }
+        public string English { get; set; } = string.Empty;
+        public string Cn { get; set; } = string.Empty;
+        public string Tc { get; set; } = string.Empty;
+    }
+
+    internal sealed class FixtureScript
+    {
+        public string Key { get; set; } = string.Empty;
         public string English { get; set; } = string.Empty;
         public string Cn { get; set; } = string.Empty;
         public string Tc { get; set; } = string.Empty;

@@ -1,6 +1,6 @@
 {
   "note": "Real rows from the CN/TC datamining dumps, paired with the English text the game shows. Generated once and checked in so tests are fast and offline. Do not hand-edit; regenerate with scripts/Update-TestFixture.ps1.",
-  "generatedAt": "2026-10-27",
+  "generatedAt": "2026-10-28",
   "sources": {
     "en": "https://github.com/xivapi/ffxiv-datamining (csv/en)",
     "cn": "https://github.com/thewakingsands/ffxiv-datamining-cn",
@@ -39,7 +39,7 @@
       "sheet": "DefaultTalk",
       "rowId": 589847,
       "english": "It is by the blessing of the elementals that we Gridanians dwell in the Twelveswood. As you go about your business, be ever mindful of their presence and respectful of their will.",
-      "cn": "这里是得到森林与元灵认同的神圣之城格里达尼亚。\r\n请胸怀对大自然的感激之情，谨慎地行事吧。\u3000",
+      "cn": "这里是得到森林与元灵认同的神圣之城格里达尼亚。\r\n请胸怀对大自然的感激之情，谨慎地行事吧。　",
       "tc": "這裡是得到森林與聖靈認同的神聖之城格里達尼亞。\r\n請胸懷對大自然的感激之情，謹慎地行事。"
     },
     {
@@ -286,6 +286,44 @@
       "english": "Whoever this once was fought until the bitter end.\nUpon closer inspection, you discover a medical kit.",
       "cn": "看样子是曾经拼命抵抗过，但已经咽气了。\r\n从怀中搜到了军用恢复药。",
       "tc": "看樣子是曾經拼命抵抗過，但已經斷氣了。\r\n從懷中搜到了軍用治療劑。"
+    }
+  ],
+  "scripts": [
+    {
+      "key": "TEXT_CMNBHTENTERLV020ST0003_00013_BEHEST_TALK_00",
+      "english": "Guildhests are similar to guildleves in that clients in need of assistance petition the Adventurers' Guild to find them volunteers. Adventurers are then summoned at the guild's behest to undertake these tasks. The difference is that while guildleves can be accepted by individuals, guildhest operations will often require parties of four to eight persons.",
+      "cn": "“行会令”指的是冒险者行会发行的\r\n面向小队的特殊任务。",
+      "tc": "「行會令」指的是冒險者行會發行的\r\n以小隊為對象的特殊任務。"
+    },
+    {
+      "key": "TEXT_CMNBHTENTERLV020ST0003_00013_BEHEST_TALK_01",
+      "english": "Beyond that, the rules are simple. Finish the guildhest objectives before time expires, and you and your companions will be promptly rewarded for services rendered. Drag your feet, though, and you won't see a single coin.",
+      "cn": "在限定时间内完成任务目标，可以获取报酬。\r\n任务地点与内容则是各式各样。",
+      "tc": "在限定時間內完成任務目標，可以獲取報酬。\r\n任務地點與內容則是各式各樣。"
+    },
+    {
+      "key": "TEXT_CMNBHTENTERLV020ST0003_00013_BEHEST_TALK_02",
+      "english": "If it is your first time tackling an operation, you will also be provided with a bonus upon completion.",
+      "cn": "第一次完成该任务时还会获得额外的报酬。",
+      "tc": "第一次完成該任務時還會獲得額外的報酬。"
+    },
+    {
+      "key": "TEXT_VOICEMAN_02200_000010_THANCRED",
+      "english": "Now then...",
+      "cn": "接下来……",
+      "tc": "接下來……"
+    },
+    {
+      "key": "TEXT_VOICEMAN_02200_000020_THANCRED",
+      "english": "'Tis I. The situation may be more complicated than we anticipated.",
+      "cn": "是我，桑克瑞德。\r\n情况可能比我们预想的还要复杂。",
+      "tc": "是我，桑克瑞德。\r\n我有事想先說一聲。"
+    },
+    {
+      "key": "TEXT_VOICEMAN_02200_000030_URIANGER",
+      "english": "Indeed. I shall remain watchful.",
+      "cn": "我知道了。有情况我会联系你。",
+      "tc": "我知道了。有情況我會聯絡你的。"
     }
   ]
 }

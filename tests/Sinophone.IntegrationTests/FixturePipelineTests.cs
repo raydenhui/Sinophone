@@ -25,6 +25,7 @@ public class FixturePipelineTests
         Assert.Equal(1, artifact!.FormatVersion);
         Assert.Equal(expectedLanguage, artifact.Language);
         Assert.NotEmpty(artifact.Sheets);
+        Assert.NotEmpty(artifact.Scripts);
     }
 
     [Theory]
@@ -122,14 +123,35 @@ public class FixturePipelineTests
     }
 
     [Fact]
+    public void EveryFixtureScript_ResolvesInBothVariants()
+    {
+        foreach (var variant in new[] { ChineseVariant.Traditional, ChineseVariant.Simplified })
+        {
+            var store = FixtureStore.Load(variant);
+            var expected = variant == ChineseVariant.Traditional ? "tc" : "cn";
+
+            foreach (var script in FixtureData.Current.Scripts)
+            {
+                Assert.True(store.TryGetDialogue(script.English, out var chinese),
+                    $"No {variant} translation for script {script.Key}.");
+
+                var wanted = expected == "tc" ? script.Tc : script.Cn;
+                Assert.Equal(MacroNormalizer.CleanForDisplay(wanted), chinese);
+            }
+        }
+    }
+
+    [Fact]
     public void Store_IndexesEveryFixtureRow()
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);
 
         var expectedTalk = FixtureData.Current.Rows.Count(r => r.Sheet is "DefaultTalk" or "WKSText" or "GimmickTalk");
         var expectedNames = FixtureData.Current.Rows.Count(r => r.Sheet is "ENpcResident" or "BNpcName");
+        var expectedScripts = FixtureData.Current.Scripts.Count;
 
-        Assert.Equal(expectedTalk, store.TextEntryCount);
+        Assert.Equal(expectedTalk + expectedScripts, store.TextEntryCount);
+        Assert.Equal(expectedScripts, store.ScriptEntryCount);
         Assert.Equal(expectedNames, store.NameEntryCount);
     }
 

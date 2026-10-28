@@ -46,6 +46,7 @@ src/Sinophone/
     FontManager.cs        CJK font loading and font atlas rebuilds.
 tools/Sinophone.DataPrep/
   Program.cs              CSV -> gzipped JSON converter.
+  ScriptDump.cs           Reads the script dumps under custom/, cut_scene/, and the rest.
 ```
 
 Data flow, in order:
@@ -53,9 +54,17 @@ Data flow, in order:
 ```
 CSV dump --(DataPrep)--> Sinophone.<lang>.json.gz --(embedded or data release)--> TranslationStore
 live game sheet row --(SheetCatalog)--> English text --(MacroNormalizer)--> dictionary key
+script dump --(DataPrep)--> Scripts section (English + translation) --(TranslationStore)--> dictionary key
 Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> Chinese
 Chinese --(OverlayWindow)--> screen
 ```
+
+Some dialogue has no Lumina row at all. It lives in the game's script dumps, which the dumps
+repositories store under `custom/`, `cut_scene/`, and a few smaller folders. `ScriptDump` reads
+those files, pairs them across languages by text key (`TEXT_...`), and writes a `Scripts` section
+into the artifact. The English text travels in the artifact because there is no sheet to read it
+from. `quest/` is not indexed: it is journal text the overlay never shows, and it is about ten
+times the size of everything else. See issue #34.
 
 ### Overlay window
 
@@ -79,10 +88,12 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
 - The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
   `Sinophone.tc.json.gz`. The base URL is hardcoded in `TranslationDataUpdater`; renaming the
   repository breaks every installed copy.
-- The manifest `version` is a hash of the translated sheets, not a date. `GeneratedAt` and
-  `GameVersion` are left out, because they change on every build. The data workflow compares the
-  new version with the published one and skips the upload when they match, so clients do not
-  download again. `Configuration.LastDataVersion` records what is installed.
+- The manifest `version` is a hash of the translated sheets and script lines, not a date.
+  `GeneratedAt` and `GameVersion` are left out, because they change on every build. The data
+  workflow compares the new version with the published one and skips the upload when they match,
+  so clients do not download again. `Configuration.LastDataVersion` records what is installed.
+- `Scripts` is optional. Old readers ignore it, and a missing section means no script lines, so
+  the artifact format version stays at 1.
 - Only the configured variant is downloaded; the other one is fetched when fallback is on.
   `HasSimplifiedData` and `HasTraditionalData` say which files match `LastDataVersion`, so a file
   left over from an older version is not mistaken for current data.
@@ -100,6 +111,9 @@ Two files hold the same sheet list: `SheetCatalog.Create` and the `Sheets` array
 `tools/Sinophone.DataPrep/Program.cs`. If you add, remove, or rename a sheet, change both in the
 same commit. A mismatch is silent: the artifact loads but rows are skipped. The data workflow runs
 `--list-sheets` on the tool, so it does not keep a third copy of the list.
+
+Script folders have one list, `ScriptDump.Directories`. `--list-scripts` exposes it, and the data
+workflow uses that output for its sparse checkouts.
 
 ## Commands
 
@@ -126,7 +140,7 @@ pwsh -File scripts/Test.ps1 -Filter "FullyQualifiedName~MacroNormalizer"
 pwsh -File scripts/Get-DalamudLib.ps1
 
 # Build the CN and TC artifacts from the datamining dumps
-pwsh -File scripts/New-TranslationData.ps1 -CnSource <cn-csv> -TcSource <tc-csv> -GameVersion <patch>
+pwsh -File scripts/New-TranslationData.ps1 -CnSource <cn-csv> -TcSource <tc-csv> -EnSource <en-csv> -GameVersion <patch>
 
 # Regenerate the test fixture (rarely needed)
 pwsh -File scripts/Update-TestFixture.ps1 -CnSource <cn-csv> -TcSource <tc-csv> -EnSource <en-csv>
@@ -140,10 +154,12 @@ dotnet test Sinophone.sln -c Release
 
 dotnet run --project tools/Sinophone.DataPrep -- \
   --source <csv-dir> --language CN \
+  --script-source <cn-dump-root> --en-source <en-dump-root> \
   --output src/Sinophone/Resources/Sinophone.cn.json.gz --game-version <patch>
 
-# Print the sheet names the tool expects (the data workflow uses this)
+# Print the sheet and script folder names the tool expects (the data workflow uses these)
 dotnet run --project tools/Sinophone.DataPrep -- --list-sheets
+dotnet run --project tools/Sinophone.DataPrep -- --list-scripts
 ```
 
 The plugin finds artifacts by filename suffix (`Sinophone.cn.json.gz`, `Sinophone.tc.json.gz`).
@@ -242,8 +258,9 @@ internal, so do not try to fake them. Test the decision logic directly through
 
 Do not commit full translation artifacts. They are large and change every game patch.
 
-Commit the small fixture in `tests/fixtures/` instead: eight real rows per sheet, in both
-variants, plus the English text in `rows.json`. It is checked in, so tests are fast and offline.
+Commit the small fixture in `tests/fixtures/` instead: eight real rows per sheet and a few script
+lines, in both variants, plus the English text in `rows.json`. It is checked in, so tests are fast
+and offline.
 
 Regenerate it with `scripts/Update-TestFixture.ps1`, which runs DataPrep's `--fixture` mode. Never
 hand-edit `rows.json` or the `.json.gz` files.
@@ -392,12 +409,9 @@ premature interface.
   not a setting. Ask before starting that refactor.
 - **Exact match.** After normalization, a line must match exactly. One different character means
   a miss.
-- **Sheet coverage.** Only dialogue in the indexed sheets is translated. Text built at runtime is
-  not. Some Talk windows show text that is not in the indexed sheets at all. Sundhimal's
-  "aetherial travel" line lives in `custom/000/RegSeaAetheGuid_00051.csv`, not in
-  `DefaultTalk`, `Balloon`, or `CustomTalk`; the matching `CustomTalk` row (720947) only names the
-  script. Custom script dumps are not Lumina sheets, so the current lookup cannot reach them.
-  Check the datamining CSVs before assuming a lookup bug.
+- **Coverage.** Dialogue comes from the indexed sheets and the script dumps. Text built at runtime
+  is not covered. `quest/` dumps are not indexed yet (issue #34), and text that exists in no dump
+  stays untranslated. Check the datamining CSVs before assuming a lookup bug.
 - **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
@@ -410,6 +424,8 @@ premature interface.
 - [Dalamud source](https://github.com/goatcorp/Dalamud)
 - [ffxiv-datamining-cn](https://github.com/thewakingsands/ffxiv-datamining-cn)
 - [ffxiv-datamining-tc](https://github.com/thewakingsands/ffxiv-datamining-tc)
+- [xivapi/ffxiv-datamining](https://github.com/xivapi/ffxiv-datamining) — English CSVs and script
+  dumps under `csv/en`
 - [AGENTS.md format](https://agents.md/)
 - [docs/text-coverage.md](docs/text-coverage.md) — which game sheets carry text, which are indexed,
   and the order to add the rest.

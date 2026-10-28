@@ -82,6 +82,12 @@ public class TranslationStoreTests
     }
 
     private static string Artifact(string language, params (string Sheet, string Field, uint RowId, string Value)[] rows)
+        => Artifact(language, null, rows);
+
+    private static string Artifact(
+        string language,
+        Dictionary<string, ScriptEntry>? scripts,
+        params (string Sheet, string Field, uint RowId, string Value)[] rows)
     {
         var sheets = rows
             .GroupBy(r => r.Sheet)
@@ -98,7 +104,18 @@ public class TranslationStoreTests
             GeneratedAt = "test",
             GameVersion = "test",
             Sheets = sheets,
+            Scripts = scripts ?? new Dictionary<string, ScriptEntry>(),
         });
+    }
+
+    private static Dictionary<string, ScriptEntry> Scripts(params (string English, string Text)[] entries)
+    {
+        var result = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal);
+
+        for (var i = 0; i < entries.Length; i++)
+            result[$"TEXT_TEST_{i:000}_1"] = new ScriptEntry { English = entries[i].English, Text = entries[i].Text };
+
+        return result;
     }
 
     private static TranslationStore? Load(
@@ -352,5 +369,77 @@ public class TranslationStoreTests
         Load(descriptor, ChineseVariant.Simplified, true, artifacts, log);
 
         Assert.True(log.Contains(Serilog.Events.LogEventLevel.Warning, "Primary artifact"));
+    }
+
+    [Fact]
+    public void Load_IndexesScriptLines_WhenArtifactHasScripts()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(("Hello from a script.", "腳本你好。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello from a script.", out var chinese));
+        Assert.Equal("腳本你好。", chinese);
+        Assert.Equal(1, store.ScriptEntryCount);
+        Assert.Equal(1, store.TextEntryCount);
+    }
+
+    [Fact]
+    public void Load_SkipsScriptLines_WhenEnglishOrTextIsEmpty()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(("", "只有中文。"), ("Only English.", ""))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("Only English.", out _));
+        Assert.Equal(0, store.ScriptEntryCount);
+    }
+
+    [Fact]
+    public void Load_PrefersPrimaryScript_WhenBothVariantsDefineTheSameLine()
+    {
+        var artifacts = Artifacts(
+            Artifact("CN", Scripts(("Same script line.", "简体"))),
+            Artifact("TC", Scripts(("Same script line.", "繁體"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, true, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Same script line.", out var chinese));
+        Assert.Equal("繁體", chinese);
+        Assert.Equal(1, store.ScriptEntryCount);
+    }
+
+    [Fact]
+    public void Load_AddsFallbackScripts_ForLinesMissingFromPrimary()
+    {
+        var artifacts = Artifacts(
+            Artifact("CN", Scripts(("Only in CN.", "简体"))),
+            Artifact("TC", Scripts(("Only in TC.", "繁體"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, true, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Only in CN.", out var chinese));
+        Assert.Equal("简体", chinese);
+        Assert.Equal(2, store.ScriptEntryCount);
+    }
+
+    [Fact]
+    public void Load_MatchesScriptText_AfterNormalization()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(("First line\r\nSecond line", "第一行\n第二行"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("First line<br>Second line", out var chinese));
+        Assert.Equal("第一行\n第二行", chinese);
     }
 }

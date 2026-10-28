@@ -167,12 +167,20 @@ internal static class Program
             return 0;
         }
 
+        if (options.ListScripts)
+        {
+            foreach (var scriptDirectory in ScriptDump.Directories)
+                Console.WriteLine($"script:{scriptDirectory}");
+
+            return 0;
+        }
+
         if (options.FixtureOutputDirectory is not null)
         {
             return FixtureBuilder.Run(
                 options.SourceDirectory,
                 options.FixtureTcSource!,
-                options.FixtureEnSource!,
+                options.EnSourceDirectory!,
                 options.FixtureOutputDirectory,
                 options.FixtureRowCount);
         }
@@ -193,6 +201,25 @@ internal static class Program
 
         var totalRows = 0;
         var totalSlots = 0;
+
+        if (options.ScriptSourceDirectory is not null)
+        {
+            if (!Directory.Exists(options.ScriptSourceDirectory))
+            {
+                Console.Error.WriteLine($"Script source directory not found: {options.ScriptSourceDirectory}");
+                return 2;
+            }
+
+            if (!Directory.Exists(options.EnSourceDirectory!))
+            {
+                Console.Error.WriteLine($"English source directory not found: {options.EnSourceDirectory}");
+                return 2;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Script dumps");
+            artifact.Scripts = ScriptDump.Build(options.ScriptSourceDirectory, options.EnSourceDirectory!);
+        }
 
         foreach (var spec in Sheets)
         {
@@ -255,6 +282,7 @@ internal static class Program
         Console.WriteLine($"Sheets        : {artifact.Sheets.Count:N0}");
         Console.WriteLine($"Rows          : {totalRows:N0}");
         Console.WriteLine($"Slots         : {totalSlots:N0}");
+        Console.WriteLine($"Scripts       : {artifact.Scripts.Count:N0}");
         Console.WriteLine($"Output        : {options.OutputPath} ({size / 1024.0 / 1024.0:F2} MiB)");
         return 0;
     }
@@ -397,11 +425,13 @@ internal static class Program
     {
         Console.WriteLine("Usage:");
         Console.WriteLine("  Sinophone.DataPrep --source <csv-directory> --language <CN|TC> --output <file.json.gz> [--game-version <version>]");
+        Console.WriteLine("      [--script-source <dump-root> --en-source <en-dump-root>]");
         Console.WriteLine("  Sinophone.DataPrep --fixture --source <cn-csv> --tc-source <tc-csv> --en-source <en-csv> --fixture-output <dir> [--rows <n>]");
         Console.WriteLine("  Sinophone.DataPrep --list-sheets");
+        Console.WriteLine("  Sinophone.DataPrep --list-scripts");
         Console.WriteLine();
         Console.WriteLine("Example:");
-        Console.WriteLine(@"  Sinophone.DataPrep --source C:\ffxiv-datamining-cn --language CN --output ..\src\Sinophone\Resources\Sinophone.cn.json.gz --game-version 7.4");
+        Console.WriteLine(@"  Sinophone.DataPrep --source C:\ffxiv-datamining-cn --language CN --output ..\src\Sinophone\Resources\Sinophone.cn.json.gz --game-version 7.4 --script-source C:\ffxiv-datamining-cn --en-source C:\ffxiv-datamining\csv\en");
         Console.WriteLine(@"  Sinophone.DataPrep --fixture --source C:\ffxiv-datamining-cn --tc-source C:\ffxiv-datamining-tc --en-source C:\ffxiv-datamining\csv\en --fixture-output ..\tests\fixtures");
     }
 
@@ -426,6 +456,7 @@ internal static class Program
         public string GeneratedAt { get; set; } = string.Empty;
         public string GameVersion { get; set; } = string.Empty;
         public Dictionary<string, Dictionary<string, Dictionary<string, string[]>>> Sheets { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, ScriptEntry> Scripts { get; set; } = new(StringComparer.Ordinal);
     }
 
     private sealed class Options
@@ -438,10 +469,18 @@ internal static class Program
         /// <summary>Print the sheet names the tool expects and exit.</summary>
         public bool ListSheets { get; private init; }
 
+        /// <summary>Print the script folder names the tool expects and exit.</summary>
+        public bool ListScripts { get; private init; }
+
+        /// <summary>Root of the localized script dumps, for example the CN repo checkout.</summary>
+        public string? ScriptSourceDirectory { get; private init; }
+
+        /// <summary>Root of the English dump, for example <c>ffxiv-datamining/csv/en</c>.</summary>
+        public string? EnSourceDirectory { get; private init; }
+
         /// <summary>Set when building the test fixture instead of a full artifact.</summary>
         public string? FixtureOutputDirectory { get; private init; }
         public string? FixtureTcSource { get; private init; }
-        public string? FixtureEnSource { get; private init; }
         public int FixtureRowCount { get; private init; } = 8;
 
         public static Options Parse(string[] args)
@@ -452,10 +491,12 @@ internal static class Program
             string? fixtureOutput = null;
             string? tcSource = null;
             string? enSource = null;
+            string? scriptSource = null;
             var gameVersion = "unknown";
             var rowCount = 8;
             var fixture = false;
             var listSheets = false;
+            var listScripts = false;
 
             for (var i = 0; i < args.Length; i++)
             {
@@ -486,6 +527,13 @@ internal static class Program
                     case "--list-sheets":
                         listSheets = true;
                         break;
+                    case "--list-scripts":
+                        listScripts = true;
+                        break;
+                    case "--script-source":
+                        scriptSource = value ?? throw new ArgumentException("--script-source requires a directory.");
+                        i++;
+                        break;
                     case "--fixture-output":
                         fixtureOutput = value ?? throw new ArgumentException("--fixture-output requires a directory.");
                         i++;
@@ -514,6 +562,9 @@ internal static class Program
             if (listSheets)
                 return new Options { ListSheets = true };
 
+            if (listScripts)
+                return new Options { ListScripts = true };
+
             if (string.IsNullOrWhiteSpace(source))
                 throw new ArgumentException("--source is required.");
 
@@ -533,10 +584,13 @@ internal static class Program
                     SourceDirectory = source,
                     FixtureOutputDirectory = fixtureOutput,
                     FixtureTcSource = tcSource,
-                    FixtureEnSource = enSource,
+                    EnSourceDirectory = enSource,
                     FixtureRowCount = rowCount,
                 };
             }
+
+            if (!string.IsNullOrWhiteSpace(scriptSource) && string.IsNullOrWhiteSpace(enSource))
+                throw new ArgumentException("--en-source is required with --script-source.");
 
             if (string.IsNullOrWhiteSpace(language))
                 throw new ArgumentException("--language is required.");
@@ -554,6 +608,8 @@ internal static class Program
                 Language = language,
                 OutputPath = output,
                 GameVersion = gameVersion,
+                ScriptSourceDirectory = scriptSource,
+                EnSourceDirectory = enSource,
             };
         }
     }
