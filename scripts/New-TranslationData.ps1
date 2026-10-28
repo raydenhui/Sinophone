@@ -10,21 +10,26 @@
     Sinophone.cn.json.gz and Sinophone.tc.json.gz.
 
     The CSVs are not in this repo. Point -CnSource and -TcSource at checkouts of
-    the two datamining repos (see AGENTS.md for links).
+    the two datamining repos, and -EnSource at the English dump (see AGENTS.md for
+    links). The script folders under each checkout are indexed too.
 
     Safe to run more than once: artifacts are overwritten.
 
 .PARAMETER CnSource
-    Folder holding the Simplified Chinese CSVs.
+    Folder holding the Simplified Chinese CSVs and script folders.
 
 .PARAMETER TcSource
-    Folder holding the Traditional Chinese CSVs.
+    Folder holding the Traditional Chinese CSVs and script folders.
+
+.PARAMETER EnSource
+    Folder holding the English dump, for example ffxiv-datamining\csv\en.
+    The plugin keys on this text.
 
 .PARAMETER GameVersion
     Optional patch label recorded in the artifact. Defaults to "unknown".
 
 .EXAMPLE
-    pwsh -File scripts/New-TranslationData.ps1 -CnSource C:\ffxiv-datamining-cn -TcSource C:\ffxiv-datamining-tc -GameVersion 7.4
+    pwsh -File scripts/New-TranslationData.ps1 -CnSource C:\ffxiv-datamining-cn -TcSource C:\ffxiv-datamining-tc -EnSource C:\ffxiv-datamining\csv\en -GameVersion 7.4
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -33,6 +38,9 @@ param(
 
     [Parameter(Mandatory)]
     [string]$TcSource,
+
+    [Parameter(Mandatory)]
+    [string]$EnSource,
 
     [string]$GameVersion = 'unknown'
 )
@@ -44,9 +52,13 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $toolProject = Join-Path $repoRoot 'tools/Sinophone.DataPrep'
 $outputDir = Join-Path $repoRoot 'src/Sinophone/Resources'
 
-foreach ($source in @($CnSource, $TcSource)) {
+foreach ($source in @($CnSource, $TcSource, $EnSource)) {
     if (-not (Test-Path -LiteralPath $source)) {
         throw "Source folder not found: $source"
+    }
+
+    if (-not (Test-Path -LiteralPath (Join-Path $source 'custom'))) {
+        throw "Script folder not found under $source. Point at a full datamining checkout."
     }
 }
 
@@ -76,6 +88,8 @@ foreach ($target in $targets) {
         '--'
         '--source', $target.Source
         '--language', $target.Language
+        '--script-source', $target.Source
+        '--en-source', $EnSource
         '--output', $outputPath
         '--game-version', $GameVersion
     )
