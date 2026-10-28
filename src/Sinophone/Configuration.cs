@@ -9,6 +9,16 @@ public enum ChineseVariant
     Traditional = 1,
 }
 
+/// <summary>
+/// Optional conversion applied to the translated text before it is shown.
+/// </summary>
+public enum ChineseConversion
+{
+    None = 0,
+    SimplifiedToTraditional = 1,
+    TraditionalToSimplified = 2,
+}
+
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
@@ -17,6 +27,12 @@ public sealed class Configuration : IPluginConfiguration
     public bool Enabled { get; set; } = true;
 
     public ChineseVariant Variant { get; set; } = ChineseVariant.Traditional;
+
+    /// <summary>
+    /// Converts the translated text after lookup. Independent of <see cref="Variant"/>,
+    /// which picks the data that is loaded.
+    /// </summary>
+    public ChineseConversion Conversion { get; set; } = ChineseConversion.None;
 
     /// <summary>
     /// When the primary variant has no row for a line, fall back to the other variant.

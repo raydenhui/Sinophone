@@ -33,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
     private TranslationStore? _store;
 
     private ChineseVariant _lastVariant;
+    private ChineseConversion _lastConversion;
     private bool _lastFallback;
     private bool _lastEnabled;
     private bool _lastShowTargetName;
@@ -114,8 +115,12 @@ public sealed class Plugin : IDalamudPlugin
         if (_configuration.CheckForDataUpdates)
             _dataUpdater.StartCheck();
 
-        Log.Info("Loaded. Variant: {Variant}, entries: {Entries:N0}.",
-            _configuration.Variant, _store?.TextEntryCount ?? 0);
+        if (!ChineseConverter.IsAvailable(_configuration.Conversion))
+            Log.Warning("The conversion table for {Conversion} is missing; text will not be converted.",
+                _configuration.Conversion);
+
+        Log.Info("Loaded. Variant: {Variant}, conversion: {Conversion}, entries: {Entries:N0}.",
+            _configuration.Variant, _configuration.Conversion, _store?.TextEntryCount ?? 0);
     }
 
     public string Name => "Sinophone";
@@ -252,11 +257,14 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>
-    /// Resolves conditionals in stored Chinese text. The artifact keeps them because
-    /// the branch depends on the player.
+    /// Resolves conditionals in stored Chinese text and applies the optional
+    /// simplified/traditional conversion. The artifact keeps conditionals because the
+    /// branch depends on the player.
     /// </summary>
     private string ResolveDisplayText(string text)
-        => MacroNormalizer.CleanForDisplay(text, EvaluateCondition);
+        => ChineseConverter.Convert(
+            MacroNormalizer.CleanForDisplay(text, EvaluateCondition),
+            _configuration.Conversion);
 
     /// <summary>
     /// Answers the conditionals the dumps use. Only the player's gender is known;
@@ -300,6 +308,7 @@ public sealed class Plugin : IDalamudPlugin
     private void ApplySettings()
     {
         var needsStoreReload = _configuration.Variant != _lastVariant
+                               || _configuration.Conversion != _lastConversion
                                || _configuration.UseFallbackVariant != _lastFallback;
 
         var needsFontRebuild = needsStoreReload
@@ -315,6 +324,7 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.ShowItemName != _lastShowItemName;
 
         _lastVariant = _configuration.Variant;
+        _lastConversion = _configuration.Conversion;
         _lastFallback = _configuration.UseFallbackVariant;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;

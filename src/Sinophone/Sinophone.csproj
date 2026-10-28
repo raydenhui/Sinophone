@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\*.json.gz" />
+    <EmbeddedResource Include="Resources\Conversion\*.txt.gz" />
   </ItemGroup>
 
   <ItemGroup>
