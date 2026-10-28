@@ -18,13 +18,15 @@ public sealed class TranslationStore
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.Ordinal);
+    private readonly Func<string, string> _displayResolver;
 
     private int _scriptEntryCount;
 
-    private TranslationStore(ChineseVariant primaryVariant, bool usedFallback)
+    private TranslationStore(ChineseVariant primaryVariant, bool usedFallback, Func<string, string> displayResolver)
     {
         PrimaryVariant = primaryVariant;
         UsedFallback = usedFallback;
+        _displayResolver = displayResolver;
     }
 
     /// <summary>The variant whose rows were indexed first.</summary>
@@ -48,7 +50,11 @@ public sealed class TranslationStore
         if (key.Length == 0)
             return false;
 
-        return _textLookup.TryGetValue(key, out chineseText!);
+        if (!_textLookup.TryGetValue(key, out var stored))
+            return false;
+
+        chineseText = ResolveDisplay(stored);
+        return true;
     }
 
     public bool TryGetName(string? englishName, out string chineseName)
@@ -59,7 +65,11 @@ public sealed class TranslationStore
         if (key.Length == 0)
             return false;
 
-        return _nameLookup.TryGetValue(key, out chineseName!);
+        if (!_nameLookup.TryGetValue(key, out var stored))
+            return false;
+
+        chineseName = ResolveDisplay(stored);
+        return true;
     }
 
     /// <summary>
@@ -73,26 +83,34 @@ public sealed class TranslationStore
         IDataManager dataManager,
         IPluginLog log,
         Func<ChineseVariant, Stream?> openResource,
-        Func<ChineseVariant, Stream?>? fallbackResource = null)
+        Func<ChineseVariant, Stream?>? fallbackResource = null,
+        Func<string, string>? displayResolver = null)
         => Load(
             SheetCatalog.Create(dataManager),
             configuration.Variant,
             configuration.UseFallbackVariant,
             openResource,
             log,
-            fallbackResource);
+            fallbackResource,
+            displayResolver);
 
     /// <summary>
     /// Builds a store from explicit inputs. Tests use this to supply their own
     /// sheet descriptors and artifact streams instead of the embedded ones.
     /// </summary>
+    /// <param name="displayResolver">
+    /// Turns stored text into what the overlay shows. Lines with a conditional are
+    /// resolved on each lookup, because the answer depends on the player. Lines
+    /// without one are resolved once here.
+    /// </param>
     internal static TranslationStore? Load(
         IReadOnlyList<ISheetDescriptor> descriptors,
         ChineseVariant variant,
         bool useFallback,
         Func<ChineseVariant, Stream?> openResource,
         IPluginLog log,
-        Func<ChineseVariant, Stream?>? fallbackResource = null)
+        Func<ChineseVariant, Stream?>? fallbackResource = null,
+        Func<string, string>? displayResolver = null)
     {
         var stopwatch = Stopwatch.StartNew();
 
@@ -112,7 +130,10 @@ public sealed class TranslationStore
             return null;
         }
 
-        var store = new TranslationStore(variant, fallback is not null);
+        var store = new TranslationStore(
+            variant,
+            fallback is not null,
+            displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)));
 
         if (primary is not null)
             store.Index(primary, descriptors, log);
@@ -174,16 +195,20 @@ public sealed class TranslationStore
 
                 for (var i = 0; i < slotCount; i++)
                 {
-                    var key = MacroNormalizer.NormalizeKey(englishSlots[i]);
-                    if (key.Length == 0)
-                        continue;
-
-                    var display = MacroNormalizer.CleanForDisplay(chineseSlots[i]);
+                    var display = PrepareDisplay(chineseSlots[i]);
                     if (display.Length == 0)
                         continue;
 
-                    if (target.TryAdd(key, display))
-                        indexedSlots++;
+                    var variants = englishSlots[i];
+                    for (var v = 0; v < variants.Count; v++)
+                    {
+                        var key = MacroNormalizer.NormalizeKey(variants[v]);
+                        if (key.Length == 0)
+                            continue;
+
+                        if (target.TryAdd(key, display))
+                            indexedSlots++;
+                    }
                 }
 
                 indexedRows++;
@@ -210,7 +235,7 @@ public sealed class TranslationStore
             if (key.Length == 0)
                 continue;
 
-            var display = MacroNormalizer.CleanForDisplay(entry.Text);
+            var display = PrepareDisplay(entry.Text);
             if (display.Length == 0)
                 continue;
 
@@ -223,6 +248,17 @@ public sealed class TranslationStore
 
         return added;
     }
+
+    /// <summary>
+    /// Resolves text now when it has no conditional, so a lookup stays a dictionary
+    /// hit. Text with a conditional is kept raw and resolved per lookup, because the
+    /// answer depends on the player. Conditional lines are rare.
+    /// </summary>
+    private string PrepareDisplay(string rawText)
+        => ConditionalText.HasConditional(rawText) ? rawText : _displayResolver(rawText);
+
+    private string ResolveDisplay(string stored)
+        => ConditionalText.HasConditional(stored) ? _displayResolver(stored) : stored;
 
     private static TranslationArtifact? LoadArtifact(
         ChineseVariant variant,

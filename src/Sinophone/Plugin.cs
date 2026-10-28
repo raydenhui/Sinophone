@@ -15,6 +15,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] public static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
+    [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
@@ -92,7 +93,13 @@ public sealed class Plugin : IDalamudPlugin
             _itemNameWindow,
             Log);
 
-        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
+        _store = TranslationStore.Load(
+            _configuration,
+            DataManager,
+            Log,
+            _dataUpdater.OpenData,
+            TranslationStore.OpenEmbeddedResource,
+            ResolveDisplayText);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -245,6 +252,25 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>
+    /// Resolves conditionals in stored Chinese text. The artifact keeps them because
+    /// the branch depends on the player.
+    /// </summary>
+    private string ResolveDisplayText(string text)
+        => MacroNormalizer.CleanForDisplay(text, EvaluateCondition);
+
+    /// <summary>
+    /// Answers the conditionals the dumps use. Only the player's gender is known;
+    /// every other condition returns null, and the first branch is shown.
+    /// </summary>
+    private bool? EvaluateCondition(string condition)
+    {
+        if (!condition.Trim().Equals("PlayerParameter(4)", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return PlayerState.IsLoaded ? PlayerState.Sex == Sex.Female : null;
+    }
+
+    /// <summary>
     /// Applies a finished download on the game thread: the updater runs in the
     /// background and only raises a flag.
     /// </summary>
@@ -256,7 +282,13 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         SaveConfiguration();
-        _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
+        _store = TranslationStore.Load(
+            _configuration,
+            DataManager,
+            Log,
+            _dataUpdater.OpenData,
+            TranslationStore.OpenEmbeddedResource,
+            ResolveDisplayText);
         _overlay.Hide();
         _targetNameHandler.Refresh();
         _itemNameHandler.Refresh();
@@ -292,7 +324,13 @@ public sealed class Plugin : IDalamudPlugin
 
         if (needsStoreReload)
         {
-            _store = TranslationStore.Load(_configuration, DataManager, Log, _dataUpdater.OpenData, TranslationStore.OpenEmbeddedResource);
+            _store = TranslationStore.Load(
+                _configuration,
+                DataManager,
+                Log,
+                _dataUpdater.OpenData,
+                TranslationStore.OpenEmbeddedResource,
+                ResolveDisplayText);
 
             // The user now needs a variant that is not on disk.
             if (!string.IsNullOrEmpty(_configuration.LastDataVersion) && _dataUpdater.IsMissingRequiredFile())
