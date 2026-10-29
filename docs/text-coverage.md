@@ -89,7 +89,7 @@ and row id. The English text travels with the artifact because there is no sheet
 
 | Folder | Lines indexed | What it holds |
 | --- | ---: | --- |
-| `quest/` | 211,790 | Quest dialogue, spoken by NPCs during quests |
+| `quest/` | 220,731 | Quest dialogue, spoken by NPCs and quest objects |
 | `custom/` | 31,023 | NPC interaction dialogue, including the Sundhimal aetherial travel line |
 | `cut_scene/` | 27,141 | Voiced cutscene dialogue, shown in `TalkSubtitle` |
 | `content/`, `dungeon/`, `raid/`, `transport/`, and the rest | 1,779 | Instance, raid, leve, shop, and transport text |
@@ -97,10 +97,12 @@ and row id. The English text travels with the artifact because there is no sheet
 Entries are paired across CN, TC, and English by text key. A line with no English counterpart is
 skipped, because the plugin has nothing to match it against.
 
-`quest/` files hold more than dialogue: journal steps (`_SEQ_`), objectives (`_TODO_`), system
-messages (`_SYSTEM_`), and unused markers (`_QIB_`). None of those appear in the Talk window, so
-`ScriptDump` drops them. That leaves 211,790 of the 266,230 paired quest lines. Only about 2% of
-the kept lines contain markup or parameters, so most match the text the game shows.
+`quest/` files hold more than dialogue: journal steps (`_SEQ_`), objectives (`_TODO_`), and unused
+markers (`_QIB_`). None of those appear in the Talk window, so `ScriptDump` drops them. `_SYSTEM_`
+keys are kept: quest objects and story triggers draw them in the Talk window, for example the
+broken magitek armor in `AktKmb112_04391`. That leaves 220,731 of the 266,230 paired quest lines.
+Only about 2% of the kept lines contain markup or parameters, so most match the text the game
+shows.
 
 The English dump resolves conditionals to one branch, while the CN and TC dumps keep the tags.
 Script lines with a gender conditional therefore match only the branch the English dump chose.
@@ -214,10 +216,10 @@ The updater downloads both variants, so one data update is about 3.1 MiB. These 
 measured before the seven named-column dialogue sheets and the ten positional dialogue sheets were
 added; those sheets are small and were not re-measured.
 
-Quest dialogue changes this. Measured on 2026-10-28, the 211,790 kept quest lines add about
-20.5 MiB of gzipped `Scripts` data per variant, so a built artifact is roughly 28 MiB. One update
-downloads both variants by default, near 56 MiB; turning off **Download both language variants**
-halves that. At load the extra entries cost roughly 80 MB of memory per loaded variant.
+Quest dialogue changes this. Measured on 2026-10-29, the 220,731 kept quest lines add about
+21.3 MiB of gzipped `Scripts` data per variant, so a built artifact is roughly 29 MiB. One update
+downloads both variants by default, near 58 MiB; turning off **Download both language variants**
+halves that. At load the extra entries cost roughly 85 MB of memory per loaded variant.
 
 `Item` is now indexed by `Name` only. An estimate with `Name` and `Description` for every row adds
 about 0.77 MiB to CN and 0.69 MiB to TC. That puts each artifact around 2.4 MiB and 2.2 MiB.

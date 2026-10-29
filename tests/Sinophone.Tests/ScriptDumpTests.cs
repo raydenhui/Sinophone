@@ -81,27 +81,42 @@ public sealed class ScriptDumpTests : IDisposable
     }
 
     [Fact]
-    public void Build_KeepsQuestDialogue_AndSkipsJournalText()
+    public void Build_KeepsQuestDialogue_AndSkipsJournalObjectiveAndUnusedText()
     {
         Write("cn/quest/000/Test_00001.csv",
             "key,0,1\n#,, \nint32,str,str\n" +
             "0,\"TEXT_Q_00001_SEQ_00\",\"去和吕西安娜谈谈。\"\n" +
             "1,\"TEXT_Q_00001_TODO_00\",\"和吕西安娜对话\"\n" +
-            "2,\"TEXT_Q_00001_SYSTEM_00\",\"开启了任务。\"\n" +
-            "3,\"TEXT_Q_00001_QIB_00\",\"★未使用★\"\n" +
-            "4,\"TEXT_Q_00001_ALPHINAUD_000_1\",\"我们走吧。\"\n");
+            "2,\"TEXT_Q_00001_QIB_00\",\"★未使用★\"\n" +
+            "3,\"TEXT_Q_00001_ALPHINAUD_000_1\",\"我们走吧。\"\n");
         Write("en/quest/000/Test_00001.csv",
             "0,TEXT_Q_00001_SEQ_00,Speak with Luciane.\n" +
             "1,TEXT_Q_00001_TODO_00,Speak with Luciane\n" +
-            "2,TEXT_Q_00001_SYSTEM_00,Quest accepted.\n" +
-            "3,TEXT_Q_00001_QIB_00,UNUSED\n" +
-            "4,TEXT_Q_00001_ALPHINAUD_000_1,Let us go.\n");
+            "2,TEXT_Q_00001_QIB_00,UNUSED\n" +
+            "3,TEXT_Q_00001_ALPHINAUD_000_1,Let us go.\n");
 
         var scripts = ScriptDump.Build(Path.Combine(_root, "cn"), Path.Combine(_root, "en"));
 
         Assert.Single(scripts);
         Assert.Equal("Let us go.", scripts["TEXT_Q_00001_ALPHINAUD_000_1"].English);
         Assert.Equal("我们走吧。", scripts["TEXT_Q_00001_ALPHINAUD_000_1"].Text);
+    }
+
+    [Fact]
+    public void Build_KeepsQuestSystemText_BecauseTheTalkWindowShowsIt()
+    {
+        // Quest objects draw their lines in the Talk window. The broken magitek
+        // armor in AktKmb112_04391 is one, under a _SYSTEM_ key.
+        Write("cn/quest/043/Test_00001.csv",
+            "key,0,1\n#,, \nint32,str,str\n" +
+            "0,\"TEXT_Q_04391_SYSTEM_000_055\",\"尝试确认青磷水计量表，\"\n");
+        Write("en/quest/043/Test_00001.csv",
+            "0,TEXT_Q_04391_SYSTEM_000_055,\"The ceruleum gauge on this unit appears to have been broken.\"\n");
+
+        var scripts = ScriptDump.Build(Path.Combine(_root, "cn"), Path.Combine(_root, "en"));
+
+        Assert.Single(scripts);
+        Assert.Equal("尝试确认青磷水计量表，", scripts["TEXT_Q_04391_SYSTEM_000_055"].Text);
     }
 
     [Fact]

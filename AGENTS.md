@@ -72,9 +72,10 @@ reads those files, pairs them across languages by text key (`TEXT_...`), and wri
 section into the artifact. The English text travels in the artifact because there is no sheet to
 read it from.
 
-`quest/` also holds journal steps, objectives, system messages, and unused entries, which no Talk
-window shows. `ScriptDump` skips keys with `_SEQ_`, `_TODO_`, `_SYSTEM_`, or `_QIB_` and keeps the
-spoken lines. That is still about 212,000 lines, the largest part of the artifact.
+`quest/` also holds journal steps, objectives, and unused entries, which no Talk window shows.
+`ScriptDump` skips keys with `_SEQ_`, `_TODO_`, or `_QIB_`. `_SYSTEM_` keys are kept, because
+quest objects and story triggers draw them in the Talk window. That is about 221,000 lines, the
+largest part of the artifact.
 
 ### Overlay window
 

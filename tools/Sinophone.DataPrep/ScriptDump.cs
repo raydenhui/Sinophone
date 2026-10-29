@@ -9,18 +9,27 @@ namespace Sinophone.DataPrep;
 /// </summary>
 /// <remarks>
 /// <c>quest/</c> mixes spoken lines with text no Talk window shows. Only the spoken
-/// lines are indexed; journal steps, objectives, system messages, and unused markers
-/// are skipped. See <see cref="QuestJournalMarkers"/>.
+/// lines are indexed; journal steps, objectives, and unused entries are skipped.
+/// See <see cref="QuestSkippedMarkers"/>.
 /// </remarks>
 internal static class ScriptDump
 {
     private const string QuestDirectory = "quest";
 
     /// <summary>
-    /// Markers in a quest text key for text the overlay never sees: journal steps,
-    /// objectives, system messages, and unused entries.
+    /// Markers in a quest text key for text the Talk window never shows.
     /// </summary>
-    private static readonly string[] QuestJournalMarkers = ["_SEQ_", "_TODO_", "_SYSTEM_", "_QIB_"];
+    /// <remarks>
+    /// <c>_SEQ_</c> is a journal step and <c>_TODO_</c> an objective; both appear only
+    /// in the Journal. <c>_QIB_</c> marks unused entries.
+    /// <para>
+    /// <c>_SYSTEM_</c> is deliberately not skipped. Quest objects and story triggers
+    /// draw those lines in the Talk window, for example the broken magitek armor in
+    /// quest AktKmb112_04391. That key is <c>TEXT_AKTKMB112_04391_SYSTEM_000_055</c>.
+    /// About 8,900 of them pair with English.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] QuestSkippedMarkers = ["_SEQ_", "_TODO_", "_QIB_"];
 
     /// <summary>Script folders to index, in the order they are reported.</summary>
     public static readonly string[] Directories =
@@ -187,7 +196,7 @@ internal static class ScriptDump
 
     private static bool IsQuestJournalKey(string key)
     {
-        foreach (var marker in QuestJournalMarkers)
+        foreach (var marker in QuestSkippedMarkers)
         {
             if (key.Contains(marker, StringComparison.Ordinal))
                 return true;
