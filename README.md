@@ -60,6 +60,39 @@ normal play. Settings and the translation data format may change without notice.
 
 The first usable release is planned for **0.2.0**. Until then, expect gaps and changes.
 
+## Thanks
+
+Sinophone is built on other people's work. Thank you to:
+
+- [Dalamud](https://github.com/goatcorp/Dalamud) for the plugin framework, the addon lifecycle
+  events, and the ImGui wrapper.
+- [FFXIVClientStructs](https://github.com/aers/FFXIVClientStructs) for the game structures that
+  native mode reads and writes.
+- [ImGui](https://github.com/ocornut/imgui) for the overlay.
+- [ffxiv-datamining-cn](https://github.com/thewakingsands/ffxiv-datamining-cn) and
+  [ffxiv-datamining-tc](https://github.com/thewakingsands/ffxiv-datamining-tc) for the Chinese game
+  data.
+- [xivapi/ffxiv-datamining](https://github.com/xivapi/ffxiv-datamining) for the English CSVs and
+  script dumps.
+- [OpenCC](https://github.com/BYVoid/OpenCC) for the simplified and traditional conversion tables.
+  See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts) for the font modpack that lets the
+  game draw Chinese.
+- [TexTools](https://github.com/TexTools/FFXIV_TexTools_UI) and
+  [Penumbra](https://github.com/xivdev/Penumbra) for the two ways to install that font modpack.
+- [FFXIVChnTextPatch-GP](https://github.com/GpointChen/FFXIVChnTextPatch-GP) for the sheet list and
+  the reference for which game text is worth translating.
+- [Echoglossian](https://github.com/lokinmodar/Echoglossian) deserves the most credit for native
+  mode. It already puts translated text into FFXIV's own windows, and its Talk handler is the
+  reference this project worked from: which `Talk` nodes hold the name and the line, why one write
+  is not enough because the text stream keeps redrawing the node, that the refresh values can carry
+  the replacement, and the layout flags and font sizes a translated line needs. Issue #54 rests on
+  what it had already solved.
+- [fftrans](https://github.com/raydocs/fftrans) for a second, independent Talk handler that
+  confirmed the same re-apply pattern.
+
+The Chinese text itself comes from the game's own Simplified and Traditional localizations.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
