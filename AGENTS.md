@@ -455,7 +455,9 @@ premature interface.
   languages (Japanese, German, French) are planned but not supported. This is a design change,
   not a setting. Ask before starting that refactor.
 - **Exact match.** After normalization, a line must match exactly. One different character means
-  a miss.
+  a miss. Names are the exception: `ENpcResident` stores generic NPC names in lower case
+  (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
+  case. Dialogue lookup stays case-sensitive.
 - **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
   branch. `TranslationStore` keeps a second script index with the gendered pronouns collapsed

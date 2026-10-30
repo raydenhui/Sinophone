@@ -209,6 +209,23 @@ public class TranslationStoreTests
         Assert.False(store.TryGetDialogue("Mother Miounne", out _));
     }
 
+    [Theory]
+    [InlineData("skywatcher", "Skywatcher")]
+    [InlineData("Skywatcher", "skywatcher")]
+    public void TryGetName_MatchesName_WhenOnlyTheCaseDiffers(string sheetName, string gameName)
+    {
+        // ENpcResident stores generic NPC names in lower case; the Talk window
+        // capitalises them.
+        var descriptor = NameSheet((100, sheetName));
+        var artifacts = Artifacts(null, Artifact("TC", (NameSheetName, NameFieldName, 100, "天气预报员")));
+
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetName(gameName, out var name));
+        Assert.Equal("天气预报员", name);
+    }
+
     [Fact]
     public void Load_DoesNotIndexNames_IntoDialogueLookup()
     {

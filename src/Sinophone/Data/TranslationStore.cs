@@ -17,7 +17,9 @@ public sealed class TranslationStore
     public const string ResourceTcSuffix = "Sinophone.tc.json.gz";
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _nameLookup = new(StringComparer.Ordinal);
+    // Names are matched without case: the sheet stores generic NPC names in lower
+    // case ("skywatcher") and the game shows them capitalised ("Skywatcher").
+    private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Script lines under a key with the gendered pronouns collapsed. Only tried
