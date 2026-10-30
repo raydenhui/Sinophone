@@ -19,6 +19,14 @@ public static partial class MacroNormalizer
     private static partial Regex ObjectParameterPattern();
 
     /// <summary>
+    /// The script dumps wrap italics in one asterisk and bold in two. The game draws
+    /// the same emphasis, but its text node carries control codes, not asterisks, so
+    /// a line with any emphasis never matched without this strip.
+    /// </summary>
+    [GeneratedRegex(@"\*+", RegexOptions.CultureInvariant)]
+    private static partial Regex EmphasisPattern();
+
+    /// <summary>
     /// What the dumps write where a line names the player. The live game writes the
     /// player's real name there instead, so the two do not match without help.
     /// </summary>
@@ -94,6 +102,7 @@ public static partial class MacroNormalizer
         // otherwise glue the words on either side together.
         cleaned = LineBreakPattern().Replace(cleaned, " ");
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
+        cleaned = EmphasisPattern().Replace(cleaned, string.Empty);
 
         var builder = new StringBuilder(cleaned.Length);
         var previousWasWhitespace = false;
