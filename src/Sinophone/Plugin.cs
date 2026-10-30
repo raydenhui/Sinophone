@@ -54,7 +54,11 @@ public sealed class Plugin : IDalamudPlugin
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         _configuration.CustomFontPath ??= string.Empty;
 
+        // Every value compared by ApplySettings must start at the saved value. A field left at its
+        // default reads as "changed" on the first settings click and reloads all data, which takes
+        // about 15 seconds. Conversion was missing here and did exactly that.
         _lastVariant = _configuration.Variant;
+        _lastConversion = _configuration.Conversion;
         _lastFallback = _configuration.UseFallbackVariant;
         _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
