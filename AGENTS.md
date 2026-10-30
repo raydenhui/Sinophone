@@ -105,9 +105,14 @@ text** so it does not read as a finished feature.
 - A write saves the game's text for that node first. `RestoreAll` puts it back when the setting is
   turned off and on plugin unload. A second write must not save Chinese as the original, so the
   writer only saves when the node does not already hold text this writer put there.
-- The write is event-driven: `PostSetup` and `PostRefresh`. If the game turns out to put its text
-  back after one write, native mode will flicker, and the fix is a guarded re-write, not a
-  per-frame one.
+- The game redraws the line while its text stream runs, so a write on `PostSetup` or `PostRefresh`
+  lasts about one frame and the English comes back. `TalkHandler` therefore calls
+  `NativeTextWriter.Reapply` on every `PreDraw`, which puts the Chinese back. This is the one
+  guarded per-frame write: `Reapply` compares `NodeText.AsSpan()` with the bytes it last wrote, so a
+  matching node costs no allocation and no write. Do not replace it with a one-shot write.
+- An untranslated line, a missing store, or a failed write calls `Forget`, which drops the saved
+  node without writing it. Without that, `Reapply` would keep the previous line's Chinese over the
+  game's new English line.
 - Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
   are checked in game. A failed write falls back to the overlay.
 

@@ -29,4 +29,19 @@ public class NativeTextModeTests
     public void ShouldUseNativeText_IsFalse_ForEveryOtherAddon(string addonName)
         => Assert.False(TalkHandler.ShouldUseNativeText(
             new Configuration { NativeTextMode = true }, addonName));
+
+    [Fact]
+    public void ShouldReapplyNativeText_IsTrue_ForTalk_WhenNativeModeIsOn()
+        => Assert.True(TalkHandler.ShouldReapplyNativeText(
+            new Configuration { NativeTextMode = true }, "Talk"));
+
+    [Fact]
+    public void ShouldReapplyNativeText_IsFalse_WhenThePluginIsDisabled()
+        => Assert.False(TalkHandler.ShouldReapplyNativeText(
+            new Configuration { Enabled = false, NativeTextMode = true }, "Talk"));
+
+    [Fact]
+    public void ShouldReapplyNativeText_IsFalse_ForSubtitles()
+        => Assert.False(TalkHandler.ShouldReapplyNativeText(
+            new Configuration { NativeTextMode = true }, "TalkSubtitle"));
 }

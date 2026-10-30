@@ -19,6 +19,8 @@ Two runs are needed:
 | --- | --- |
 | Talk to an NPC with a short line | Chinese in the dialogue box, no overlay above it |
 | Talk to an NPC with a long line | Text wraps inside the box, nothing clipped |
+| Let a line finish revealing | Chinese stays after the reveal ends; it does not revert to English |
+| Talk to an NPC whose line has no translation | English line stays English; no Chinese from the previous line appears |
 | Speaker name | Chinese name in the name field |
 | Close the dialogue, talk again | No stale text from the previous line |
 | Disable the plugin while dialogue is open | Original text comes back |
