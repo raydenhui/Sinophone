@@ -19,6 +19,23 @@ public class MacroNormalizerTests
     }
 
     [Fact]
+    public void NormalizeKey_StripsItalicMarkers()
+    {
+        // The dump marks the italic sentence with asterisks; the live text node does not.
+        var dump = "BZZZT...★※☆\r\n*Congratulations on your purchase of the workshop!*";
+        var live = "BZZZT...★※☆\n    Congratulations on your purchase of the workshop!";
+
+        Assert.Equal(MacroNormalizer.NormalizeKey(live), MacroNormalizer.NormalizeKey(dump));
+    }
+
+    [Fact]
+    public void NormalizeKey_StripsBoldMarkers()
+    {
+        var actual = MacroNormalizer.NormalizeKey("Use your **fabrication station** to begin.");
+        Assert.Equal("Use your fabrication station to begin.", actual);
+    }
+
+    [Fact]
     public void NormalizeKey_StripsLineBreakMacros()
     {
         // <br> becomes whitespace, then collapses to a single space.

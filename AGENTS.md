@@ -457,7 +457,10 @@ premature interface.
 - **Exact match.** After normalization, a line must match exactly. One different character means
   a miss. Names are the exception: `ENpcResident` stores generic NPC names in lower case
   (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
-  case. Dialogue lookup stays case-sensitive.
+  case. Dialogue lookup stays case-sensitive. The English script dumps mark italics with one
+  asterisk and bold with two; the game draws that emphasis with a SeString macro, so
+  `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
+  from the text node before lookup.
 - **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
   branch. `TranslationStore` keeps a second script index with the gendered pronouns collapsed

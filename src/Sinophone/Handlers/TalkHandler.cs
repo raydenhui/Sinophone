@@ -378,7 +378,7 @@ public sealed class TalkHandler : IDisposable
                     continue;
                 }
 
-                var text = node->NodeText.ToString().Trim();
+                var text = ExtractPlainText(node->NodeText.AsSpan()).Trim();
                 _log.Debug("  {Addon} text node {NodeId}: {Length} chars: {Text}",
                     args.AddonName, node->NodeId, text.Length, text);
                 if (string.IsNullOrWhiteSpace(text))
@@ -410,6 +410,16 @@ public sealed class TalkHandler : IDisposable
         => !string.IsNullOrWhiteSpace(englishName)
            && string.Equals(text.Trim(), englishName.Trim(), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Reads a game string as plain text. The Talk text node holds a SeString, and a
+    /// line with italics or bold carries a formatting macro in the middle of it.
+    /// Reading the bytes as UTF-8 leaves the macro's payload bytes in the sentence,
+    /// so the lookup key never matched. ExtractText keeps the text and drops the
+    /// macros.
+    /// </summary>
+    internal static string ExtractPlainText(ReadOnlySpan<byte> seString)
+        => new ReadOnlySeStringSpan(seString).ExtractText();
+
     private unsafe string? ReadStringValue(AtkValue* values, uint index, uint count)
     {
         if (values is null || index >= count)
@@ -422,11 +432,14 @@ public sealed class TalkHandler : IDisposable
             if (!IsStringValue(value.Type) || !value.String.HasValue)
                 return null;
 
+            // Stopping at the first formatting macro cut the line at its italics,
+            // so an emphasized AtkValue text missed and only the text node retry
+            // had a chance. Keep reading and drop the macros instead.
             var text = MemoryHelper.ReadSeStringAsString(
                 out _,
                 (nint)value.String.Value,
                 8192,
-                true,
+                false,
                 string.Empty);
 
             return string.IsNullOrWhiteSpace(text) ? null : text;
