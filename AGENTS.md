@@ -326,6 +326,10 @@ Build and link the plugin into Dalamud's dev plugin folder with
 `scripts/Deploy-DevPlugin.ps1`. Add that folder under **Experimental** → **Dev Plugin Locations**
 once; the script creates the plugin folder inside it and links it to the build output.
 
+On a machine with the game installed, run that script after every code change, not only before
+in-game testing. The game loads the plugin from the linked build output, so a change that is built
+but not relinked leaves the game running old code. A plain `dotnet build` is not enough.
+
 When a change needs in-game testing, put a checklist in the pull request body:
 
 ```markdown
