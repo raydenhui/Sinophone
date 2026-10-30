@@ -18,8 +18,16 @@ public sealed class TranslationStore
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Script lines under a key with the gendered pronouns collapsed. Only tried
+    /// after an exact miss, because the English dump stores one gender branch.
+    /// </summary>
+    private readonly Dictionary<string, string> _genderNeutralLookup = new(StringComparer.Ordinal);
+
     private readonly Func<string, string> _displayResolver;
     private readonly Func<string?>? _playerName;
+    private readonly IPluginLog? _log;
 
     private int _scriptEntryCount;
 
@@ -27,12 +35,14 @@ public sealed class TranslationStore
         ChineseVariant primaryVariant,
         bool usedFallback,
         Func<string, string> displayResolver,
-        Func<string?>? playerName)
+        Func<string?>? playerName,
+        IPluginLog? log)
     {
         PrimaryVariant = primaryVariant;
         UsedFallback = usedFallback;
         _displayResolver = displayResolver;
         _playerName = playerName;
+        _log = log;
     }
 
     /// <summary>The variant whose rows were indexed first.</summary>
@@ -56,38 +66,48 @@ public sealed class TranslationStore
         if (key.Length == 0)
             return false;
 
-        if (!_textLookup.TryGetValue(key, out var stored)
-            && !TryLookupWithoutPlayerName(key, out stored))
+        if (_textLookup.TryGetValue(key, out var stored))
         {
-            return false;
+            chineseText = ResolveDisplay(stored);
+            return true;
         }
 
-        chineseText = ResolveDisplay(stored);
+        // Second chances, only after a miss so the common line stays one hit. The
+        // game fills in the player's name where the dumps have a placeholder, and
+        // script lines from the English dump hold one gender's wording.
+        var alternate = MacroNormalizer.RestorePlayerNamePlaceholder(key, _playerName?.Invoke());
+
+        if (!ReferenceEquals(alternate, key) && _textLookup.TryGetValue(alternate, out var restored))
+        {
+            chineseText = ResolveDisplay(restored);
+            return true;
+        }
+
+        if (!TryLookupGenderNeutral(alternate, out var match))
+            return false;
+
+        chineseText = ResolveDisplay(match);
         return true;
     }
 
     /// <summary>
-    /// Second chance for a line the game filled in with the player's name. The dumps
-    /// store the placeholder instead, so putting the name back can match. Only tried
-    /// after a miss, so the common line still costs one dictionary hit.
+    /// Matches a script line that the English dump wrote for the other gender.
     /// </summary>
-    private bool TryLookupWithoutPlayerName(string key, out string stored)
+    private bool TryLookupGenderNeutral(string key, out string stored)
     {
         stored = string.Empty;
 
-        var playerName = _playerName?.Invoke();
-        if (string.IsNullOrWhiteSpace(playerName))
+        if (_genderNeutralLookup.Count == 0)
             return false;
 
-        var restored = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
-
-        // The placeholder was not in this key, so there is nothing new to try.
-        if (ReferenceEquals(restored, key))
+        var neutral = GenderedPronouns.Neutralize(key);
+        if (ReferenceEquals(neutral, key))
             return false;
 
-        if (!_textLookup.TryGetValue(restored, out var match))
+        if (!_genderNeutralLookup.TryGetValue(neutral, out var match))
             return false;
 
+        _log?.Debug("Script line matched after collapsing the gendered pronouns.");
         stored = match;
         return true;
     }
@@ -176,7 +196,8 @@ public sealed class TranslationStore
             variant,
             fallback is not null,
             displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)),
-            playerName);
+            playerName,
+            log);
 
         if (primary is not null)
             store.Index(primary, descriptors, log);
@@ -287,6 +308,18 @@ public sealed class TranslationStore
                 added++;
                 _scriptEntryCount++;
             }
+
+            // The English dump holds one gender's wording, so keep a key with the
+            // pronouns collapsed for the other one. A line that already matches
+            // exactly keeps priority, because the exact lookup runs first.
+            var neutral = GenderedPronouns.Neutralize(key);
+            if (!ReferenceEquals(neutral, key) && !_textLookup.ContainsKey(neutral))
+                _genderNeutralLookup.TryAdd(neutral, display);
+        }
+
+        if (_genderNeutralLookup.Count > 0)
+        {
+            _log?.Debug("Indexed {Count:N0} gender-neutral script keys.", _genderNeutralLookup.Count);
         }
 
         return added;

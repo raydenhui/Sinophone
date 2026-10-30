@@ -38,6 +38,7 @@ src/Sinophone/
     MacroNormalizer.cs      Text cleanup for matching and for display.
     ConditionalText.cs      Picks a branch when the CN/TC text carries <If> tags.
     SeStringVariants.cs     Splits a conditional SeString into one string per branch.
+    GenderedPronouns.cs     Collapses gendered pronouns so a script line matches either branch.
     ChineseConverter.cs     Optional simplified/traditional conversion, built from OpenCC.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
@@ -453,9 +454,12 @@ premature interface.
   a miss.
 - **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
-  branch; a script line whose dump branch differs from the player's can still miss. For display,
-  `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition shows the
-  first branch.
+  branch. `TranslationStore` keeps a second script index with the gendered pronouns collapsed
+  (`GenderedPronouns`), so a line written for the other gender still matches. Exact keys win, and
+  the collapsed key is only tried after a miss. Gendered nouns such as `sir` / `madam` are not
+  collapsed, because they are common in normal prose; a script line built that way can still miss.
+  For display, `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition
+  shows the first branch.
 - **Player name.** The dumps write `Player Player` where a line names the player, and the game
   writes the real name. The lookup puts the name back before the dictionary hit, and the display
   fills `<Highlight>ObjectParameter(1)</Highlight>` from `IPlayerState.CharacterName`. The other
