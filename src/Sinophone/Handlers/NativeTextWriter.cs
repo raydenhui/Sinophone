@@ -1,3 +1,4 @@
+using System.Text;
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace Sinophone.Handlers;
@@ -9,8 +10,13 @@ namespace Sinophone.Handlers;
 /// </summary>
 /// <remarks>
 /// Remembers the game's text for each node it changes, so the plugin can put it back
-/// when native mode is turned off or the plugin unloads. The game rewrites its text on
-/// the next line, so the saved copy only covers the line on screen.
+/// when native mode is turned off or the plugin unloads. The saved copy only covers the
+/// line on screen.
+/// <para>
+/// One write is not enough. The <c>Talk</c> window redraws its line while the text
+/// stream runs, which replaces the node text with English after about a frame. The
+/// caller keeps the Chinese on screen by calling <see cref="Reapply"/> on every draw.
+/// </para>
 /// </remarks>
 public sealed unsafe class NativeTextWriter
 {
@@ -38,8 +44,8 @@ public sealed unsafe class NativeTextWriter
 
     /// <summary>
     /// Writes <paramref name="text"/> into one text node. Returns false when the node is
-    /// missing, the text is empty, or the node already reads that text, so the caller can
-    /// fall back to the overlay.
+    /// missing or the text is empty, so the caller can fall back to the overlay. Returns
+    /// true when the node already reads that text: the line is on screen either way.
     /// </summary>
     public bool Write(string addonName, uint nodeId, string? text)
     {
@@ -55,15 +61,17 @@ public sealed unsafe class NativeTextWriter
 
         var current = node->NodeText.ToString();
         if (string.Equals(current, text, StringComparison.Ordinal))
-            return false;
+            return true;
+
+        var writtenUtf8 = Encoding.UTF8.GetBytes(text);
 
         // Save the game's text only when the node does not already hold our own text.
         // Otherwise a second write would save Chinese as the original.
         var key = (addonName, nodeId);
         _saved[key] = _saved.TryGetValue(key, out var saved)
                       && string.Equals(current, saved.Written, StringComparison.Ordinal)
-            ? saved with { Written = text }
-            : new SavedText(current, text);
+            ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
+            : new SavedText(current, text, writtenUtf8);
 
         node->SetText(text);
         node->ResizeNodeForCurrentText();
@@ -72,6 +80,50 @@ public sealed unsafe class NativeTextWriter
             text.Length, addonName, nodeId);
         return true;
     }
+
+    /// <summary>
+    /// Writes a line again when the game has replaced it. Runs on every draw of the
+    /// <c>Talk</c> window, so it compares the node's bytes with the last write and
+    /// allocates nothing when the text still matches.
+    /// </summary>
+    /// <returns>True when the game's text had to be replaced.</returns>
+    public bool Reapply(string addonName, uint nodeId)
+    {
+        var key = (addonName, nodeId);
+        if (!_saved.TryGetValue(key, out var saved))
+            return false;
+
+        var node = GetNode(addonName, nodeId);
+        if (node is null)
+            return false;
+
+        // Utf8String.AsSpan() is a view over the node's buffer, so this compare does
+        // not allocate. ToString() here would allocate on every frame.
+        if (node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8))
+            return false;
+
+        node->SetText(saved.Written);
+        node->ResizeNodeForCurrentText();
+
+        if (!saved.Reapplied)
+        {
+            // Log once per line: the game replaces the node on each frame of the text
+            // stream, and a log per frame would bury everything else.
+            _saved[key] = saved with { Reapplied = true };
+            _log.Debug("Native text: the game replaced {Addon} node {NodeId}; keeping the Chinese for this line.",
+                addonName, nodeId);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Drops the saved text for a node without writing it back. Used when a line has no
+    /// translation: the next <see cref="Reapply"/> must not put the previous line's
+    /// Chinese over it.
+    /// </summary>
+    public void Forget(string addonName, uint nodeId)
+        => _saved.Remove((addonName, nodeId));
 
     /// <summary>Puts the game's own text back into one node.</summary>
     public void Restore(string addonName, uint nodeId)
@@ -111,5 +163,9 @@ public sealed unsafe class NativeTextWriter
         return addon is null ? null : addon->GetTextNodeById(nodeId);
     }
 
-    private readonly record struct SavedText(string Original, string Written);
+    private readonly record struct SavedText(
+        string Original,
+        string Written,
+        byte[] WrittenUtf8,
+        bool Reapplied = false);
 }

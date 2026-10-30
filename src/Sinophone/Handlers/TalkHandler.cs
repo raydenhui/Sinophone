@@ -51,6 +51,11 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.RegisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
+
+        // Native mode covers Talk only. Every draw is where the Chinese has to be put
+        // back, because the game's text stream replaces it after one frame.
+        if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+            _addonLifecycle.RegisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
     }
 
     private void Unregister(string addonName)
@@ -60,6 +65,9 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.UnregisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
+
+        if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+            _addonLifecycle.UnregisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
     }
 
     private unsafe void OnAddonEvent(AddonEvent eventType, AddonArgs args)
@@ -68,6 +76,12 @@ public sealed class TalkHandler : IDisposable
             return;
 
         var addonName = args.AddonName;
+
+        if (eventType == AddonEvent.PreDraw)
+        {
+            ReapplyNativeText(addonName);
+            return;
+        }
 
         if (ShouldHideOverlay(eventType))
         {
@@ -104,6 +118,7 @@ public sealed class TalkHandler : IDisposable
         var store = _getStore();
         if (store is null)
         {
+            ForgetNativeText(addonName);
             _log.Debug("No translation data loaded; overlay not shown.");
             return;
         }
@@ -146,6 +161,7 @@ public sealed class TalkHandler : IDisposable
 
         if (content is null)
         {
+            ForgetNativeText(addonName);
             _overlay.Hide();
             _log.Debug("{Addon} line has no usable translation; overlay hidden. " +
                        "Text empty: {TextEmpty}, hide when no translation: {HideWhenMissing}.",
@@ -153,12 +169,19 @@ public sealed class TalkHandler : IDisposable
             return;
         }
 
-        if (ShouldUseNativeText(_configuration, addonName) && WriteNativeText(content.Value))
+        if (ShouldUseNativeText(_configuration, addonName))
         {
-            _overlay.Hide();
-            _log.Debug("Native text written for {Addon}; overlay hidden.",
-                addonName);
-            return;
+            if (WriteNativeText(content.Value))
+            {
+                _overlay.Hide();
+                _log.Debug("Native text written for {Addon}; overlay hidden.",
+                    addonName);
+                return;
+            }
+
+            // The write failed, so the overlay is the surface for this line. Keep the
+            // previous line's Chinese out of the game's box.
+            ForgetNativeText(addonName);
         }
 
         _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
@@ -175,6 +198,38 @@ public sealed class TalkHandler : IDisposable
     internal static bool ShouldUseNativeText(Configuration configuration, string addonName)
         => configuration.NativeTextMode
            && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal);
+
+    /// <summary>
+    /// True when the Chinese written into the game's dialogue box has to be put back on
+    /// each draw. This runs every frame while Talk is visible, so it stays a plain
+    /// setting check; the draw-time compare lives in <see cref="NativeTextWriter.Reapply"/>.
+    /// </summary>
+    internal static bool ShouldReapplyNativeText(Configuration configuration, string addonName)
+        => configuration.Enabled && ShouldUseNativeText(configuration, addonName);
+
+    private void ReapplyNativeText(string addonName)
+    {
+        if (!ShouldReapplyNativeText(_configuration, addonName))
+            return;
+
+        // No-ops for a node this writer never changed, so a line on the overlay is
+        // left alone.
+        _nativeWriter.Reapply(addonName, NativeTextWriter.TalkNameNodeId);
+        _nativeWriter.Reapply(addonName, NativeTextWriter.TalkTextNodeId);
+    }
+
+    /// <summary>
+    /// Stops keeping a line's Chinese on screen. The game's own English line then stays
+    /// in place, which is what an untranslated line needs.
+    /// </summary>
+    private void ForgetNativeText(string addonName)
+    {
+        if (!string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+            return;
+
+        _nativeWriter.Forget(TalkAddonName, NativeTextWriter.TalkNameNodeId);
+        _nativeWriter.Forget(TalkAddonName, NativeTextWriter.TalkTextNodeId);
+    }
 
     /// <summary>
     /// Writes the Chinese line, and the Chinese speaker name when the name is shown, into
