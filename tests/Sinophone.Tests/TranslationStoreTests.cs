@@ -543,6 +543,60 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_MatchesOtherGender_WhenScriptUsesOnePronoun()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("One could reduce her body to aether without losing the grip on her spirit.",
+                "而“返回”或“传送”这类魔法，"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "One could reduce his body to aether without losing the grip on his spirit.", out var chinese));
+        Assert.Equal("而“返回”或“传送”这类魔法，", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_MatchesMaleWording_WhenDumpUsesFemaleWording()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("He says the aetheryte is closed.", "传唤水晶已经关闭。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("She says the aetheryte is closed.", out var chinese));
+        Assert.Equal("传唤水晶已经关闭。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_PrefersExactGender_WhenBothFormsAreIndexed()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("He says the aetheryte is closed.", "他說。"),
+            ("She says the aetheryte is closed.", "她說。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("She says the aetheryte is closed.", out var chinese));
+        Assert.Equal("她說。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_DoesNotMatchGender_WhenTextIsDifferent()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("She says the aetheryte is closed.", "传唤水晶已经关闭。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("She says the aetheryte is open.", out _));
+    }
+
+    [Fact]
     public void Load_ResolvesPlainDisplay_OnceAtLoad()
     {
         var calls = 0;
