@@ -426,6 +426,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonText_MatchesUnknownPlaceholder()
+    {
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [102421] = ["Duty calls. Commence battle for\n“UNKNOWN”?\n\nLevel: 90\nItem level: 665"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact("CN", ("Addon", "Text", 102421, "要开始“StringParameter(1)”的战斗吗？")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(2, store.AddonTemplateCount);
+        Assert.True(store.TryGetAddonText(
+            "Duty calls. Commence battle for\n“Inform the Cold?”\n\nLevel: 90\nItem level: 665",
+            out var chinese));
+        Assert.Contains("StringParameter(1)", chinese);
+    }
+
+    [Fact]
     public void Load_StripsSpeakerPrefixFromScriptEnglish()
     {
         var artifacts = Artifacts(

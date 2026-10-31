@@ -31,6 +31,11 @@ public sealed class SelectionDialogHandler : IDisposable
     /// </summary>
     private const int MaxLateAttempts = 12;
 
+    private static readonly Regex QuotedText = new(@"[“""]([^”""]+)[”""]", RegexOptions.CultureInvariant);
+    private static readonly Regex EnglishLevel = new(@"\bLevel:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex EnglishItemLevel = new(@"\bItem level:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex QuestBattleLevel = new(@"<Sheet\(QuestBattle,IntegerParameter\(2\),3\)\s*/>", RegexOptions.CultureInvariant);
+
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
     private readonly IPluginLog _log;
@@ -339,6 +344,12 @@ public sealed class SelectionDialogHandler : IDisposable
         if (store.TryGetDialogue(text, out chinese))
             return true;
 
+        if (store.TryGetAddonText(text, out var addonText))
+        {
+            chinese = ResolveAddonText(addonText, text);
+            return chinese.Length > 0;
+        }
+
         var trimmed = text.TrimEnd('.', '。', '!', '！', '?', '？');
         if (trimmed.Length > 0
             && trimmed != text
@@ -359,6 +370,28 @@ public sealed class SelectionDialogHandler : IDisposable
 
         chinese = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    /// Fills the parameters in an Addon-sheet prompt from the live English text.
+    /// The sheet stores UNKNOWN where the game puts the quest name and levels.
+    /// </summary>
+    internal static string ResolveAddonText(string chinese, string liveEnglish)
+    {
+        var questName = QuotedText.Match(liveEnglish).Groups[1].Value;
+        var level = EnglishLevel.Match(liveEnglish).Groups[1].Value;
+        var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
+
+        var resolved = QuestBattleLevel.Replace(chinese, level);
+        resolved = Regex.Replace(resolved, @"StringParameter\(1\)", questName);
+        resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
+        resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
+
+        // These private-use characters are UI icons, not text.
+        resolved = resolved.Replace("", string.Empty, StringComparison.Ordinal)
+            .Replace("", string.Empty, StringComparison.Ordinal);
+
+        return MacroNormalizer.CleanForDisplay(resolved);
     }
 
     public void Dispose()

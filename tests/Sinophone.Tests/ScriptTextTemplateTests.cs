@@ -113,4 +113,13 @@ public class ScriptTextTemplateTests
         target.Add((byte)(utf8.Length + 1));
         target.AddRange(utf8);
     }
+
+    [Fact]
+    public void BuildFromPlainText_TreatsUnknownAsWildcard()
+    {
+        var template = ScriptTextTemplate.BuildFromPlainText("Duty calls. Commence battle for\n“UNKNOWN”?\n\nLevel: 90");
+        var live = "Duty calls. Commence battle for\n“Inform the Cold?”?\n\nLevel: 90";
+
+        Assert.True(ScriptTextTemplate.Matches(template, MacroNormalizer.NormalizeKey(live)));
+    }
 }

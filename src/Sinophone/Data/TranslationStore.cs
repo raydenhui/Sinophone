@@ -28,6 +28,13 @@ public sealed class TranslationStore
     private readonly Dictionary<string, string> _genderNeutralLookup = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Addon-sheet prompts with UNKNOWN placeholders, matched as templates. The
+    /// game fills those values at runtime, so an exact lookup cannot match them.
+    /// </summary>
+    private readonly List<(string Template, string Chinese)> _addonTemplates = [];
+    private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Translations keyed by the sheet row the game says it is showing. This is the
     /// id-first path: it resolves a line even when the same English text appears in
     /// several rows.
@@ -75,6 +82,8 @@ public sealed class TranslationStore
 
     /// <summary>Script-dump lines in the text lookup. Already counted in <see cref="TextEntryCount"/>.</summary>
     public int ScriptEntryCount => _scriptEntryCount;
+
+    internal int AddonTemplateCount => _addonTemplates.Count;
 
     public bool TryGetDialogue(string? englishText, out string chineseText)
         => TryGetDialogue(englishText, default, out chineseText);
@@ -299,6 +308,30 @@ public sealed class TranslationStore
         return true;
     }
 
+    /// <summary>
+    /// Resolves an Addon-sheet prompt that contains runtime UNKNOWN placeholders.
+    /// Returns the stored Chinese raw text; the caller fills its parameters.
+    /// </summary>
+    public bool TryGetAddonText(string? englishText, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        var key = MacroNormalizer.NormalizeKey(englishText);
+        if (key.Length == 0 || _addonTemplates.Count == 0)
+            return false;
+
+        foreach (var (template, chinese) in _addonTemplates)
+        {
+            if (!ScriptTextTemplate.Matches(template, key))
+                continue;
+
+            chineseText = chinese;
+            return true;
+        }
+
+        return false;
+    }
+
     public bool TryGetName(string? englishName, out string chineseName)
     {
         chineseName = string.Empty;
@@ -486,6 +519,22 @@ public sealed class TranslationStore
 
                         if (target.TryAdd(key, display))
                             indexedSlots++;
+
+                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
+                            && variants[v].Contains("UNKNOWN", StringComparison.Ordinal))
+                        {
+                            var template = ScriptTextTemplate.BuildFromPlainText(variants[v]);
+                            if (template.Length > 0 && _addonTemplateKeys.Add(template))
+                                _addonTemplates.Add((template, chineseSlots[i]));
+
+                            var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
+                            if (loose.Length > 0
+                                && !string.Equals(loose, template, StringComparison.Ordinal)
+                                && _addonTemplateKeys.Add(loose))
+                            {
+                                _addonTemplates.Add((loose, chineseSlots[i]));
+                            }
+                        }
                     }
                 }
 

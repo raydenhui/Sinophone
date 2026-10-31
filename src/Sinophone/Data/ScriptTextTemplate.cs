@@ -85,6 +85,29 @@ public static partial class ScriptTextTemplate
     }
 
     /// <summary>
+    /// Builds a template from a plain English sheet string. The Addon sheet uses
+    /// the literal word UNKNOWN where the game fills in a value at runtime.
+    /// </summary>
+    public static string BuildFromPlainText(string text)
+    {
+        var template = MacroNormalizer.NormalizeKey(text);
+        return Regex.Replace(template, @"\bUNKNOWN\b", Wildcard.ToString());
+    }
+
+    /// <summary>
+    /// Like <see cref="BuildFromPlainText" />, but lets the wildcard absorb a
+    /// following question mark, exclamation mark, or period. A quest name can end
+    /// with that punctuation, so the live text has it inside the quotes while the
+    /// sheet has it after the UNKNOWN placeholder.
+    /// </summary>
+    public static string BuildLooseFromPlainText(string text)
+    {
+        var template = MacroNormalizer.NormalizeKey(text);
+        template = Regex.Replace(template, @"(\bUNKNOWN\b[”""']?)[?!.]", "$1");
+        return Regex.Replace(template, @"\bUNKNOWN\b", Wildcard.ToString());
+    }
+
+    /// <summary>
     /// True when <paramref name="textKey" /> is exactly the template with each
     /// wildcard replaced by any text. Matching is ordinal and anchored at both ends.
     /// </summary>
