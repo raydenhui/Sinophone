@@ -512,6 +512,22 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Load_LearnsSpeakerNameFromScriptAlias()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(
+                ("(-Distant Echo-)**You... With me...",
+                 "(-不知從何處傳來的聲音-)……之人……來這裡……"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetName("Distant Echo", out var name));
+        Assert.Equal("不知從何處傳來的聲音", name);
+    }
+
+    [Fact]
     public void Load_StripsSpeakerPrefixFromScriptEnglish()
     {
         var artifacts = Artifacts(

@@ -600,6 +600,22 @@ public sealed class TranslationStore
 
         foreach (var (scriptKey, entry) in artifact.Scripts)
         {
+            // Event speakers such as "Distant Echo" often exist only as a script
+            // alias, not as a row in a name sheet. Learn the Chinese alias from the
+            // translated line so the speaker node can use it.
+            var englishAlias = MacroNormalizer.ExtractSpeakerPrefix(entry.English);
+            var chineseAlias = MacroNormalizer.ExtractSpeakerPrefix(entry.Text);
+            if (englishAlias.Length > 0
+                && chineseAlias.Length > 0
+                && !string.Equals(englishAlias, "Player", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(englishAlias, MacroNormalizer.PlayerNamePlaceholder, StringComparison.OrdinalIgnoreCase))
+            {
+                var aliasKey = MacroNormalizer.NormalizeKey(englishAlias);
+                var aliasText = MacroNormalizer.CleanForDisplay(chineseAlias);
+                if (aliasKey.Length > 0 && aliasText.Length > 0)
+                    _nameLookup.TryAdd(aliasKey, aliasText);
+            }
+
             // The dumps may prefix the English line with a speaker alias such as
             // "(-Radio-)". The game draws that name in a separate node, so the
             // dialogue text lookup must not include it.

@@ -131,6 +131,19 @@ public static partial class MacroNormalizer
     }
 
     /// <summary>
+    /// Reads the name inside a leading speaker alias such as "(-Distant Echo-)".
+    /// Returns an empty string when the line has no alias.
+    /// </summary>
+    public static string ExtractSpeakerPrefix(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        var match = SpeakerPrefixPattern().Match(text);
+        return match.Success ? match.Value[2..^2] : string.Empty;
+    }
+
+    /// <summary>
     /// Removes a leading speaker alias such as "(-Radio-)". The script dumps put
     /// the alias in the English line, but the game draws it in the speaker node,
     /// not in the dialogue text.
