@@ -344,10 +344,14 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private bool? EvaluateCondition(string condition)
     {
-        if (!condition.Trim().Equals("PlayerParameter(4)", StringComparison.OrdinalIgnoreCase))
+        if (!PlayerState.IsLoaded)
             return null;
 
-        return PlayerState.IsLoaded ? PlayerState.Sex == Sex.Female : null;
+        return PlayerConditionEvaluator.Evaluate(
+            condition,
+            PlayerState.Sex == Sex.Female,
+            PlayerState.GrandCompany.RowId,
+            PlayerState.GetGrandCompanyRank(PlayerState.GrandCompany.Value));
     }
 
     /// <summary>
