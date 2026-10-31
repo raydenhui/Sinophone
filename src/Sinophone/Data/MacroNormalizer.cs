@@ -15,6 +15,10 @@ public static partial class MacroNormalizer
     [GeneratedRegex(@"<[^<>]*>", RegexOptions.CultureInvariant)]
     private static partial Regex MacroPattern();
 
+    [GeneratedRegex(@"<(?:UIForeground|UIGlow|Unknown2D)>.*?</(?:UIForeground|UIGlow|Unknown2D)>",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex UiMarkupPattern();
+
     [GeneratedRegex(@"ObjectParameter\((\d+)\)", RegexOptions.CultureInvariant)]
     private static partial Regex ObjectParameterPattern();
 
@@ -223,6 +227,10 @@ public static partial class MacroNormalizer
         // Before the macro strip: that strip removes <Highlight> and </Highlight> but
         // leaves the parameter text between them sitting in the sentence.
         cleaned = ResolveObjectParameters(cleaned, playerName);
+
+        // UI color tags carry payload text such as F20223 or 01 between the tags.
+        // Remove the whole pair, not just the tags.
+        cleaned = UiMarkupPattern().Replace(cleaned, string.Empty);
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
 
         var lines = cleaned.Split('\n');
