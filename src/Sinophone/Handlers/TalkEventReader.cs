@@ -40,7 +40,7 @@ internal sealed class TalkEventReader
                 rows.Add(row);
 
             if (handler.LuaTexts is not null)
-                CollectScriptKeys(handler.LuaTexts, englishText, scriptKeys);
+                CollectScriptKeys(handler.LuaTexts, scriptKeys);
         }
 
         DialogueRowId? selectedRow = rows.Count == 1 ? rows[0] : null;
@@ -202,11 +202,19 @@ internal sealed class TalkEventReader
         {
             var key = text.Key.ToString();
             var value = text.Value.ToString();
+            var template = ScriptTextTemplate.Build(text.Value.AsSpan());
 
-            // The product path only needs the keys whose value is the line on
-            // screen. The probe keeps every pair so it can show the whole map.
-            if (!readAll && (value.Length == 0 || MacroNormalizer.NormalizeKey(value) != wanted))
-                continue;
+            // The product path selects the key from the game's own Lua text map.
+            // Only spans the script marks as dynamic may vary; the rest of the
+            // line still has to match exactly.
+            if (!readAll)
+            {
+                if (value.Length == 0)
+                    continue;
+
+                if (!ScriptTextTemplate.Matches(template, wanted))
+                    continue;
+            }
 
             result.Add(new KeyValuePair<string, string>(key, value));
         }
@@ -216,23 +224,16 @@ internal sealed class TalkEventReader
 
     private static void CollectScriptKeys(
         IReadOnlyList<KeyValuePair<string, string>> luaTexts,
-        string? englishText,
         List<string> scriptKeys)
     {
-        if (string.IsNullOrWhiteSpace(englishText))
-            return;
-
-        var key = MacroNormalizer.NormalizeKey(englishText);
-        if (key.Length == 0)
-            return;
-
         foreach (var (luaKey, value) in luaTexts)
         {
             if (luaKey.Length == 0 || value.Length == 0)
                 continue;
 
-            if (MacroNormalizer.NormalizeKey(value) == key)
-                scriptKeys.Add(luaKey);
+            // TryReadLuaTexts already kept only the values that match the live
+            // line, so every key here is a candidate for this line.
+            scriptKeys.Add(luaKey);
         }
     }
 }
