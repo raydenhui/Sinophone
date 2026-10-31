@@ -767,4 +767,22 @@ public class TranslationStoreTests
         Assert.Equal("你好。", chinese);
         Assert.Equal(1, calls);
     }
+
+    [Fact]
+    public void TryGetDialogue_SkipsScriptEntry_WhenEnglishIsUnknownPlaceholder()
+    {
+        var scripts = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal)
+        {
+            ["TEXT_BAD"] = new() { English = "\r\nUNKNOWN ", Text = "錯誤" },
+        };
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(0, store.ScriptEntryCount);
+
+        var context = new DialogueContext(ScriptKeys: ["TEXT_BAD"]);
+        Assert.False(store.TryGetDialogue("Hide-and-seek? What's that?", in context, out _));
+    }
 }

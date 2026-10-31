@@ -52,6 +52,17 @@ public class ScriptTextTemplateTests
     }
 
     [Fact]
+    public void Build_StripsLeadingSpeakerPrefix()
+    {
+        var value = new ReadOnlySeString(Encoding.UTF8.GetBytes(
+            "(-Voidsent Children-)Hide-and-seek? What's that?"));
+        var template = ScriptTextTemplate.Build(value.AsSpan());
+
+        Assert.Equal("Hide-and-seek? What's that?", template);
+        Assert.True(ScriptTextTemplate.Matches(template, "Hide-and-seek? What's that?"));
+    }
+
+    [Fact]
     public void Build_KeepsPlainTextAsAnExactTemplate()
     {
         var value = new ReadOnlySeString(Encoding.UTF8.GetBytes("Plain line."));

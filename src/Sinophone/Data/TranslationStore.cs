@@ -450,8 +450,11 @@ public sealed class TranslationStore
         foreach (var (scriptKey, entry) in artifact.Scripts)
         {
             var key = MacroNormalizer.NormalizeKey(entry.English);
-            if (key.Length == 0)
+            if (key.Length == 0 || string.Equals(key, "UNKNOWN", StringComparison.OrdinalIgnoreCase))
+            {
+                _log?.Debug("Skipping script entry with placeholder English: {ScriptKey}", scriptKey);
                 continue;
+            }
 
             var display = PrepareDisplay(entry.Text);
             if (display.Length == 0)
