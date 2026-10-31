@@ -2,8 +2,8 @@
   {
     "Author": "raydenhui",
     "Name": "Sinophone",
-    "Punchline": "Official Chinese dialogue, in an overlay.",
-    "Description": "Displays the official Simplified or Traditional Chinese translation of FFXIV dialogue in an overlay above the Talk window.",
+    "Punchline": "Official Chinese dialogue for FFXIV, as you play.",
+    "Description": "Shows the official Simplified or Traditional Chinese translation of FFXIV dialogue, with speaker names and the English original. Data comes from the official CN/TC game files. Use the overlay, or try the alpha native in-game mode.",
     "Tags": [
       "translation",
       "chinese",
