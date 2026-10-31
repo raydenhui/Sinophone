@@ -113,7 +113,20 @@ public sealed class SelectionDialogHandler : IDisposable
             return;
 
         _nodes.Clear();
-        CollectTextNodes(addon->RootNode, 0);
+
+        // Most addons expose their text under RootNode, but the cutscene selection
+        // addon can have its nodes only in UldManager's list. Walk both.
+        if (addon->RootNode is not null)
+            CollectTextNodes(addon->RootNode, 0);
+
+        if (addon->UldManager.NodeList is not null)
+        {
+            for (var i = 0; i < addon->UldManager.NodeListCount; i++)
+                CollectTextNodes(addon->UldManager.NodeList[i], 0);
+        }
+
+        if (string.Equals(addonName, "CutSceneSelectString", StringComparison.Ordinal))
+            CollectCutSceneTextNodes(addon);
 
         var traceNodes = string.Equals(addonName, "CutSceneSelectString", StringComparison.Ordinal)
                          && _lateAttempts.GetValueOrDefault(addonName) <= 1;
@@ -154,6 +167,37 @@ public sealed class SelectionDialogHandler : IDisposable
     private unsafe AtkUnitBase* GetAddon(string addonName)
         => _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
 
+    /// <summary>
+    /// The cutscene dialog keeps its prompt and options in typed component fields,
+    /// not in the normal node tree. Add their text nodes to the scan.
+    /// </summary>
+    private unsafe void CollectCutSceneTextNodes(AtkUnitBase* addon)
+    {
+        var cutScene = (AddonCutSceneSelectString*)addon;
+
+        if (cutScene->TextLabel is not null && cutScene->TextLabel->AtkTextNode is not null)
+            AddNode(cutScene->TextLabel->AtkTextNode);
+
+        var list = cutScene->OptionList;
+        if (list is null)
+            return;
+
+        var count = list->ListLength;
+        for (var i = 0; i < count; i++)
+        {
+            var renderer = list->GetItemRenderer(i);
+            if (renderer is not null && renderer->ButtonTextNode is not null)
+                AddNode(renderer->ButtonTextNode);
+        }
+    }
+
+    private unsafe void AddNode(AtkTextNode* textNode)
+    {
+        var address = (nint)textNode;
+        if (!_nodes.Contains(address))
+            _nodes.Add(address);
+    }
+
     private unsafe void CollectTextNodes(AtkResNode* node, int depth)
     {
         if (node is null || depth > MaxTreeDepth)
@@ -165,7 +209,7 @@ public sealed class SelectionDialogHandler : IDisposable
             {
                 var textNode = current->GetAsAtkTextNode();
                 if (textNode is not null)
-                    _nodes.Add((nint)textNode);
+                    AddNode(textNode);
             }
 
             // Some addons, such as the SelectString popup, keep their entries in a
