@@ -151,7 +151,7 @@ public sealed class SelectionDialogHandler : IDisposable
             if (nodeId == 0 || _nativeWriter.IsStillOursAt(addonName, nodeAddress))
                 continue;
 
-            var source = node->NodeText.ToString();
+            var source = TalkHandler.ExtractPlainText(node->NodeText.AsSpan());
             if (string.IsNullOrWhiteSpace(source))
                 continue;
 
@@ -412,15 +412,17 @@ public sealed class SelectionDialogHandler : IDisposable
         if (string.IsNullOrWhiteSpace(text))
             return false;
 
-        if (store.TryGetAddonLabel(text, out chinese))
+        var plainText = MacroNormalizer.CleanForDisplay(text);
+
+        if (store.TryGetAddonLabel(plainText, out chinese))
             return true;
 
         if (store.TryGetDialogue(text, out chinese))
             return true;
 
-        if (store.TryGetAddonText(text, out var addonText, out var captures))
+        if (store.TryGetAddonText(plainText, out var addonText, out var captures))
         {
-            chinese = ResolveAddonText(addonText, text, captures, store);
+            chinese = ResolveAddonText(addonText, plainText, captures, store);
             return chinese.Length > 0;
         }
 
