@@ -79,7 +79,7 @@ public class ScriptTextTemplateTests
         bytes.AddRange(body);
         bytes.Add(0x03);
         bytes.AddRange(Encoding.UTF8.GetBytes(
-            ". If you wish to know aught of the current situation, you've come to the right person."));
+            " . If you wish to know aught of the current situation, you've come to the right person."));
 
         return new ReadOnlySeString(bytes.ToArray());
     }

@@ -9,10 +9,13 @@ namespace Sinophone.Data;
 /// line; the dump keeps only the macros. A wildcard is placed only where the game
 /// data says a span is dynamic, so the rest of the line still has to match exactly.
 /// </summary>
-public static class ScriptTextTemplate
+public static partial class ScriptTextTemplate
 {
     /// <summary>Private-use marker that cannot occur in normal dialogue.</summary>
     internal const char Wildcard = '\uE000';
+
+    [GeneratedRegex(@"\s+([.,!?;:])", RegexOptions.CultureInvariant)]
+    private static partial Regex SpaceBeforePunctuation();
 
     public static string Build(ReadOnlySeStringSpan span)
     {
@@ -59,7 +62,11 @@ public static class ScriptTextTemplate
         }
 
         // Reuse the same whitespace and invisible-character rules as a lookup key.
-        return MacroNormalizer.NormalizeKey(builder.ToString());
+        var template = MacroNormalizer.NormalizeKey(builder.ToString());
+
+        // Dynamic macros often leave a space before the punctuation that follows
+        // them ("Greetings,󠀠 ."), while the game draws the name without that space.
+        return SpaceBeforePunctuation().Replace(template, "$1");
     }
 
     /// <summary>
