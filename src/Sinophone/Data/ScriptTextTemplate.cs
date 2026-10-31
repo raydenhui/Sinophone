@@ -108,6 +108,13 @@ public static partial class ScriptTextTemplate
     }
 
     /// <summary>
+    /// Number of non-wildcard characters in a template. A template with no literal
+    /// text would match every string, so Addon indexing skips those.
+    /// </summary>
+    public static int LiteralLength(string template)
+        => template.Replace(Wildcard.ToString(), string.Empty, StringComparison.Ordinal).Length;
+
+    /// <summary>
     /// True when <paramref name="textKey" /> is exactly the template with each
     /// wildcard replaced by any text. Matching is ordinal and anchored at both ends.
     /// </summary>

@@ -524,11 +524,14 @@ public sealed class TranslationStore
                             && variants[v].Contains("UNKNOWN", StringComparison.Ordinal))
                         {
                             var template = ScriptTextTemplate.BuildFromPlainText(variants[v]);
-                            if (template.Length > 0 && _addonTemplateKeys.Add(template))
+                            if (ScriptTextTemplate.LiteralLength(template) >= 4
+                                && _addonTemplateKeys.Add(template))
+                            {
                                 _addonTemplates.Add((template, chineseSlots[i]));
+                            }
 
                             var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
-                            if (loose.Length > 0
+                            if (ScriptTextTemplate.LiteralLength(loose) >= 4
                                 && !string.Equals(loose, template, StringComparison.Ordinal)
                                 && _addonTemplateKeys.Add(loose))
                             {

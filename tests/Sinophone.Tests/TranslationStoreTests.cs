@@ -454,6 +454,31 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonText_IgnoresTemplateWithNoLiteralText()
+    {
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [1] = ["UNKNOWN"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact("CN", ("Addon", "Text", 1, "取消")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(0, store.AddonTemplateCount);
+        Assert.False(store.TryGetAddonText("Settle down for a restful supper?", out _));
+    }
+
+    [Fact]
     public void Load_StripsSpeakerPrefixFromScriptEnglish()
     {
         var artifacts = Artifacts(
