@@ -20,6 +20,9 @@ public static partial class ScriptTextTemplate
     [GeneratedRegex(@"^\(-[^)]*-\)", RegexOptions.CultureInvariant)]
     private static partial Regex SpeakerPrefix();
 
+    [GeneratedRegex(@"\bPlayer(?:\s+Player)?\b", RegexOptions.CultureInvariant)]
+    private static partial Regex PlayerPlaceholder();
+
     public static string Build(ReadOnlySeStringSpan span)
     {
         var builder = new StringBuilder();
@@ -74,7 +77,11 @@ public static partial class ScriptTextTemplate
         // The script dump prefixes some lines with a speaker hint such as
         // "(-Voidsent Children-)". The game draws that name in the speaker node,
         // not in the dialogue text, so it must not be part of the template.
-        return SpeakerPrefix().Replace(template, string.Empty);
+        template = SpeakerPrefix().Replace(template, string.Empty);
+
+        // The dumps use "Player" or "Player Player" where the game inserts the
+        // real character name. Treat the placeholder as one dynamic span.
+        return PlayerPlaceholder().Replace(template, Wildcard.ToString());
     }
 
     /// <summary>

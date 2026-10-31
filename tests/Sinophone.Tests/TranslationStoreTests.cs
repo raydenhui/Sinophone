@@ -785,4 +785,17 @@ public class TranslationStoreTests
         var context = new DialogueContext(ScriptKeys: ["TEXT_BAD"]);
         Assert.False(store.TryGetDialogue("Hide-and-seek? What's that?", in context, out _));
     }
+
+    [Fact]
+    public void TryGetName_TrimsTrailingPunctuation_WhenExactNameIsMissing()
+    {
+        var descriptor = NameSheet((100, "Pattin"));
+        var artifacts = Artifacts(null, Artifact("TC", (NameSheetName, NameFieldName, 100, "帕汀")));
+
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetName("Pattin?", out var name));
+        Assert.Equal("帕汀", name);
+    }
 }

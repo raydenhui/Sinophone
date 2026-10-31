@@ -254,7 +254,13 @@ public sealed class TranslationStore
             return false;
 
         if (!_nameLookup.TryGetValue(key, out var stored))
-            return false;
+        {
+            // Speaker aliases can carry punctuation, for example "Pattin?".
+            // The name sheet stores the name without it.
+            var trimmed = key.TrimEnd('?', '!', '.', '？', '！', '。', '…');
+            if (trimmed.Length == 0 || trimmed == key || !_nameLookup.TryGetValue(trimmed, out stored))
+                return false;
+        }
 
         chineseName = ResolveDisplay(stored);
         return true;
