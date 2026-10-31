@@ -140,8 +140,9 @@ Push a `vX.Y.Z` tag to release. `.github/workflows/release.yml` builds `latest.z
 Dalamud packager, attaches it to the release, and updates `pluginmaster.json` on `main` with the
 assembly version and a new `LastUpdate`.
 
-`pluginmaster.json` is the custom repository manifest users add in Dalamud. Its download links point
-at `releases/latest/download/latest.zip`, so they do not change per release. Keep the `data` release
+`pluginmaster.json` is the custom repository manifest users add in Dalamud. It must stay a
+JSON array, even when it has one plugin, or Dalamud cannot load the repository. Its download
+links point at `releases/latest/download/latest.zip`, so they do not change per release. Keep the `data` release
 separate and out of "latest": it holds translation data, not plugin builds.
 
 ## Testing

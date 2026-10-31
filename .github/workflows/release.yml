@@ -81,10 +81,22 @@ jobs:
           git fetch origin main
           git checkout main
 
+          # Dalamud requires an array, even for a single plugin. PowerShell
+          # unwraps a one-item array when it parses JSON, so normalize it back
+          # and write with -AsArray.
           $manifest = Get-Content pluginmaster.json -Raw | ConvertFrom-Json
+          if ($manifest -isnot [System.Array]) {
+              $manifest = @($manifest)
+          }
+
           $manifest[0].AssemblyVersion = $assemblyVersion
           $manifest[0].LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-          $manifest | ConvertTo-Json -Depth 5 | Set-Content pluginmaster.json -Encoding utf8
+          $manifest | ConvertTo-Json -Depth 5 -AsArray | Set-Content pluginmaster.json -Encoding utf8
+
+          $written = Get-Content pluginmaster.json -Raw
+          if (-not $written.TrimStart().StartsWith('[')) {
+              throw "pluginmaster.json must be a JSON array for Dalamud."
+          }
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
