@@ -75,8 +75,20 @@ internal sealed class TalkEventReader
             framework->Scene,
             framework->SceneGameObjectId.Id,
             sceneData,
+            framework->EventHandlerModule.EventHandlerMap.Count,
+            ToState(framework->EventState1),
+            ToState(framework->EventState2),
             handlers);
     }
+
+    private static TalkEventState ToState(EventState state)
+        => new(
+            state.EventId.Id,
+            (int)state.EventId.ContentId,
+            state.EventId.EntryId,
+            state.ObjectId.Id,
+            state.CurrentEvent,
+            state.CurrentEventParam);
 
     private unsafe List<TalkHandlerSnapshot> CollectHandlers(
         EventFramework* framework,
@@ -84,6 +96,9 @@ internal sealed class TalkEventReader
         string? englishText)
     {
         var result = new List<TalkHandlerSnapshot>();
+        var activeIds = new HashSet<uint>();
+        AddActiveId(activeIds, framework->EventState1.EventId);
+        AddActiveId(activeIds, framework->EventState2.EventId);
 
         foreach (var (_, pointer) in framework->EventHandlerModule.EventHandlerMap)
         {
@@ -95,10 +110,17 @@ internal sealed class TalkEventReader
             if (eventId.Id == 0)
                 continue;
 
-            // The Talk addon does not name its handler, so the current scene is the
-            // only cheap link between the window and an event.
-            if (handler->Scene != framework->Scene)
+            // EventState is the interaction the player is actually in. Scene is -1
+            // for many handlers, so it alone cannot identify the Talk line.
+            if (activeIds.Count > 0)
+            {
+                if (!activeIds.Contains(eventId.Id))
+                    continue;
+            }
+            else if (handler->Scene != framework->Scene)
+            {
                 continue;
+            }
 
             var luaTexts = TryReadLuaTexts(handler, eventId.ContentId, readAllLuaTexts, englishText);
             result.Add(new TalkHandlerSnapshot(
@@ -110,6 +132,12 @@ internal sealed class TalkEventReader
         }
 
         return result;
+    }
+
+    private static void AddActiveId(HashSet<uint> ids, EventId eventId)
+    {
+        if (eventId.Id != 0)
+            ids.Add(eventId.Id);
     }
 
     private unsafe List<KeyValuePair<string, string>>? TryReadLuaTexts(
@@ -186,7 +214,19 @@ internal sealed record TalkEventSnapshot(
     short Scene,
     ulong SceneGameObjectId,
     IReadOnlyList<int> SceneData,
+    int HandlerCount,
+    TalkEventState EventState1,
+    TalkEventState EventState2,
     IReadOnlyList<TalkHandlerSnapshot> Handlers);
+
+/// <summary>The interaction currently held in one of EventFramework's two event slots.</summary>
+internal sealed record TalkEventState(
+    uint EventId,
+    int ContentId,
+    ushort EntryId,
+    ulong ObjectId,
+    byte CurrentEvent,
+    uint CurrentEventParam);
 
 /// <summary>Maps an event content id to a sheet row whose text the Talk window can show.</summary>
 internal static class TalkEventSurfaces
