@@ -414,8 +414,11 @@ public sealed class SelectionDialogHandler : IDisposable
 
         var plainText = MacroNormalizer.CleanForDisplay(text);
 
-        if (store.TryGetAddonLabel(plainText, out chinese))
-            return true;
+        if (store.TryGetAddonLabel(plainText, out var addonLabel))
+        {
+            chinese = ResolveAddonText(addonLabel, plainText);
+            return chinese.Length > 0;
+        }
 
         if (store.TryGetDialogue(text, out chinese))
             return true;
@@ -465,8 +468,33 @@ public sealed class SelectionDialogHandler : IDisposable
         var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
         resolved = QuestBattleLevel.Replace(resolved, level);
         resolved = Regex.Replace(resolved, @"StringParameter\(1\)", questName);
-        resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
-        resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
+        if (level.Length > 0)
+            resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
+        if (itemLevel.Length > 0)
+            resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
+
+        // Addon rows such as "Garden n: Patch n" use the first two integer
+        // parameters. Fill them from the numbers in the live prompt.
+        var numbers = new List<string>();
+        var currentNumber = new StringBuilder();
+        foreach (var ch in liveEnglish)
+        {
+            if (char.IsDigit(ch))
+            {
+                currentNumber.Append(ch);
+            }
+            else if (currentNumber.Length > 0)
+            {
+                numbers.Add(currentNumber.ToString());
+                currentNumber.Clear();
+            }
+        }
+        if (currentNumber.Length > 0)
+            numbers.Add(currentNumber.ToString());
+
+        for (var i = 0; i < numbers.Count; i++)
+            resolved = resolved.Replace($"IntegerParameter({i + 1})", numbers[i], StringComparison.Ordinal);
+        resolved = Regex.Replace(resolved, @"IntegerParameter(\d+)", string.Empty);
 
         // These private-use characters are UI icons, not text.
         resolved = resolved.Replace("", string.Empty, StringComparison.Ordinal)
