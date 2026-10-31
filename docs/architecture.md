@@ -71,6 +71,12 @@ The game exposes ids for some dialogue. `TranslationStore.TryGetDialogue` accept
 Every layer fails open. A missing event, a changed game structure, or an old artifact
 falls through to text, so a surface without an id keeps the old behaviour.
 
+For script lines, the game's `LuaTexts` value is matched against the live line with a
+single wildcard only where the script marks a dynamic span, such as a player name or
+Grand Company rank. The rest of the line still has to match exactly. This lets a line
+resolve from the game's own key even when the English dump stores the dynamic span as
+a blank.
+
 `TalkEventReader` reads `EventFramework` and the active handlers at Talk time.
 The current target's `EventHandler` is the first choice, because the event state is
 cleared when the Talk window opens and `Scene` is -1 for most handlers. If no handler
@@ -82,6 +88,10 @@ maps to one, so an ambiguous scene does not guess. Quest and custom talk lines g
 candidate script keys from `LuaEventHandler.LuaTexts`. `DefaultTalk` row ids are packed
 as `(content << 16) | entry`, so use `EventId.Id`, not `EntryId`; the other mapped sheets
 use `EntryId` as their row id.
+
+Display resolves Grand Company parameters 52, 53, and 54 against the player's
+current company and rank. A line can contain one block per company, and only the
+current company block should render.
 
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event

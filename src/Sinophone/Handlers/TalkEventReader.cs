@@ -155,7 +155,7 @@ internal sealed class TalkEventReader
         return result;
     }
 
-    private unsafe TalkHandlerSnapshot CreateSnapshot(
+    private static unsafe TalkHandlerSnapshot CreateSnapshot(
         EventHandler* handler,
         bool readAllLuaTexts,
         string? englishText)
@@ -176,7 +176,7 @@ internal sealed class TalkEventReader
             ids.Add(eventId.Id);
     }
 
-    private unsafe List<KeyValuePair<string, string>>? TryReadLuaTexts(
+    private static unsafe List<KeyValuePair<string, string>>? TryReadLuaTexts(
         EventHandler* handler,
         EventHandlerContent contentId,
         bool readAll,
@@ -203,9 +203,6 @@ internal sealed class TalkEventReader
             var key = text.Key.ToString();
             var value = text.Value.ToString();
             var template = ScriptTextTemplate.Build(text.Value.AsSpan());
-
-            if (readAll && key.Contains("REGISB5", StringComparison.Ordinal))
-                _log.Info("Talk probe template: {Key} => {Template}", key, template);
 
             // The product path selects the key from the game's own Lua text map.
             // Only spans the script marks as dynamic may vary; the rest of the
