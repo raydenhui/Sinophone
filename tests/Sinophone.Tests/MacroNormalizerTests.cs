@@ -256,4 +256,32 @@ public class MacroNormalizerTests
     [InlineData(null, false)]
     public void HasObjectParameter_DetectsParameterText(string? text, bool expected)
         => Assert.Equal(expected, MacroNormalizer.HasObjectParameter(text));
+
+    [Fact]
+    public void ResolveIntegerParameters_ReplacesKnownParameter()
+    {
+        var actual = MacroNormalizer.ResolveIntegerParameters(
+            "你的郵務士等級是IntegerParameter(1)級。",
+            [2]);
+
+        Assert.Equal("你的郵務士等級是2級。", actual);
+    }
+
+    [Fact]
+    public void ResolveIntegerParameters_RemovesMissingParameter()
+    {
+        var actual = MacroNormalizer.ResolveIntegerParameters(
+            "等級是IntegerParameter(3)級。",
+            [2, 1]);
+
+        Assert.Equal("等級是級。", actual);
+    }
+
+    [Fact]
+    public void ResolveIntegerParameters_LeavesTextWithoutParameter()
+    {
+        var actual = MacroNormalizer.ResolveIntegerParameters("沒有參數。", [2]);
+
+        Assert.Equal("沒有參數。", actual);
+    }
 }
