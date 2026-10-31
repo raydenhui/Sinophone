@@ -512,6 +512,24 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Load_RemembersTextStyleFromScriptLine()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(
+                ("(-Ancient Spirit-)I... I...",
+                 "(-古代人-)<UIForeground>F20223</UIForeground>我，我是……<UIForeground>01</UIForeground>"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("I... I...", out var line));
+        Assert.Equal("我，我是……", line);
+        Assert.True(store.TryGetStyle(line, out var style));
+        Assert.Equal(0xF20223u, style.Foreground);
+    }
+
+    [Fact]
     public void Load_LearnsSpeakerNameFromScriptAlias()
     {
         var artifacts = Artifacts(

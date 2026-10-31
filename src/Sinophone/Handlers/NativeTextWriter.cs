@@ -1,4 +1,5 @@
 using System.Text;
+using FFXIVClientStructs.FFXIV.Client.Graphics;
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace Sinophone.Handlers;
@@ -48,7 +49,7 @@ public sealed unsafe class NativeTextWriter
     /// missing or the text is empty, so the caller can fall back to the overlay. Returns
     /// true when the node already reads that text: the line is on screen either way.
     /// </summary>
-    public bool Write(string addonName, uint nodeId, string? text)
+    public bool Write(string addonName, uint nodeId, string? text, UiTextStyle style = default)
     {
         if (string.IsNullOrWhiteSpace(text))
             return false;
@@ -71,10 +72,12 @@ public sealed unsafe class NativeTextWriter
         var key = (addonName, nodeId);
         _saved[key] = _saved.TryGetValue(key, out var saved)
                       && string.Equals(current, saved.Written, StringComparison.Ordinal)
-            ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
-            : new SavedText(current, text, writtenUtf8);
+            ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Style = style, Reapplied = false }
+            : new SavedText(current, text, writtenUtf8, style,
+                node->TextColor, node->EdgeColor, node->TextFlags);
 
         node->SetText(text);
+        ApplyStyle(node, style);
         node->ResizeNodeForCurrentText();
 
         _log.Debug("Native text: wrote {Length} chars into {Addon} node {NodeId}.",
@@ -104,7 +107,8 @@ public sealed unsafe class NativeTextWriter
         _savedAt[key] = _savedAt.TryGetValue(key, out var saved)
                         && string.Equals(current, saved.Written, StringComparison.Ordinal)
             ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
-            : new SavedText(current, text, writtenUtf8);
+            : new SavedText(current, text, writtenUtf8, default,
+                node->TextColor, node->EdgeColor, node->TextFlags);
 
         node->SetText(text);
         node->ResizeNodeForCurrentText();
@@ -198,6 +202,7 @@ public sealed unsafe class NativeTextWriter
             return false;
 
         node->SetText(saved.Written);
+        ApplyStyle(node, saved.Style);
         node->ResizeNodeForCurrentText();
 
         if (!saved.Reapplied)
@@ -275,6 +280,9 @@ public sealed unsafe class NativeTextWriter
         }
 
         node->SetText(saved.Original);
+        node->TextColor = saved.OriginalTextColor;
+        node->EdgeColor = saved.OriginalEdgeColor;
+        node->TextFlags = saved.OriginalFlags;
         node->ResizeNodeForCurrentText();
 
         _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId}.",
@@ -302,6 +310,9 @@ public sealed unsafe class NativeTextWriter
             return;
 
         node->SetText(saved.Original);
+        node->TextColor = saved.OriginalTextColor;
+        node->EdgeColor = saved.OriginalEdgeColor;
+        node->TextFlags = saved.OriginalFlags;
         node->ResizeNodeForCurrentText();
         _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId} at {Address:X}.",
             saved.Original.Length, addonName, node->NodeId, address);
@@ -313,9 +324,46 @@ public sealed unsafe class NativeTextWriter
         return addon is null ? null : addon->GetTextNodeById(nodeId);
     }
 
+    private static void ApplyStyle(AtkTextNode* node, UiTextStyle style)
+    {
+        if (style.Foreground is uint foreground)
+            node->TextColor = ToByteColor(foreground);
+
+        if (style.Glow is uint glow)
+        {
+            node->EdgeColor = ToByteColor(glow);
+            node->TextFlags |= TextFlags.Edge;
+        }
+    }
+
+    private static ByteColor ToByteColor(uint value)
+    {
+        var color = new ByteColor { A = 0xFF };
+
+        if (value <= 0xFFFFFF)
+        {
+            color.R = (byte)(value >> 16);
+            color.G = (byte)(value >> 8);
+            color.B = (byte)value;
+        }
+        else
+        {
+            color.A = (byte)(value >> 24);
+            color.R = (byte)(value >> 16);
+            color.G = (byte)(value >> 8);
+            color.B = (byte)value;
+        }
+
+        return color;
+    }
+
     private readonly record struct SavedText(
         string Original,
         string Written,
         byte[] WrittenUtf8,
+        UiTextStyle Style,
+        ByteColor OriginalTextColor,
+        ByteColor OriginalEdgeColor,
+        TextFlags OriginalFlags,
         bool Reapplied = false);
 }

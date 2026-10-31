@@ -32,6 +32,7 @@ public sealed class TranslationStore
     /// game fills those values at runtime, so an exact lookup cannot match them.
     /// </summary>
     private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
     private readonly List<(string Template, string Chinese)> _addonTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
@@ -349,6 +350,19 @@ public sealed class TranslationStore
         return false;
     }
 
+    /// <summary>True when the stored line carried UI text colors.</summary>
+    public bool TryGetStyle(string? displayText, out UiTextStyle style)
+    {
+        style = default;
+        return !string.IsNullOrEmpty(displayText) && _styleLookup.TryGetValue(displayText, out style);
+    }
+
+    private void RegisterStyle(string display, string rawText)
+    {
+        if (UiTextStyle.TryParse(rawText, out var style))
+            _styleLookup.TryAdd(display, style);
+    }
+
     public bool TryGetName(string? englishName, out string chineseName)
     {
         chineseName = string.Empty;
@@ -524,6 +538,8 @@ public sealed class TranslationStore
                     if (display.Length == 0)
                         continue;
 
+                    RegisterStyle(display, chineseSlots[i]);
+
                     if (rowSlots is not null && string.IsNullOrEmpty(rowSlots[i]))
                         rowSlots[i] = display;
 
@@ -629,6 +645,8 @@ public sealed class TranslationStore
             var display = PrepareDisplay(entry.Text);
             if (display.Length == 0)
                 continue;
+
+            RegisterStyle(display, entry.Text);
 
             // The dump key is the game's own id for this line. The game sometimes
             // exposes it through the event handler, so keep it separate from the
