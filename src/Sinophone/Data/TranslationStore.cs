@@ -31,6 +31,7 @@ public sealed class TranslationStore
     /// Addon-sheet prompts with UNKNOWN placeholders, matched as templates. The
     /// game fills those values at runtime, so an exact lookup cannot match them.
     /// </summary>
+    private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
     private readonly List<(string Template, string Chinese)> _addonTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
@@ -309,6 +310,22 @@ public sealed class TranslationStore
     }
 
     /// <summary>
+    /// Looks up a short Addon-sheet label such as "Yes.", "No.", or "Skip cutscene?".
+    /// The separate lookup keeps a same-text NpcYell or script row from winning.
+    /// </summary>
+    public bool TryGetAddonLabel(string? englishText, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        var key = MacroNormalizer.NormalizeKey(englishText);
+        if (key.Length == 0 || !_addonLookup.TryGetValue(key, out var stored))
+            return false;
+
+        chineseText = ResolveDisplay(stored);
+        return true;
+    }
+
+    /// <summary>
     /// Resolves an Addon-sheet prompt that contains runtime UNKNOWN placeholders.
     /// Returns the stored Chinese raw text; the caller fills its parameters.
     /// </summary>
@@ -519,6 +536,12 @@ public sealed class TranslationStore
 
                         if (target.TryAdd(key, display))
                             indexedSlots++;
+
+                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
+                            && !descriptor.IsNameSheet)
+                        {
+                            _addonLookup.TryAdd(key, display);
+                        }
 
                         if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
                             && variants[v].Contains("UNKNOWN", StringComparison.Ordinal))

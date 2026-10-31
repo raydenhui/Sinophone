@@ -93,7 +93,10 @@ public sealed class SelectionDialogHandler : IDisposable
 
         if (eventType is AddonEvent.PostHide or AddonEvent.PostClose or AddonEvent.PreFinalize)
         {
-            ClearTracked(addonName);
+            // A delayed hide from an old dialog must not clear text that a newer
+            // dialog has already written into a reused node.
+            if (eventType == AddonEvent.PreFinalize)
+                ClearTracked(addonName);
             return;
         }
 
@@ -340,6 +343,9 @@ public sealed class SelectionDialogHandler : IDisposable
 
         if (string.IsNullOrWhiteSpace(text))
             return false;
+
+        if (store.TryGetAddonLabel(text, out chinese))
+            return true;
 
         if (store.TryGetDialogue(text, out chinese))
             return true;

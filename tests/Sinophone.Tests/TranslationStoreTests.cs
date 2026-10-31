@@ -479,6 +479,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonLabel_PrefersAddonRowOverDialogueRowWithSameText()
+    {
+        var npcYell = new FakeSheetDescriptor("NpcYell", "Text", false,
+            new Dictionary<uint, string[]> { [730] = ["No."] });
+        var addon = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]> { [4] = ["No."] });
+
+        var artifacts = Artifacts(
+            Artifact("CN",
+                ("NpcYell", "Text", 730, "希望只是我想多了吧……"),
+                ("Addon", "Text", 4, "否")),
+            null);
+
+        var store = TranslationStore.Load(
+            [npcYell, addon],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetAddonLabel("No.", out var label));
+        Assert.Equal("否", label);
+        Assert.True(store.TryGetDialogue("No.", out var dialogue));
+        Assert.Equal("希望只是我想多了吧……", dialogue);
+    }
+
+    [Fact]
     public void Load_StripsSpeakerPrefixFromScriptEnglish()
     {
         var artifacts = Artifacts(
