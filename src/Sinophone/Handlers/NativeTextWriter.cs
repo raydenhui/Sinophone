@@ -114,6 +114,10 @@ public sealed unsafe class NativeTextWriter
         return true;
     }
 
+    /// <summary>Drops the saved text for an exact node without writing it back.</summary>
+    public void ForgetAt(string addonName, nint address)
+        => _savedAt.Remove((addonName, address));
+
     /// <summary>True when the exact node still holds text this writer put there.</summary>
     public bool IsStillOursAt(string addonName, nint address)
     {

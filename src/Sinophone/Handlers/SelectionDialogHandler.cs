@@ -104,7 +104,7 @@ public sealed class SelectionDialogHandler : IDisposable
             return;
 
         if (eventType == AddonEvent.PostSetup)
-            ClearTracked(addonName);
+            ForgetTracked(addonName);
 
         _lateAttempts[addonName] = 0;
         Translate(addonName);
@@ -330,6 +330,21 @@ public sealed class SelectionDialogHandler : IDisposable
 
         foreach (var address in addresses)
             _nativeWriter.ClearIfStillOursAt(addonName, address);
+    }
+
+    /// <summary>
+    /// Drops saved state for a recycled dialog without touching the node text.
+    /// Clearing here can erase a prompt that the new dialog has just written.
+    /// </summary>
+    private void ForgetTracked(string addonName)
+    {
+        _lateAttempts.Remove(addonName);
+
+        if (!_translated.Remove(addonName, out var addresses))
+            return;
+
+        foreach (var address in addresses)
+            _nativeWriter.ForgetAt(addonName, address);
     }
 
     /// <summary>
