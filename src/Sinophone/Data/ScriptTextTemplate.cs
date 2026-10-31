@@ -17,6 +17,9 @@ public static partial class ScriptTextTemplate
     [GeneratedRegex(@"\s+([.,!?;:])", RegexOptions.CultureInvariant)]
     private static partial Regex SpaceBeforePunctuation();
 
+    [GeneratedRegex(@"^\(-[^)]*-\)", RegexOptions.CultureInvariant)]
+    private static partial Regex SpeakerPrefix();
+
     public static string Build(ReadOnlySeStringSpan span)
     {
         var builder = new StringBuilder();
@@ -66,7 +69,12 @@ public static partial class ScriptTextTemplate
 
         // Dynamic macros often leave a space before the punctuation that follows
         // them ("Greetings,󠀠 ."), while the game draws the name without that space.
-        return SpaceBeforePunctuation().Replace(template, "$1");
+        template = SpaceBeforePunctuation().Replace(template, "$1");
+
+        // The script dump prefixes some lines with a speaker hint such as
+        // "(-Voidsent Children-)". The game draws that name in the speaker node,
+        // not in the dialogue text, so it must not be part of the template.
+        return SpeakerPrefix().Replace(template, string.Empty);
     }
 
     /// <summary>
