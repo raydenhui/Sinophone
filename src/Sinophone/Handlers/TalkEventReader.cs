@@ -59,13 +59,13 @@ internal sealed class TalkEventReader
     /// Full diagnostic view used by the debug probe. It reads every active handler and
     /// all Lua text pairs, not just the ones that match the line.
     /// </summary>
-    public unsafe TalkEventSnapshot? ReadSnapshot()
+    public unsafe TalkEventSnapshot? ReadSnapshot(nint targetAddress = 0)
     {
         var framework = EventFramework.Instance();
         if (framework is null)
             return null;
 
-        var handlers = CollectHandlers(framework, readAllLuaTexts: true, englishText: null, targetAddress: 0);
+        var handlers = CollectHandlers(framework, readAllLuaTexts: true, englishText: null, targetAddress);
         var sceneData = new int[framework->SceneData.Count];
         var values = framework->SceneData.Values;
         for (var i = 0; i < sceneData.Length && i < values.Length; i++)

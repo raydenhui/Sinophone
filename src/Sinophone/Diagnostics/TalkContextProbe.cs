@@ -54,7 +54,7 @@ public sealed class TalkContextProbe : IDisposable
             target?.GameObjectId ?? 0,
             target?.Address ?? 0);
 
-        var snapshot = _reader.ReadSnapshot();
+        var snapshot = _reader.ReadSnapshot(target?.Address ?? 0);
         if (snapshot is null)
         {
             LastResult = "EventFramework is not available.";
