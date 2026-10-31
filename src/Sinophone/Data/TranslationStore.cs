@@ -27,6 +27,18 @@ public sealed class TranslationStore
     /// </summary>
     private readonly Dictionary<string, string> _genderNeutralLookup = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Translations keyed by the sheet row the game says it is showing. This is the
+    /// id-first path: it resolves a line even when the same English text appears in
+    /// several rows.
+    /// </summary>
+    private readonly Dictionary<(string Sheet, uint RowId, string Field), string[]> _rowLookup = new();
+
+    /// <summary>Script translations keyed by the dump's text key, when the game exposes it.</summary>
+    private readonly Dictionary<string, string> _scriptKeyLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<(string Sheet, string Field), ISheetDescriptor> _descriptorByKey = new();
+
     private readonly Func<string, string> _displayResolver;
     private readonly Func<string?>? _playerName;
     private readonly IPluginLog? _log;
@@ -36,6 +48,7 @@ public sealed class TranslationStore
     private TranslationStore(
         ChineseVariant primaryVariant,
         bool usedFallback,
+        IReadOnlyList<ISheetDescriptor> descriptors,
         Func<string, string> displayResolver,
         Func<string?>? playerName,
         IPluginLog? log)
@@ -45,6 +58,9 @@ public sealed class TranslationStore
         _displayResolver = displayResolver;
         _playerName = playerName;
         _log = log;
+
+        foreach (var descriptor in descriptors)
+            _descriptorByKey.TryAdd((descriptor.Name, descriptor.FieldName), descriptor);
     }
 
     /// <summary>The variant whose rows were indexed first.</summary>
@@ -61,7 +77,18 @@ public sealed class TranslationStore
     public int ScriptEntryCount => _scriptEntryCount;
 
     public bool TryGetDialogue(string? englishText, out string chineseText)
+        => TryGetDialogue(englishText, default, out chineseText);
+
+    /// <summary>
+    /// Resolves one line, trying the game's ids before the English text. A missing
+    /// id or an old artifact simply falls through to the text lookup, so every
+    /// surface keeps the previous behaviour as a fallback.
+    /// </summary>
+    public bool TryGetDialogue(string? englishText, in DialogueContext context, out string chineseText)
     {
+        if (TryGetDialogueById(englishText, context, out chineseText))
+            return true;
+
         chineseText = string.Empty;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
@@ -90,6 +117,110 @@ public sealed class TranslationStore
 
         chineseText = ResolveDisplay(match);
         return true;
+    }
+
+    private bool TryGetDialogueById(string? englishText, in DialogueContext context, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        if (context.ScriptKeys is not null)
+        {
+            foreach (var scriptKey in context.ScriptKeys)
+            {
+                if (string.IsNullOrWhiteSpace(scriptKey))
+                    continue;
+
+                if (!_scriptKeyLookup.TryGetValue(scriptKey.Trim(), out var script))
+                    continue;
+
+                chineseText = ResolveDisplay(script);
+                _log?.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
+                return true;
+            }
+        }
+
+        if (context.Row is not { } row)
+            return false;
+
+        if (!_rowLookup.TryGetValue((row.Sheet, row.RowId, row.Field), out var slots))
+            return false;
+
+        if (row.Slot >= 0)
+        {
+            if (row.Slot >= slots.Length || string.IsNullOrEmpty(slots[row.Slot]))
+                return false;
+
+            chineseText = ResolveDisplay(slots[row.Slot]);
+            _log?.Debug("Dialogue matched by {Sheet} row {RowId} slot {Slot}.",
+                row.Sheet, row.RowId, row.Slot);
+            return true;
+        }
+
+        if (TrySelectRowSlot(row, englishText, slots, out var selected))
+        {
+            chineseText = ResolveDisplay(slots[selected]);
+            _log?.Debug("Dialogue matched by {Sheet} row {RowId} after selecting slot {Slot}.",
+                row.Sheet, row.RowId, selected);
+            return true;
+        }
+
+        // A row with one translated slot needs no text to choose between slots.
+        var onlySlot = -1;
+        for (var i = 0; i < slots.Length; i++)
+        {
+            if (string.IsNullOrEmpty(slots[i]))
+                continue;
+
+            if (onlySlot >= 0)
+                return false;
+
+            onlySlot = i;
+        }
+
+        if (onlySlot < 0)
+            return false;
+
+        chineseText = ResolveDisplay(slots[onlySlot]);
+        _log?.Debug("Dialogue matched by {Sheet} row {RowId}, the only translated slot.",
+            row.Sheet, row.RowId);
+        return true;
+    }
+
+    private bool TrySelectRowSlot(
+        DialogueRowId row,
+        string? englishText,
+        string[] slots,
+        out int selected)
+    {
+        selected = -1;
+
+        if (string.IsNullOrWhiteSpace(englishText)
+            || !_descriptorByKey.TryGetValue((row.Sheet, row.Field), out var descriptor)
+            || !descriptor.TryExtract(row.RowId, out var englishSlots))
+        {
+            return false;
+        }
+
+        var key = MacroNormalizer.NormalizeKey(englishText);
+        if (key.Length == 0)
+            return false;
+
+        for (var i = 0; i < slots.Length && i < englishSlots.Count; i++)
+        {
+            if (string.IsNullOrEmpty(slots[i]))
+                continue;
+
+            foreach (var variant in englishSlots[i])
+            {
+                if (MacroNormalizer.NormalizeKey(variant) != key)
+                    continue;
+
+                selected = i;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -197,6 +328,7 @@ public sealed class TranslationStore
         var store = new TranslationStore(
             variant,
             fallback is not null,
+            descriptors,
             displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)),
             playerName,
             log);
@@ -259,11 +391,31 @@ public sealed class TranslationStore
 
                 var slotCount = Math.Min(englishSlots.Count, chineseSlots.Length);
 
+                string[]? rowSlots = null;
+                var idKey = (Sheet: descriptor.Name, RowId: rowId, Field: descriptor.FieldName);
+
+                if (!descriptor.IsNameSheet)
+                {
+                    if (!_rowLookup.TryGetValue(idKey, out rowSlots))
+                    {
+                        rowSlots = new string[chineseSlots.Length];
+                        _rowLookup[idKey] = rowSlots;
+                    }
+                    else if (rowSlots.Length < chineseSlots.Length)
+                    {
+                        Array.Resize(ref rowSlots, chineseSlots.Length);
+                        _rowLookup[idKey] = rowSlots;
+                    }
+                }
+
                 for (var i = 0; i < slotCount; i++)
                 {
                     var display = PrepareDisplay(chineseSlots[i]);
                     if (display.Length == 0)
                         continue;
+
+                    if (rowSlots is not null && string.IsNullOrEmpty(rowSlots[i]))
+                        rowSlots[i] = display;
 
                     var variants = englishSlots[i];
                     for (var v = 0; v < variants.Count; v++)
@@ -295,7 +447,7 @@ public sealed class TranslationStore
     {
         var added = 0;
 
-        foreach (var entry in artifact.Scripts.Values)
+        foreach (var (scriptKey, entry) in artifact.Scripts)
         {
             var key = MacroNormalizer.NormalizeKey(entry.English);
             if (key.Length == 0)
@@ -304,6 +456,12 @@ public sealed class TranslationStore
             var display = PrepareDisplay(entry.Text);
             if (display.Length == 0)
                 continue;
+
+            // The dump key is the game's own id for this line. The game sometimes
+            // exposes it through the event handler, so keep it separate from the
+            // English key and let an id lookup win over duplicate text.
+            if (!string.IsNullOrWhiteSpace(scriptKey))
+                _scriptKeyLookup.TryAdd(scriptKey, display);
 
             if (_textLookup.TryAdd(key, display))
             {

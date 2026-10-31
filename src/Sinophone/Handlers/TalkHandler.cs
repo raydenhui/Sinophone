@@ -20,6 +20,8 @@ public sealed class TalkHandler : IDisposable
     private readonly Func<TranslationStore?> _getStore;
     private readonly OverlayWindow _overlay;
     private readonly NativeTextWriter _nativeWriter;
+    private readonly TalkEventReader _eventReader;
+    private readonly ITargetManager _targetManager;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private bool _disposed;
@@ -27,6 +29,7 @@ public sealed class TalkHandler : IDisposable
     public TalkHandler(
         IAddonLifecycle addonLifecycle,
         IPluginLog log,
+        ITargetManager targetManager,
         Configuration configuration,
         Func<TranslationStore?> getStore,
         OverlayWindow overlay,
@@ -34,10 +37,12 @@ public sealed class TalkHandler : IDisposable
     {
         _addonLifecycle = addonLifecycle;
         _log = log;
+        _targetManager = targetManager;
         _configuration = configuration;
         _getStore = getStore;
         _overlay = overlay;
         _nativeWriter = nativeWriter;
+        _eventReader = new TalkEventReader(log);
         _onAddonEvent = OnAddonEvent;
 
         Register(TalkAddonName);
@@ -142,7 +147,11 @@ public sealed class TalkHandler : IDisposable
             eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName),
             englishText ?? "(null)");
 
-        var content = Resolve(store, _configuration, englishText, englishName);
+        var context = string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
+            ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0)
+            : default;
+
+        var content = Resolve(store, _configuration, englishText, englishName, context);
 
         if (content is null && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
         {
@@ -150,7 +159,12 @@ public sealed class TalkHandler : IDisposable
             {
                 _log.Debug("{Addon} AtkValue text missed; retrying with addon text nodes: {Text}",
                     addonName, candidate);
-                content = Resolve(store, _configuration, candidate, englishName);
+                content = Resolve(
+                    store,
+                    _configuration,
+                    candidate,
+                    englishName,
+                    _eventReader.ReadContext(candidate));
                 if (content is not null)
                 {
                     englishText = candidate;
@@ -255,12 +269,13 @@ public sealed class TalkHandler : IDisposable
         TranslationStore store,
         Configuration configuration,
         string? englishText,
-        string? englishName)
+        string? englishName,
+        DialogueContext context = default)
     {
         if (string.IsNullOrWhiteSpace(englishText))
             return null;
 
-        var hasText = store.TryGetDialogue(englishText, out var chineseText);
+        var hasText = store.TryGetDialogue(englishText, in context, out var chineseText);
 
         if (!hasText && configuration.HideWhenNoTranslation)
             return null;

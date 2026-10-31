@@ -108,6 +108,29 @@ public class TranslationStoreTests
         });
     }
 
+    private static string ArtifactWithSlots(
+        string language,
+        params (string Sheet, string Field, uint RowId, string[] Values)[] rows)
+    {
+        var sheets = rows
+            .GroupBy(r => r.Sheet)
+            .ToDictionary(
+                g => g.Key,
+                g => g.ToDictionary(
+                    r => r.RowId.ToString(),
+                    r => new Dictionary<string, string[]> { [r.Field] = r.Values }));
+
+        return JsonSerializer.Serialize(new
+        {
+            FormatVersion = 1,
+            Language = language,
+            GeneratedAt = "test",
+            GameVersion = "test",
+            Sheets = sheets,
+            Scripts = new Dictionary<string, ScriptEntry>(),
+        });
+    }
+
     private static Dictionary<string, ScriptEntry> Scripts(params (string English, string Text)[] entries)
     {
         var result = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal);
@@ -611,6 +634,111 @@ public class TranslationStoreTests
 
         Assert.NotNull(store);
         Assert.False(store.TryGetDialogue("She says the aetheryte is open.", out _));
+    }
+
+    [Fact]
+    public void TryGetDialogue_PrefersRowId_WhenEnglishTextAppearsInSeveralRows()
+    {
+        var descriptor = TalkSheet((1, "Same line."), (2, "Same line."));
+        var artifacts = Artifacts(null, Artifact("TC",
+            (SheetName, FieldName, 1, "第一行"),
+            (SheetName, FieldName, 2, "第二行")));
+
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId(SheetName, 2, FieldName));
+        Assert.True(store.TryGetDialogue("Same line.", in context, out var byId));
+        Assert.Equal("第二行", byId);
+
+        Assert.True(store.TryGetDialogue("Same line.", out var byText));
+        Assert.Equal("第一行", byText);
+    }
+
+    [Fact]
+    public void TryGetDialogue_UsesRowSlot_WhenSlotIsKnown()
+    {
+        var rows = new Dictionary<uint, IReadOnlyList<IReadOnlyList<string>>>
+        {
+            [1] = new IReadOnlyList<string>[] { new[] { "First line." }, new[] { "Second line." } },
+        };
+        var descriptor = new FakeSheetDescriptor(SheetName, FieldName, false, rows);
+        var artifacts = Artifacts(null, ArtifactWithSlots("TC",
+            (SheetName, FieldName, 1, ["第一行", "第二行"])));
+
+        var store = TranslationStore.Load([descriptor], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId(SheetName, 1, FieldName, 1));
+        Assert.True(store.TryGetDialogue("Second line.", in context, out var chinese));
+        Assert.Equal("第二行", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_SelectsRowSlotByText_WhenSlotIsUnknown()
+    {
+        var rows = new Dictionary<uint, IReadOnlyList<IReadOnlyList<string>>>
+        {
+            [1] = new IReadOnlyList<string>[] { new[] { "First line." }, new[] { "Second line." } },
+        };
+        var descriptor = new FakeSheetDescriptor(SheetName, FieldName, false, rows);
+        var artifacts = Artifacts(null, ArtifactWithSlots("TC",
+            (SheetName, FieldName, 1, ["第一行", "第二行"])));
+
+        var store = TranslationStore.Load([descriptor], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId(SheetName, 1, FieldName));
+        Assert.True(store.TryGetDialogue("Second line.", in context, out var chinese));
+        Assert.Equal("第二行", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_FallsBackToText_WhenRowIdIsNotInTheArtifact()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId(SheetName, 999, FieldName));
+        Assert.True(store.TryGetDialogue("Hello there.", in context, out var chinese));
+        Assert.Equal("你好。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_PrefersScriptKey_WhenEnglishTextAppearsInSeveralScripts()
+    {
+        var scripts = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal)
+        {
+            ["TEXT_TEST_A"] = new() { English = "Same script line.", Text = "甲" },
+            ["TEXT_TEST_B"] = new() { English = "Same script line.", Text = "乙" },
+        };
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(ScriptKeys: ["TEXT_TEST_B"]);
+        Assert.True(store.TryGetDialogue("Same script line.", in context, out var byKey));
+        Assert.Equal("乙", byKey);
+
+        Assert.True(store.TryGetDialogue("Same script line.", out var byText));
+        Assert.Equal("甲", byText);
+    }
+
+    [Fact]
+    public void TryGetDialogue_FallsBackToText_WhenScriptKeyIsMissing()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(("Hello from a script.", "腳本你好。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(ScriptKeys: ["TEXT_NOT_IN_ARTIFACT"]);
+        Assert.True(store.TryGetDialogue("Hello from a script.", in context, out var chinese));
+        Assert.Equal("腳本你好。", chinese);
     }
 
     [Fact]

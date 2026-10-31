@@ -25,6 +25,7 @@ public sealed class ConfigWindow : Window
 #if DEBUG
     // Set by the debug-only constructor, which chains into the main one.
     private readonly NativeTextProbe _nativeProbe = null!;
+    private readonly TalkContextProbe _talkContextProbe = null!;
 #endif
 
 #if DEBUG
@@ -39,10 +40,12 @@ public sealed class ConfigWindow : Window
         TranslationDataUpdater dataUpdater,
         Func<string> dataSourceText,
         Func<string> aboutText,
-        NativeTextProbe nativeProbe)
+        NativeTextProbe nativeProbe,
+        TalkContextProbe talkContextProbe)
         : this(configuration, applySettings, showPreview, statusText, dataUpdater, dataSourceText, aboutText)
     {
         _nativeProbe = nativeProbe;
+        _talkContextProbe = talkContextProbe;
     }
 #endif
 
@@ -110,6 +113,12 @@ public sealed class ConfigWindow : Window
         if (ImGui.BeginTabItem("Native test"))
         {
             DrawNativeTestTab();
+            ImGui.EndTabItem();
+        }
+
+        if (ImGui.BeginTabItem("Talk probe"))
+        {
+            DrawTalkProbeTab();
             ImGui.EndTabItem();
         }
 #endif
@@ -441,6 +450,38 @@ public sealed class ConfigWindow : Window
         ImGui.Spacing();
         ImGui.TextColored(SectionColor, "Last result");
         ImGui.TextWrapped(_nativeProbe.LastResult);
+    }
+#endif
+
+#if DEBUG
+    /// <summary>
+    /// Development-only tab for the issue #56 event probe. Logs the ids and Lua text
+    /// keys the game exposes at the moment Talk opens.
+    /// </summary>
+    private void DrawTalkProbeTab()
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "Test code. Logs the current event ids, scene data and Lua text keys " +
+            "while Talk is open. Use it to check which id a line actually exposes.");
+        ImGui.PopStyleColor();
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        var enabled = _talkContextProbe.Enabled;
+        if (ImGui.Checkbox("Log every Talk refresh", ref enabled))
+            _talkContextProbe.Enabled = enabled;
+
+        ImGui.TextDisabled("Turn on, talk to an NPC, then read the plugin log.");
+
+        ImGui.Spacing();
+        if (ImGui.Button("Log current event"))
+            _talkContextProbe.LogCurrent();
+
+        ImGui.Spacing();
+        ImGui.TextColored(SectionColor, "Last result");
+        ImGui.TextWrapped(_talkContextProbe.LastResult);
     }
 #endif
 
