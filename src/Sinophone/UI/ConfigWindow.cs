@@ -131,47 +131,82 @@ public sealed class ConfigWindow : Window
         Checkbox("Enable translations", _configuration.Enabled, v => _configuration.Enabled = v);
 
         ImGui.Spacing();
-        ImGui.TextUnformatted("Chinese variant");
-        if (ImGui.RadioButton("Traditional (TC)", _configuration.Variant == ChineseVariant.Traditional))
+        ImGui.TextColored(SectionColor, "Chinese text source");
+        ImGui.Separator();
+        ImGui.TextWrapped(
+            "Choose which official game version supplies the translation. " +
+            "TC is the Traditional Chinese release for Taiwan and Hong Kong. " +
+            "CN is the Simplified Chinese release for mainland China.");
+        ImGui.Spacing();
+
+        if (ImGui.RadioButton("Traditional Chinese (TC)", _configuration.Variant == ChineseVariant.Traditional))
         {
             _configuration.Variant = ChineseVariant.Traditional;
             _applySettings();
         }
 
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Simplified (CN)", _configuration.Variant == ChineseVariant.Simplified))
+        ImGui.Indent();
+        ImGui.TextDisabled("Taiwan / Hong Kong game version");
+        ImGui.Unindent();
+
+        if (ImGui.RadioButton("Simplified Chinese (CN)", _configuration.Variant == ChineseVariant.Simplified))
         {
             _configuration.Variant = ChineseVariant.Simplified;
             _applySettings();
         }
 
-        Checkbox("Fill missing rows from the other variant", _configuration.UseFallbackVariant,
+        ImGui.Indent();
+        ImGui.TextDisabled("Mainland China game version");
+        ImGui.Unindent();
+        ImGui.Spacing();
+
+        Checkbox("Use the other version when a line is missing", _configuration.UseFallbackVariant,
             v => _configuration.UseFallbackVariant = v);
+        ImGui.Indent();
+        ImGui.TextDisabled("May mix Traditional and Simplified characters for missing rows.");
+        ImGui.Unindent();
 
         ImGui.Spacing();
-        ImGui.TextUnformatted("Convert Chinese text");
-        ImGui.TextDisabled("Only changes what is shown; the data that is loaded stays the same.");
+        ImGui.TextColored(SectionColor, "Convert displayed text");
+        ImGui.Separator();
+        ImGui.TextWrapped(
+            "Optional. Changes the characters after lookup without changing which " +
+            "game version supplies the translation. Use the text source above to " +
+            "choose CN or TC data.");
+        ImGui.Spacing();
 
-        if (ImGui.RadioButton("Keep the official script", _configuration.Conversion == ChineseConversion.None))
+        if (ImGui.RadioButton("No conversion (keep official text)",
+                _configuration.Conversion == ChineseConversion.None))
         {
             _configuration.Conversion = ChineseConversion.None;
             _applySettings();
         }
 
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Simplified to Traditional",
+        ImGui.Indent();
+        ImGui.TextDisabled("Keep the wording exactly as the selected source provides it.");
+        ImGui.Unindent();
+
+        if (ImGui.RadioButton("Simplified to Traditional (CN to TC)",
                 _configuration.Conversion == ChineseConversion.SimplifiedToTraditional))
         {
             _configuration.Conversion = ChineseConversion.SimplifiedToTraditional;
             _applySettings();
         }
 
-        if (ImGui.RadioButton("Traditional to Simplified",
+        ImGui.Indent();
+        ImGui.TextDisabled("Useful when the selected text source is Simplified Chinese.");
+        ImGui.Unindent();
+
+        if (ImGui.RadioButton("Traditional to Simplified (TC to CN)",
                 _configuration.Conversion == ChineseConversion.TraditionalToSimplified))
         {
             _configuration.Conversion = ChineseConversion.TraditionalToSimplified;
             _applySettings();
         }
+
+        ImGui.Indent();
+        ImGui.TextDisabled("Useful when the selected text source is Traditional Chinese.");
+        ImGui.Unindent();
 
         ImGui.Spacing();
         Checkbox("Show in Talk dialog", _configuration.ShowInTalk, v => _configuration.ShowInTalk = v);
