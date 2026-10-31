@@ -491,15 +491,6 @@ public sealed class SelectionDialogHandler : IDisposable
         if (currentNumber.Length > 0)
             numbers.Add(currentNumber.ToString());
 
-        // The English line lists the bed first, but the Chinese row shows the
-        // patch first: "园圃<patch>：地垄<bed>".
-        if (numbers.Count >= 2
-            && (chinese.Contains("园圃", StringComparison.Ordinal)
-                || chinese.Contains("園圃", StringComparison.Ordinal)))
-        {
-            (numbers[0], numbers[1]) = (numbers[1], numbers[0]);
-        }
-
         for (var i = 0; i < numbers.Count; i++)
             resolved = resolved.Replace($"IntegerParameter({i + 1})", numbers[i], StringComparison.Ordinal);
         resolved = Regex.Replace(resolved, @"IntegerParameter(\d+)", string.Empty);
