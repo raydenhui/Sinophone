@@ -446,11 +446,16 @@ public class TranslationStoreTests
             new FakePluginLog());
 
         Assert.NotNull(store);
-        Assert.Equal(2, store.AddonTemplateCount);
+        Assert.Equal(3, store.AddonTemplateCount);
         Assert.True(store.TryGetAddonText(
             "Duty calls. Commence battle for\n“Inform the Cold?”\n\nLevel: 90\nItem level: 665",
             out var chinese));
         Assert.Contains("StringParameter(1)", chinese);
+
+        // The game can omit the item-level line. The first-line template still matches.
+        Assert.True(store.TryGetAddonText(
+            "Duty calls. Commence battle for\n“In from the Cold”?\nLevel sync is in effect.\nLevel: 83",
+            out _));
     }
 
     [Fact]

@@ -560,6 +560,22 @@ public sealed class TranslationStore
                             {
                                 _addonTemplates.Add((loose, chineseSlots[i]));
                             }
+
+                            // A prompt with several lines can change which detail
+                            // lines the game shows. Match the first line and let the
+                            // trailing wildcard cover the rest.
+                            var firstLineEnd = variants[v].IndexOf('\n');
+                            if (firstLineEnd > 0 && firstLineEnd < variants[v].Length - 1)
+                            {
+                                var firstLine = variants[v][..firstLineEnd].Trim();
+                                var prefix = ScriptTextTemplate.BuildLooseFromPlainText(firstLine)
+                                             + ScriptTextTemplate.Wildcard;
+                                if (ScriptTextTemplate.LiteralLength(prefix) >= 4
+                                    && _addonTemplateKeys.Add(prefix))
+                                {
+                                    _addonTemplates.Add((prefix, chineseSlots[i]));
+                                }
+                            }
                         }
                     }
                 }
