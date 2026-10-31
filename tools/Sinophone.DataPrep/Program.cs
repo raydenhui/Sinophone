@@ -104,7 +104,9 @@ internal static class Program
     [
         new("DefaultTalk", "Text", ["Text[0]", "Text[1]", "Text[2]"]),
         new("Balloon", "Dialogue", ["Dialogue"]),
-        new("NpcYell", "Text", ["Text"]),
+        // The CN/TC NpcYell header calls column 12 "Text", but the row's text is
+        // column 14. Read it by position so rows do not pick up a nearby flag value.
+        new("NpcYell", "Text", []) { Indices = [14] },
         new("InstanceContentTextData", "Text", ["Text"]),
         new("ContentTalk", "Text", ["Text"]),
         new("SnipeTalk", "Text", ["Text"]),

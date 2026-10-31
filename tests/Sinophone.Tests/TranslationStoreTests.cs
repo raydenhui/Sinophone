@@ -787,6 +787,45 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_RestoresSinglePlayerPlaceholder_WhenGameHasTheName()
+    {
+        var descriptor = TalkSheet((1, "Player...and Jullus."));
+        var artifacts = Artifacts(Artifact("CN", (SheetName, FieldName, 1, "啊……Nedyar、尤卢斯……")), null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Nedyar");
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Nedyar...and Jullus.", out var chinese));
+        Assert.Equal("啊……Nedyar、尤卢斯……", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_RestoresPlaceholder_WhenGameUsesOnlyTheFirstName()
+    {
+        var descriptor = TalkSheet((1, "Ah, Player. I was informed of Quintus's suicide."));
+        var artifacts = Artifacts(Artifact("CN", (SheetName, FieldName, 1, "您回来了！")), null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Nedyar Testname");
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Ah, Nedyar. I was informed of Quintus's suicide.", out var chinese));
+        Assert.Equal("您回来了！", chinese);
+    }
+
+    [Fact]
     public void TryGetName_TrimsTrailingPunctuation_WhenExactNameIsMissing()
     {
         var descriptor = NameSheet((100, "Pattin"));

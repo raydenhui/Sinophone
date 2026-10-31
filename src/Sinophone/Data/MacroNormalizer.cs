@@ -39,6 +39,12 @@ public static partial class MacroNormalizer
     public const string PlayerNamePlaceholder = "Player Player";
 
     /// <summary>
+    /// The other placeholder form in the dumps. Some lines write one "Player" rather
+    /// than two, for example "Player...and Jullus.".
+    /// </summary>
+    public const string SinglePlayerNamePlaceholder = "Player";
+
+    /// <summary>
     /// Parameter index that holds the player's name in stored Chinese text. Index 1
     /// is the player; the only other indices in the current data are a chocobo (55)
     /// and one other object (56).
@@ -55,6 +61,16 @@ public static partial class MacroNormalizer
     /// pay for a copy.
     /// </returns>
     public static string RestorePlayerNamePlaceholder(string key, string? playerName)
+        => RestorePlayerName(key, playerName, PlayerNamePlaceholder);
+
+    /// <summary>
+    /// Puts the single <see cref="SinglePlayerNamePlaceholder" /> back where a key
+    /// has the player's name. Used after the double placeholder misses.
+    /// </summary>
+    public static string RestoreSinglePlayerNamePlaceholder(string key, string? playerName)
+        => RestorePlayerName(key, playerName, SinglePlayerNamePlaceholder);
+
+    private static string RestorePlayerName(string key, string? playerName, string placeholder)
     {
         if (key.Length == 0 || string.IsNullOrWhiteSpace(playerName))
             return key;
@@ -63,13 +79,13 @@ public static partial class MacroNormalizer
 
         // Replacing the placeholder with itself would only churn the dictionary.
         if (name.Length == 0
-            || name.Contains(PlayerNamePlaceholder, StringComparison.Ordinal)
+            || name.Contains(placeholder, StringComparison.Ordinal)
             || !key.Contains(name, StringComparison.Ordinal))
         {
             return key;
         }
 
-        return key.Replace(name, PlayerNamePlaceholder, StringComparison.Ordinal);
+        return key.Replace(name, placeholder, StringComparison.Ordinal);
     }
 
     /// <summary>
