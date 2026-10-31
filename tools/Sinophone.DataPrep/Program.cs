@@ -134,6 +134,7 @@ internal static class Program
         new("HWDDevLevelWebText", "Unknown0", []) { Indices = [1] },
         new("HWDDevLevelWebText", "Unknown1", []) { Indices = [2] },
         new("InclusionShopWelcomText", "Unknown0", []) { Indices = [1] },
+        new("Addon", "Text", []) { Indices = [1] },
 
         new("MKDLore", "Name", ["Name"]),
         new("MKDLore", "Description", ["Description"]),

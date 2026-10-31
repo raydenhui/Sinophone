@@ -138,6 +138,9 @@ public static class SheetCatalog
         Add<InclusionShopWelcomText>(dataManager, descriptors, "InclusionShopWelcomText", "Unknown0", false,
             static row => ExtractSingle(row.Unknown0));
 
+        Add<Addon>(dataManager, descriptors, "Addon", "Text", false,
+            static row => ExtractSingle(row.Text));
+
         Add<MKDLore>(dataManager, descriptors, "MKDLore", "Name", true,
             static row => ExtractSingle(row.Name));
         Add<MKDLore>(dataManager, descriptors, "MKDLore", "Description", false,

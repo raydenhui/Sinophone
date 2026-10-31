@@ -126,6 +126,20 @@ public sealed unsafe class NativeTextWriter
         => _saved.Remove((addonName, nodeId));
 
     /// <summary>
+    /// True when the node still holds the text this writer put there. Used before a
+    /// second pass so a translation is not looked up again while it is on screen.
+    /// </summary>
+    public bool IsStillOurs(string addonName, uint nodeId)
+    {
+        var key = (addonName, nodeId);
+        if (!_saved.TryGetValue(key, out var saved))
+            return false;
+
+        var node = GetNode(addonName, nodeId);
+        return node is not null && node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8);
+    }
+
+    /// <summary>
     /// Clears a node that still holds text from the previous line. If the game has
     /// already replaced it with the current line's text, leave that text alone.
     /// Used for a speaker name when the current line has no speaker.
