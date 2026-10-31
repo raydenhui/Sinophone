@@ -24,6 +24,13 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private const int MaxTreeDepth = 64;
 
+    /// <summary>
+    /// The cutscene addon builds its option list after setup. Try again for a short
+    /// time on later frames, then stop so a dialog with no translations does not
+    /// walk its tree every frame.
+    /// </summary>
+    private const int MaxLateAttempts = 12;
+
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
     private readonly IPluginLog _log;
@@ -34,6 +41,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private readonly List<nint> _nodes = [];
     private readonly Dictionary<string, List<uint>> _translated = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
 
     private bool _disposed;
 
@@ -74,6 +82,7 @@ public sealed class SelectionDialogHandler : IDisposable
         if (eventType == AddonEvent.PreDraw)
         {
             Reapply(addonName);
+            TranslateLate(addonName);
             return;
         }
 
@@ -89,6 +98,7 @@ public sealed class SelectionDialogHandler : IDisposable
         if (eventType == AddonEvent.PostSetup)
             ClearTracked(addonName);
 
+        _lateAttempts[addonName] = 0;
         Translate(addonName);
     }
 
@@ -105,6 +115,11 @@ public sealed class SelectionDialogHandler : IDisposable
         _nodes.Clear();
         CollectTextNodes(addon->RootNode, 0);
 
+        var traceNodes = string.Equals(addonName, "CutSceneSelectString", StringComparison.Ordinal)
+                         && _lateAttempts.GetValueOrDefault(addonName) <= 1;
+        if (traceNodes)
+            _log.Debug("CutSceneSelectString scan: {Count} text nodes.", _nodes.Count);
+
         foreach (var nodeAddress in _nodes)
         {
             var node = (AtkTextNode*)nodeAddress;
@@ -115,6 +130,9 @@ public sealed class SelectionDialogHandler : IDisposable
             var source = node->NodeText.ToString();
             if (string.IsNullOrWhiteSpace(source))
                 continue;
+
+            if (traceNodes)
+                _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
             if (!TryTranslate(store, source, out var chinese))
             {
@@ -169,6 +187,19 @@ public sealed class SelectionDialogHandler : IDisposable
         }
     }
 
+    private void TranslateLate(string addonName)
+    {
+        if (!_configuration.Enabled || !_configuration.NativeTextMode)
+            return;
+
+        var attempts = _lateAttempts.GetValueOrDefault(addonName);
+        if (attempts >= MaxLateAttempts)
+            return;
+
+        _lateAttempts[addonName] = attempts + 1;
+        Translate(addonName);
+    }
+
     private void Reapply(string addonName)
     {
         if (!_configuration.Enabled || !_configuration.NativeTextMode)
@@ -195,6 +226,8 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private void ClearTracked(string addonName)
     {
+        _lateAttempts.Remove(addonName);
+
         if (!_translated.Remove(addonName, out var nodeIds))
             return;
 
