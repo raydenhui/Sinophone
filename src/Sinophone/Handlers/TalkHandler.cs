@@ -57,10 +57,14 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.RegisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
 
-        // Native mode covers Talk only. Every draw is where the Chinese has to be put
-        // back, because the game's text stream replaces it after one frame.
+        // Native mode covers Talk only. Put the Chinese and its style back after the
+        // game update and again before drawing, because the text stream can replace
+        // both during the update.
         if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+        {
+            _addonLifecycle.RegisterListener(AddonEvent.PostUpdate, addonName, _onAddonEvent);
             _addonLifecycle.RegisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
+        }
     }
 
     private void Unregister(string addonName)
@@ -72,7 +76,10 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
 
         if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+        {
+            _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, addonName, _onAddonEvent);
             _addonLifecycle.UnregisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
+        }
     }
 
     private unsafe void OnAddonEvent(AddonEvent eventType, AddonArgs args)
@@ -82,7 +89,7 @@ public sealed class TalkHandler : IDisposable
 
         var addonName = args.AddonName;
 
-        if (eventType == AddonEvent.PreDraw)
+        if (eventType is AddonEvent.PostUpdate or AddonEvent.PreDraw)
         {
             ReapplyNativeText(addonName);
             return;
