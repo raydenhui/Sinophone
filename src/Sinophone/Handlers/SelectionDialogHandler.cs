@@ -45,7 +45,7 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
     private readonly List<nint> _nodes = [];
-    private readonly Dictionary<string, List<uint>> _translated = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<nint>> _translated = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
 
     private bool _disposed;
@@ -141,7 +141,7 @@ public sealed class SelectionDialogHandler : IDisposable
         {
             var node = (AtkTextNode*)nodeAddress;
             var nodeId = node->NodeId;
-            if (nodeId == 0 || _nativeWriter.IsStillOurs(addonName, nodeId))
+            if (nodeId == 0 || _nativeWriter.IsStillOursAt(addonName, nodeAddress))
                 continue;
 
             var source = node->NodeText.ToString();
@@ -155,13 +155,13 @@ public sealed class SelectionDialogHandler : IDisposable
             {
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
-                _nativeWriter.ClearIfStillOurs(addonName, nodeId);
+                _nativeWriter.ClearIfStillOursAt(addonName, nodeAddress);
                 continue;
             }
 
-            if (_nativeWriter.Write(addonName, nodeId, chinese))
+            if (_nativeWriter.WriteAt(addonName, nodeAddress, chinese))
             {
-                Remember(addonName, nodeId);
+                Remember(addonName, nodeAddress);
                 _log.Debug("Selection dialog {Addon} node {NodeId}: {Source} -> {Chinese}",
                     addonName, nodeId, source, chinese);
             }
@@ -302,31 +302,31 @@ public sealed class SelectionDialogHandler : IDisposable
         if (!_translated.TryGetValue(addonName, out var nodeIds))
             return;
 
-        foreach (var nodeId in nodeIds)
-            _nativeWriter.Reapply(addonName, nodeId);
+        foreach (var address in nodeIds)
+            _nativeWriter.ReapplyAt(addonName, address);
     }
 
-    private void Remember(string addonName, uint nodeId)
+    private void Remember(string addonName, nint address)
     {
-        if (!_translated.TryGetValue(addonName, out var nodeIds))
+        if (!_translated.TryGetValue(addonName, out var addresses))
         {
-            nodeIds = [];
-            _translated[addonName] = nodeIds;
+            addresses = [];
+            _translated[addonName] = addresses;
         }
 
-        if (!nodeIds.Contains(nodeId))
-            nodeIds.Add(nodeId);
+        if (!addresses.Contains(address))
+            addresses.Add(address);
     }
 
     private void ClearTracked(string addonName)
     {
         _lateAttempts.Remove(addonName);
 
-        if (!_translated.Remove(addonName, out var nodeIds))
+        if (!_translated.Remove(addonName, out var addresses))
             return;
 
-        foreach (var nodeId in nodeIds)
-            _nativeWriter.ClearIfStillOurs(addonName, nodeId);
+        foreach (var address in addresses)
+            _nativeWriter.ClearIfStillOursAt(addonName, address);
     }
 
     /// <summary>
