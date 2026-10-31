@@ -15,6 +15,10 @@ public static partial class MacroNormalizer
     [GeneratedRegex(@"<[^<>]*>", RegexOptions.CultureInvariant)]
     private static partial Regex MacroPattern();
 
+    [GeneratedRegex(@"<(?:UIForeground|UIGlow|Unknown2D)>.*?</(?:UIForeground|UIGlow|Unknown2D)>",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex UiMarkupPattern();
+
     [GeneratedRegex(@"ObjectParameter\((\d+)\)", RegexOptions.CultureInvariant)]
     private static partial Regex ObjectParameterPattern();
 
@@ -131,6 +135,19 @@ public static partial class MacroNormalizer
     }
 
     /// <summary>
+    /// Reads the name inside a leading speaker alias such as "(-Distant Echo-)".
+    /// Returns an empty string when the line has no alias.
+    /// </summary>
+    public static string ExtractSpeakerPrefix(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        var match = SpeakerPrefixPattern().Match(text);
+        return match.Success ? match.Value[2..^2] : string.Empty;
+    }
+
+    /// <summary>
     /// Removes a leading speaker alias such as "(-Radio-)". The script dumps put
     /// the alias in the English line, but the game draws it in the speaker node,
     /// not in the dialogue text.
@@ -210,6 +227,10 @@ public static partial class MacroNormalizer
         // Before the macro strip: that strip removes <Highlight> and </Highlight> but
         // leaves the parameter text between them sitting in the sentence.
         cleaned = ResolveObjectParameters(cleaned, playerName);
+
+        // UI color tags carry payload text such as F20223 or 01 between the tags.
+        // Remove the whole pair, not just the tags.
+        cleaned = UiMarkupPattern().Replace(cleaned, string.Empty);
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
 
         var lines = cleaned.Split('\n');

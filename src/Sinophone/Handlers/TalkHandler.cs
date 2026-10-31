@@ -260,7 +260,7 @@ public sealed class TalkHandler : IDisposable
         else
             _nativeWriter.ClearIfStillOurs(TalkAddonName, NativeTextWriter.TalkNameNodeId);
 
-        return _nativeWriter.Write(TalkAddonName, NativeTextWriter.TalkTextNodeId, content.ChineseText);
+        return _nativeWriter.Write(TalkAddonName, NativeTextWriter.TalkTextNodeId, content.ChineseText, content.Style);
     }
 
     /// <summary>Puts the game's own text back into every node native mode changed.</summary>
@@ -291,12 +291,16 @@ public sealed class TalkHandler : IDisposable
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
             store.TryGetName(englishName, out chineseName);
 
-        return new OverlayContent(
-            MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters),
-            chineseName ?? string.Empty);
+        var styledText = MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters);
+        store.TryGetStyle(styledText, out var style);
+
+        return new OverlayContent(styledText, chineseName ?? string.Empty, style);
     }
 
-    internal readonly record struct OverlayContent(string ChineseText, string ChineseName);
+    internal readonly record struct OverlayContent(
+        string ChineseText,
+        string ChineseName,
+        UiTextStyle Style = default);
 
     private static unsafe List<int> ReadIntegerParameters(AtkValue* values, uint count)
     {

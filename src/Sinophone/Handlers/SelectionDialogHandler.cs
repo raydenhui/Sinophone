@@ -24,6 +24,18 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private const int MaxTreeDepth = 64;
 
+    /// <summary>
+    /// The cutscene addon builds its option list after setup. Try again for a short
+    /// time on later frames, then stop so a dialog with no translations does not
+    /// walk its tree every frame.
+    /// </summary>
+    private const int MaxLateAttempts = 12;
+
+    private static readonly Regex QuotedText = new(@"[“""]([^”""]+)[”""]", RegexOptions.CultureInvariant);
+    private static readonly Regex EnglishLevel = new(@"\bLevel:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex EnglishItemLevel = new(@"\bItem level:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex QuestBattleLevel = new(@"<Sheet\(QuestBattle,IntegerParameter\(2\),3\)\s*/>", RegexOptions.CultureInvariant);
+
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
     private readonly IPluginLog _log;
@@ -33,7 +45,9 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
     private readonly List<nint> _nodes = [];
-    private readonly Dictionary<string, List<uint>> _translated = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<nint>> _translated = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
+    private nint _tracedSelectYesno;
 
     private bool _disposed;
 
@@ -74,12 +88,16 @@ public sealed class SelectionDialogHandler : IDisposable
         if (eventType == AddonEvent.PreDraw)
         {
             Reapply(addonName);
+            TranslateLate(addonName);
             return;
         }
 
         if (eventType is AddonEvent.PostHide or AddonEvent.PostClose or AddonEvent.PreFinalize)
         {
-            ClearTracked(addonName);
+            // A delayed hide from an old dialog must not clear text that a newer
+            // dialog has already written into a reused node.
+            if (eventType == AddonEvent.PreFinalize)
+                ClearTracked(addonName);
             return;
         }
 
@@ -87,8 +105,9 @@ public sealed class SelectionDialogHandler : IDisposable
             return;
 
         if (eventType == AddonEvent.PostSetup)
-            ClearTracked(addonName);
+            ForgetTracked(addonName);
 
+        _lateAttempts[addonName] = 0;
         Translate(addonName);
     }
 
@@ -102,31 +121,54 @@ public sealed class SelectionDialogHandler : IDisposable
         if (addon is null)
             return;
 
+        if (string.Equals(addonName, "SelectYesno", StringComparison.Ordinal))
+            TraceSelectYesnoValues(addon);
+
         _nodes.Clear();
-        CollectTextNodes(addon->RootNode, 0);
+
+        // Most addons expose their text under RootNode, but the cutscene selection
+        // addon can have its nodes only in UldManager's list. Walk both.
+        if (addon->RootNode is not null)
+            CollectTextNodes(addon->RootNode, 0);
+
+        if (addon->UldManager.NodeList is not null)
+        {
+            for (var i = 0; i < addon->UldManager.NodeListCount; i++)
+                CollectTextNodes(addon->UldManager.NodeList[i], 0);
+        }
+
+        CollectTypedTextNodes(addonName, addon);
+
+        var traceNodes = string.Equals(addonName, "CutSceneSelectString", StringComparison.Ordinal)
+                         && _lateAttempts.GetValueOrDefault(addonName) <= 1;
+        if (traceNodes)
+            _log.Debug("CutSceneSelectString scan: {Count} text nodes.", _nodes.Count);
 
         foreach (var nodeAddress in _nodes)
         {
             var node = (AtkTextNode*)nodeAddress;
             var nodeId = node->NodeId;
-            if (nodeId == 0 || _nativeWriter.IsStillOurs(addonName, nodeId))
+            if (nodeId == 0 || _nativeWriter.IsStillOursAt(addonName, nodeAddress))
                 continue;
 
             var source = node->NodeText.ToString();
             if (string.IsNullOrWhiteSpace(source))
                 continue;
 
+            if (traceNodes)
+                _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
+
             if (!TryTranslate(store, source, out var chinese))
             {
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
-                _nativeWriter.ClearIfStillOurs(addonName, nodeId);
+                _nativeWriter.ClearIfStillOursAt(addonName, nodeAddress);
                 continue;
             }
 
-            if (_nativeWriter.Write(addonName, nodeId, chinese))
+            if (_nativeWriter.WriteAt(addonName, nodeAddress, chinese))
             {
-                Remember(addonName, nodeId);
+                Remember(addonName, nodeAddress);
                 _log.Debug("Selection dialog {Addon} node {NodeId}: {Source} -> {Chinese}",
                     addonName, nodeId, source, chinese);
             }
@@ -135,6 +177,131 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private unsafe AtkUnitBase* GetAddon(string addonName)
         => _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
+
+    /// <summary>
+    /// Development trace for issue #90. Logs the typed AtkValues once per dialog so
+    /// we can map the prompt parameters to game data instead of parsing the text.
+    /// </summary>
+    private unsafe void TraceSelectYesnoValues(AtkUnitBase* addon)
+    {
+        var address = (nint)addon;
+        if (_tracedSelectYesno == address)
+            return;
+
+        _tracedSelectYesno = address;
+        var values = addon->AtkValues;
+        var count = addon->AtkValuesCount;
+        if (values is null || count == 0)
+        {
+            _log.Debug("SelectYesno AtkValues: none.");
+            return;
+        }
+
+        _log.Debug("SelectYesno AtkValues: {Count}.", count);
+        for (uint i = 0; i < count; i++)
+        {
+            ref var value = ref values[i];
+            switch (value.Type)
+            {
+                case AtkValueType.Int:
+                    _log.Debug("  SelectYesno AtkValue[{Index}] Int: {Value}", i, value.Int);
+                    break;
+                case AtkValueType.UInt:
+                    _log.Debug("  SelectYesno AtkValue[{Index}] UInt: {Value}", i, value.UInt);
+                    break;
+                case AtkValueType.Bool:
+                    _log.Debug("  SelectYesno AtkValue[{Index}] Bool: {Value}", i, value.Byte != 0);
+                    break;
+                case AtkValueType.String:
+                case AtkValueType.ManagedString:
+                    var text = value.String.HasValue
+                        ? MemoryHelper.ReadSeStringAsString(out _, (nint)value.String.Value, 8192, false, string.Empty)
+                        : string.Empty;
+                    _log.Debug("  SelectYesno AtkValue[{Index}] String: {Text}", i, text);
+                    break;
+                default:
+                    _log.Debug("  SelectYesno AtkValue[{Index}] {Type}.", i, value.Type);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Some dialogs keep their prompt and options in typed component fields, not
+    /// in the normal node tree. Add those text nodes to the scan.
+    /// </summary>
+    private unsafe void CollectTypedTextNodes(string addonName, AtkUnitBase* addon)
+    {
+        switch (addonName)
+        {
+            case "SelectYesno":
+            {
+                var yesNo = (AddonSelectYesno*)addon;
+                if (yesNo->PromptText is not null)
+                    AddNode(yesNo->PromptText);
+
+                AddButtonNode(yesNo->YesButton);
+                AddButtonNode(yesNo->NoButton);
+                AddButtonNode(yesNo->AtkComponentButton238);
+                break;
+            }
+
+            case "SelectOk":
+            {
+                var selectOk = (AddonSelectOk*)addon;
+                if (selectOk->PromptText is not null)
+                    AddNode(selectOk->PromptText);
+
+                AddButtonNode(selectOk->OkButton);
+                break;
+            }
+
+            case "SelectString":
+                AddListNodes(((AddonSelectString*)addon)->PopupMenu.PopupMenu.List);
+                break;
+
+            case "SelectIconString":
+                AddListNodes(((AddonSelectIconString*)addon)->PopupMenu.PopupMenu.List);
+                break;
+
+            case "CutSceneSelectString":
+            {
+                var cutScene = (AddonCutSceneSelectString*)addon;
+                if (cutScene->TextLabel is not null && cutScene->TextLabel->AtkTextNode is not null)
+                    AddNode(cutScene->TextLabel->AtkTextNode);
+
+                AddListNodes(cutScene->OptionList);
+                break;
+            }
+        }
+    }
+
+    private unsafe void AddButtonNode(AtkComponentButton* button)
+    {
+        if (button is not null && button->ButtonTextNode is not null)
+            AddNode(button->ButtonTextNode);
+    }
+
+    private unsafe void AddListNodes(AtkComponentList* list)
+    {
+        if (list is null)
+            return;
+
+        var count = list->ListLength;
+        for (var i = 0; i < count; i++)
+        {
+            var renderer = list->GetItemRenderer(i);
+            if (renderer is not null && renderer->ButtonTextNode is not null)
+                AddNode(renderer->ButtonTextNode);
+        }
+    }
+
+    private unsafe void AddNode(AtkTextNode* textNode)
+    {
+        var address = (nint)textNode;
+        if (!_nodes.Contains(address))
+            _nodes.Add(address);
+    }
 
     private unsafe void CollectTextNodes(AtkResNode* node, int depth)
     {
@@ -147,7 +314,7 @@ public sealed class SelectionDialogHandler : IDisposable
             {
                 var textNode = current->GetAsAtkTextNode();
                 if (textNode is not null)
-                    _nodes.Add((nint)textNode);
+                    AddNode(textNode);
             }
 
             // Some addons, such as the SelectString popup, keep their entries in a
@@ -169,6 +336,19 @@ public sealed class SelectionDialogHandler : IDisposable
         }
     }
 
+    private void TranslateLate(string addonName)
+    {
+        if (!_configuration.Enabled || !_configuration.NativeTextMode)
+            return;
+
+        var attempts = _lateAttempts.GetValueOrDefault(addonName);
+        if (attempts >= MaxLateAttempts)
+            return;
+
+        _lateAttempts[addonName] = attempts + 1;
+        Translate(addonName);
+    }
+
     private void Reapply(string addonName)
     {
         if (!_configuration.Enabled || !_configuration.NativeTextMode)
@@ -177,29 +357,47 @@ public sealed class SelectionDialogHandler : IDisposable
         if (!_translated.TryGetValue(addonName, out var nodeIds))
             return;
 
-        foreach (var nodeId in nodeIds)
-            _nativeWriter.Reapply(addonName, nodeId);
+        foreach (var address in nodeIds)
+            _nativeWriter.ReapplyAt(addonName, address);
     }
 
-    private void Remember(string addonName, uint nodeId)
+    private void Remember(string addonName, nint address)
     {
-        if (!_translated.TryGetValue(addonName, out var nodeIds))
+        if (!_translated.TryGetValue(addonName, out var addresses))
         {
-            nodeIds = [];
-            _translated[addonName] = nodeIds;
+            addresses = [];
+            _translated[addonName] = addresses;
         }
 
-        if (!nodeIds.Contains(nodeId))
-            nodeIds.Add(nodeId);
+        if (!addresses.Contains(address))
+            addresses.Add(address);
     }
 
     private void ClearTracked(string addonName)
     {
-        if (!_translated.Remove(addonName, out var nodeIds))
+        _lateAttempts.Remove(addonName);
+
+        if (!_translated.Remove(addonName, out var addresses))
             return;
 
-        foreach (var nodeId in nodeIds)
-            _nativeWriter.ClearIfStillOurs(addonName, nodeId);
+        foreach (var address in addresses)
+            _nativeWriter.ClearIfStillOursAt(addonName, address);
+    }
+
+    /// <summary>
+    /// Drops saved state for a recycled dialog without touching the node text.
+    /// Clearing here can erase a prompt that the new dialog has just written.
+    /// </summary>
+    private void ForgetTracked(string addonName)
+    {
+        _lateAttempts.Remove(addonName);
+        _tracedSelectYesno = 0;
+
+        if (!_translated.Remove(addonName, out var addresses))
+            return;
+
+        foreach (var address in addresses)
+            _nativeWriter.ForgetAt(addonName, address);
     }
 
     /// <summary>
@@ -214,8 +412,17 @@ public sealed class SelectionDialogHandler : IDisposable
         if (string.IsNullOrWhiteSpace(text))
             return false;
 
+        if (store.TryGetAddonLabel(text, out chinese))
+            return true;
+
         if (store.TryGetDialogue(text, out chinese))
             return true;
+
+        if (store.TryGetAddonText(text, out var addonText))
+        {
+            chinese = ResolveAddonText(addonText, text);
+            return chinese.Length > 0;
+        }
 
         var trimmed = text.TrimEnd('.', '。', '!', '！', '?', '？');
         if (trimmed.Length > 0
@@ -237,6 +444,28 @@ public sealed class SelectionDialogHandler : IDisposable
 
         chinese = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    /// Fills the parameters in an Addon-sheet prompt from the live English text.
+    /// The sheet stores UNKNOWN where the game puts the quest name and levels.
+    /// </summary>
+    internal static string ResolveAddonText(string chinese, string liveEnglish)
+    {
+        var questName = QuotedText.Match(liveEnglish).Groups[1].Value;
+        var level = EnglishLevel.Match(liveEnglish).Groups[1].Value;
+        var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
+
+        var resolved = QuestBattleLevel.Replace(chinese, level);
+        resolved = Regex.Replace(resolved, @"StringParameter\(1\)", questName);
+        resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
+        resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
+
+        // These private-use characters are UI icons, not text.
+        resolved = resolved.Replace("", string.Empty, StringComparison.Ordinal)
+            .Replace("", string.Empty, StringComparison.Ordinal);
+
+        return MacroNormalizer.CleanForDisplay(resolved);
     }
 
     public void Dispose()

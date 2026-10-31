@@ -210,6 +210,15 @@ public class MacroNormalizerTests
     }
 
     [Fact]
+    public void CleanForDisplay_RemovesUiColorMarkupContent()
+    {
+        const string text =
+            "<UIForeground>F20223</UIForeground>我，我是……<UIForeground>01</UIForeground>";
+
+        Assert.Equal("我，我是……", MacroNormalizer.CleanForDisplay(text));
+    }
+
+    [Fact]
     public void CleanForDisplay_DropsOtherObjectParameters()
     {
         var actual = MacroNormalizer.CleanForDisplay(

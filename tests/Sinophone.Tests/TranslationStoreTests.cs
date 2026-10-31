@@ -426,6 +426,126 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonText_MatchesUnknownPlaceholder()
+    {
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [102421] = ["Duty calls. Commence battle for\n“UNKNOWN”?\n\nLevel: 90\nItem level: 665"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact("CN", ("Addon", "Text", 102421, "要开始“StringParameter(1)”的战斗吗？")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(3, store.AddonTemplateCount);
+        Assert.True(store.TryGetAddonText(
+            "Duty calls. Commence battle for\n“Inform the Cold?”\n\nLevel: 90\nItem level: 665",
+            out var chinese));
+        Assert.Contains("StringParameter(1)", chinese);
+
+        // The game can omit the item-level line. The first-line template still matches.
+        Assert.True(store.TryGetAddonText(
+            "Duty calls. Commence battle for\n“In from the Cold”?\nLevel sync is in effect.\nLevel: 83",
+            out _));
+    }
+
+    [Fact]
+    public void TryGetAddonText_IgnoresTemplateWithNoLiteralText()
+    {
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [1] = ["UNKNOWN"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact("CN", ("Addon", "Text", 1, "取消")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(0, store.AddonTemplateCount);
+        Assert.False(store.TryGetAddonText("Settle down for a restful supper?", out _));
+    }
+
+    [Fact]
+    public void TryGetAddonLabel_PrefersAddonRowOverDialogueRowWithSameText()
+    {
+        var npcYell = new FakeSheetDescriptor("NpcYell", "Text", false,
+            new Dictionary<uint, string[]> { [730] = ["No."] });
+        var addon = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]> { [4] = ["No."] });
+
+        var artifacts = Artifacts(
+            Artifact("CN",
+                ("NpcYell", "Text", 730, "希望只是我想多了吧……"),
+                ("Addon", "Text", 4, "否")),
+            null);
+
+        var store = TranslationStore.Load(
+            [npcYell, addon],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetAddonLabel("No.", out var label));
+        Assert.Equal("否", label);
+        Assert.True(store.TryGetDialogue("No.", out var dialogue));
+        Assert.Equal("希望只是我想多了吧……", dialogue);
+    }
+
+    [Fact]
+    public void Load_RemembersTextStyleFromScriptLine()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(
+                ("(-Ancient Spirit-)I... I...",
+                 "(-古代人-)<UIForeground>F20223</UIForeground>我，我是……<UIForeground>01</UIForeground>"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("I... I...", out var line));
+        Assert.Equal("我，我是……", line);
+        Assert.True(store.TryGetStyle(line, out var style));
+        Assert.Equal(0xF20223u, style.Foreground);
+    }
+
+    [Fact]
+    public void Load_LearnsSpeakerNameFromScriptAlias()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(
+                ("(-Distant Echo-)**You... With me...",
+                 "(-不知從何處傳來的聲音-)……之人……來這裡……"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetName("Distant Echo", out var name));
+        Assert.Equal("不知從何處傳來的聲音", name);
+    }
+
+    [Fact]
     public void Load_StripsSpeakerPrefixFromScriptEnglish()
     {
         var artifacts = Artifacts(
