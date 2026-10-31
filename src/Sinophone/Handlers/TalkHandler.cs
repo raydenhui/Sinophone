@@ -137,6 +137,9 @@ public sealed class TalkHandler : IDisposable
 
         _log.Debug("{Addon} supplied {Count} AtkValues.", addonName, count);
         LogAtkValues(addonName, values, count);
+        var integerParameters = ReadIntegerParameters(values, count);
+        if (integerParameters.Count > 0)
+            _log.Debug("{Addon} integer parameters: {Parameters}.", addonName, string.Join(", ", integerParameters));
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
         var englishName = _configuration.ShowSpeakerName
@@ -151,7 +154,7 @@ public sealed class TalkHandler : IDisposable
             ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0)
             : default;
 
-        var content = Resolve(store, _configuration, englishText, englishName, context);
+        var content = Resolve(store, _configuration, englishText, englishName, context, integerParameters);
 
         if (content is null && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
         {
@@ -164,7 +167,8 @@ public sealed class TalkHandler : IDisposable
                     _configuration,
                     candidate,
                     englishName,
-                    _eventReader.ReadContext(candidate));
+                    _eventReader.ReadContext(candidate),
+                    integerParameters);
                 if (content is not null)
                 {
                     englishText = candidate;
@@ -270,7 +274,8 @@ public sealed class TalkHandler : IDisposable
         Configuration configuration,
         string? englishText,
         string? englishName,
-        DialogueContext context = default)
+        DialogueContext context = default,
+        IReadOnlyList<int>? integerParameters = null)
     {
         if (string.IsNullOrWhiteSpace(englishText))
             return null;
@@ -284,10 +289,34 @@ public sealed class TalkHandler : IDisposable
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
             store.TryGetName(englishName, out chineseName);
 
-        return new OverlayContent(chineseText ?? string.Empty, chineseName ?? string.Empty);
+        return new OverlayContent(
+            MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters),
+            chineseName ?? string.Empty);
     }
 
     internal readonly record struct OverlayContent(string ChineseText, string ChineseName);
+
+    private static unsafe List<int> ReadIntegerParameters(AtkValue* values, uint count)
+    {
+        var parameters = new List<int>();
+
+        for (uint i = 2; i < count; i++)
+        {
+            ref var value = ref values[i];
+
+            switch (value.Type)
+            {
+                case AtkValueType.Int:
+                    parameters.Add(value.Int);
+                    break;
+                case AtkValueType.UInt:
+                    parameters.Add(unchecked((int)value.UInt));
+                    break;
+            }
+        }
+
+        return parameters;
+    }
 
     /// <summary>
     /// Diagnostic dump of every AtkValue in the event. Shows which index holds the
