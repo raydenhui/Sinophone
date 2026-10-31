@@ -32,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TranslationDataUpdater _dataUpdater;
 #if DEBUG
     private readonly NativeTextProbe _nativeProbe;
+    private readonly TalkContextProbe _talkContextProbe;
 #endif
 
     private TranslationStore? _store;
@@ -80,6 +81,7 @@ public sealed class Plugin : IDalamudPlugin
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
         _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, Log);
+        _talkContextProbe = new TalkContextProbe(AddonLifecycle, Log);
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -88,7 +90,8 @@ public sealed class Plugin : IDalamudPlugin
             _dataUpdater,
             BuildDataSourceText,
             BuildAboutText,
-            _nativeProbe);
+            _nativeProbe,
+            _talkContextProbe);
 #else
         _configWindow = new ConfigWindow(
             _configuration,
@@ -465,6 +468,7 @@ public sealed class Plugin : IDalamudPlugin
         _dataUpdater.Dispose();
 #if DEBUG
         _nativeProbe.Dispose();
+        _talkContextProbe.Dispose();
 #endif
         _talkHandler.Dispose();
         _targetNameHandler.Dispose();

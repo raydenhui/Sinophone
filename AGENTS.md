@@ -32,7 +32,8 @@ src/Sinophone/
   Configuration.cs        Saved settings. Changing a field changes the config schema.
   Data/
     TranslationArtifact.cs  Artifact shape: Sheets[sheet][rowId][field] = string[]
-    TranslationStore.cs     Loads artifacts. Builds English -> Chinese lookups.
+    DialogueContext.cs      Optional runtime ids: sheet row + slot, or script text key.
+    TranslationStore.cs     Loads artifacts. Resolves by id first, then English text.
     TranslationDataUpdater.cs Downloads published artifacts into the plugin config directory.
     SheetCatalog.cs         Which game sheets to index and how to read each one.
     MacroNormalizer.cs      Text cleanup for matching and for display.
@@ -42,6 +43,7 @@ src/Sinophone/
     ChineseConverter.cs     Optional simplified/traditional conversion, built from OpenCC.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
+    TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name window.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
@@ -62,7 +64,8 @@ Data flow, in order:
 CSV dump --(DataPrep)--> Sinophone.<lang>.json.gz --(embedded or data release)--> TranslationStore
 live game sheet row --(SheetCatalog)--> English text --(MacroNormalizer)--> dictionary key
 script dump --(DataPrep)--> Scripts section (English + translation) --(TranslationStore)--> dictionary key
-Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> Chinese
+Talk addon event --(TalkEventReader)--> event row id / Lua text key --(TranslationStore)--> Chinese
+Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> Chinese (fallback)
 Chinese --(ChineseConverter)--> converted Chinese, when the setting is on
 converted Chinese --(OverlayWindow)--> screen
 ```
@@ -77,6 +80,34 @@ read it from.
 `ScriptDump` skips keys with `_SEQ_`, `_TODO_`, or `_QIB_`. `_SYSTEM_` keys are kept, because
 quest objects and story triggers draw them in the Talk window. That is about 221,000 lines, the
 largest part of the artifact.
+
+### Id-first dialogue lookup
+
+The game exposes ids for some dialogue. `TranslationStore.TryGetDialogue` accepts a
+`DialogueContext` and tries them before the English text:
+
+1. A script text key from the game's `LuaTexts` map. The artifact keeps script entries
+   keyed by the dump's `TEXT_...` key, so this is an exact match.
+2. A sheet row id and field. A known slot wins; otherwise the store compares the
+   English text with that row's own slots. This is what separates two rows that share
+   the same English line.
+3. The existing normalized English lookup, including the player-name and gendered
+   pronoun fallbacks.
+
+Every layer fails open. A missing event, a changed game structure, or an old artifact
+falls through to text, so a surface without an id keeps the old behaviour.
+
+`TalkEventReader` reads `EventFramework` and the active handlers at Talk time.
+`TalkEventSurfaces` maps an event content id to a sheet row; currently that is
+`DefaultTalk`, `GoldSaucerTalk`, and `GimmickBill`. A row is used only when exactly
+one active handler maps to one, so an ambiguous scene does not guess. Quest and
+custom talk lines get candidate script keys from `LuaEventHandler.LuaTexts`.
+
+To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
+than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
+ids, scene data and Lua text pairs, so the mapping can be checked in game before it is
+trusted. Do not read game memory on a per-frame path; these reads happen on addon
+events only.
 
 ### Overlay window
 
@@ -455,7 +486,8 @@ premature interface.
   languages (Japanese, German, French) are planned but not supported. This is a design change,
   not a setting. Ask before starting that refactor.
 - **Exact match.** After normalization, a line must match exactly. One different character means
-  a miss. Names are the exception: `ENpcResident` stores generic NPC names in lower case
+  a miss. Dialogue with a runtime id is tried by id first; when the game exposes no id, lookup
+  falls back to this text match. Names are the exception: `ENpcResident` stores generic NPC names in lower case
   (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
   case. Dialogue lookup stays case-sensitive. The English script dumps mark italics with one
   asterisk and bold with two; the game draws that emphasis with a SeString macro, so
