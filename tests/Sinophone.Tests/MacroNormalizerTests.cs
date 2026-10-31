@@ -240,6 +240,23 @@ public class MacroNormalizerTests
         Assert.Same(key, actual);
     }
 
+    [Theory]
+    [InlineData("Nedyar...and Jullus.", "Nedyar", "Player...and Jullus.")]
+    [InlineData("  Nedyar  ", " Nedyar ", "  Player  ")]
+    public void RestoreSinglePlayerNamePlaceholder_ReplacesName_WhenKeyHasIt(
+        string key, string playerName, string expected)
+        => Assert.Equal(expected, MacroNormalizer.RestoreSinglePlayerNamePlaceholder(key, playerName));
+
+    [Fact]
+    public void RestoreSinglePlayerNamePlaceholder_ReturnsSameInstance_WhenNameIsTheDumpPlaceholder()
+    {
+        const string key = "Hello, Player.";
+
+        var actual = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(key, "Player");
+
+        Assert.Same(key, actual);
+    }
+
     [Fact]
     public void RestorePlayerNamePlaceholder_ReturnsSameInstance_WhenNameIsTheDumpPlaceholder()
     {

@@ -104,15 +104,69 @@ public sealed class TranslationStore
         // Second chances, only after a miss so the common line stays one hit. The
         // game fills in the player's name where the dumps have a placeholder, and
         // script lines from the English dump hold one gender's wording.
-        var alternate = MacroNormalizer.RestorePlayerNamePlaceholder(key, _playerName?.Invoke());
+        if (TryLookupPlayerNamePlaceholder(key, out chineseText))
+            return true;
 
-        if (!ReferenceEquals(alternate, key) && _textLookup.TryGetValue(alternate, out var restored))
+        if (!TryLookupGenderNeutral(key, out var match))
+            return false;
+
+        chineseText = ResolveDisplay(match);
+        return true;
+    }
+
+    /// <summary>
+    /// Retries a miss with the player's name put back as a dump placeholder. The
+    /// game sometimes uses the full character name and sometimes only the first
+    /// name, while the dump writes only the placeholder.
+    /// </summary>
+    private bool TryLookupPlayerNamePlaceholder(string key, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        var fullName = _playerName?.Invoke()?.Trim();
+        if (string.IsNullOrEmpty(fullName))
+            return false;
+
+        if (TryPlayerNameVariant(key, fullName, out chineseText))
+            return true;
+
+        var separator = fullName.IndexOf(' ');
+        if (separator <= 0)
+            return false;
+
+        var firstName = fullName[..separator];
+        return !string.Equals(firstName, fullName, StringComparison.Ordinal)
+               && TryPlayerNameVariant(key, firstName, out chineseText);
+    }
+
+    private bool TryPlayerNameVariant(string key, string playerName, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        var doublePlaceholder = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
+        if (!ReferenceEquals(doublePlaceholder, key)
+            && TryLookupWithGenderFallback(doublePlaceholder, out chineseText))
         {
-            chineseText = ResolveDisplay(restored);
             return true;
         }
 
-        if (!TryLookupGenderNeutral(alternate, out var match))
+        var singlePlaceholder = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(key, playerName);
+        return !ReferenceEquals(singlePlaceholder, key)
+               && !string.Equals(singlePlaceholder, doublePlaceholder, StringComparison.Ordinal)
+               && TryLookupWithGenderFallback(singlePlaceholder, out chineseText);
+    }
+
+    private bool TryLookupWithGenderFallback(string key, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        if (_textLookup.TryGetValue(key, out var stored))
+        {
+            chineseText = ResolveDisplay(stored);
+            return true;
+        }
+
+        if (!TryLookupGenderNeutral(key, out var match))
             return false;
 
         chineseText = ResolveDisplay(match);
