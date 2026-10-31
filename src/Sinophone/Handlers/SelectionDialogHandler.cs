@@ -418,9 +418,9 @@ public sealed class SelectionDialogHandler : IDisposable
         if (store.TryGetDialogue(text, out chinese))
             return true;
 
-        if (store.TryGetAddonText(text, out var addonText))
+        if (store.TryGetAddonText(text, out var addonText, out var captures))
         {
-            chinese = ResolveAddonText(addonText, text);
+            chinese = ResolveAddonText(addonText, text, captures, store);
             return chinese.Length > 0;
         }
 
@@ -450,13 +450,18 @@ public sealed class SelectionDialogHandler : IDisposable
     /// Fills the parameters in an Addon-sheet prompt from the live English text.
     /// The sheet stores UNKNOWN where the game puts the quest name and levels.
     /// </summary>
-    internal static string ResolveAddonText(string chinese, string liveEnglish)
+    internal static string ResolveAddonText(
+        string chinese,
+        string liveEnglish,
+        IReadOnlyList<string>? captures = null,
+        TranslationStore? store = null)
     {
         var questName = QuotedText.Match(liveEnglish).Groups[1].Value;
         var level = EnglishLevel.Match(liveEnglish).Groups[1].Value;
         var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
 
-        var resolved = QuestBattleLevel.Replace(chinese, level);
+        var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
+        resolved = QuestBattleLevel.Replace(resolved, level);
         resolved = Regex.Replace(resolved, @"StringParameter\(1\)", questName);
         resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
         resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
@@ -466,6 +471,36 @@ public sealed class SelectionDialogHandler : IDisposable
             .Replace("", string.Empty, StringComparison.Ordinal);
 
         return MacroNormalizer.CleanForDisplay(resolved);
+    }
+
+    private static string ResolveItemMacros(
+        string chinese,
+        string liveEnglish,
+        IReadOnlyList<string>? captures,
+        TranslationStore? store)
+    {
+        if (!chinese.Contains("Sheet(Item,IntegerParameter(", StringComparison.Ordinal))
+            return chinese;
+
+        // Addon row 6413: "Prepare the bed with <item> and <item>?"
+        var match = Regex.Match(liveEnglish, @"^Prepare the bed with (.+) and (.+)\?$",
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        if (!match.Success)
+            return chinese;
+
+        var first = match.Groups[1].Value.Trim();
+        var second = match.Groups[2].Value.Trim();
+
+        if (store is not null)
+        {
+            if (store.TryGetName(first, out var firstChinese))
+                first = firstChinese;
+            if (store.TryGetName(second, out var secondChinese))
+                second = secondChinese;
+        }
+
+        chinese = Regex.Replace(chinese, @"<Sheet\(Item,IntegerParameter\(1\),0\)\s*/>", first);
+        return Regex.Replace(chinese, @"<Sheet\(Item,IntegerParameter\(2\),0\)\s*/>", second);
     }
 
     public void Dispose()

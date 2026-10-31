@@ -115,6 +115,69 @@ public static partial class ScriptTextTemplate
         => template.Replace(Wildcard.ToString(), string.Empty, StringComparison.Ordinal).Length;
 
     /// <summary>
+    /// Builds a template where each whitespace run is a wildcard. Addon rows with
+    /// blank placeholders lose the dynamic words, leaving only their spaces.
+    /// </summary>
+    public static string BuildWordGapTemplate(string text)
+    {
+        var withWildcards = Regex.Replace(text, @"\s+", Wildcard.ToString());
+        return MacroNormalizer.NormalizeKey(withWildcards);
+    }
+
+    /// <summary>
+    /// Matches and returns the text captured by each wildcard, in order.
+    /// </summary>
+    public static bool TryMatch(string template, string textKey, out string[] captures)
+    {
+        captures = [];
+
+        if (template.Length == 0 || textKey.Length == 0)
+            return template.Length == textKey.Length;
+
+        var parts = template.Split(Wildcard);
+        if (parts.Length == 1)
+            return string.Equals(template, textKey, StringComparison.Ordinal);
+
+        var first = parts[0];
+        var last = parts[^1];
+
+        if (!textKey.StartsWith(first, StringComparison.Ordinal)
+            || !textKey.EndsWith(last, StringComparison.Ordinal)
+            || textKey.Length < first.Length + last.Length)
+        {
+            return false;
+        }
+
+        var result = new string[parts.Length - 1];
+        var position = first.Length;
+        var end = textKey.Length - last.Length;
+
+        for (var i = 1; i < parts.Length - 1; i++)
+        {
+            var part = parts[i];
+            if (part.Length == 0)
+            {
+                result[i - 1] = string.Empty;
+                continue;
+            }
+
+            if (end < position)
+                return false;
+
+            var found = textKey.IndexOf(part, position, end - position, StringComparison.Ordinal);
+            if (found < 0)
+                return false;
+
+            result[i - 1] = textKey[position..found];
+            position = found + part.Length;
+        }
+
+        result[^1] = textKey[position..end];
+        captures = result;
+        return true;
+    }
+
+    /// <summary>
     /// True when <paramref name="textKey" /> is exactly the template with each
     /// wildcard replaced by any text. Matching is ordinal and anchored at both ends.
     /// </summary>

@@ -459,6 +459,35 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonText_MatchesAddonRowWithBlankPlaceholders()
+    {
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [6413] = ["Prepare the bed with  and ?"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact("CN", ("Addon", "Text", 6413,
+                "确定要将<Sheet(Item,IntegerParameter(2),0)/>种植在<Sheet(Item,IntegerParameter(1),0)/>中吗？")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(1, store.AddonTemplateCount);
+        Assert.True(store.TryGetAddonText(
+            "Prepare the bed with a bag of grade 3 Thanalan topsoil and a bag of voidrake seeds?",
+            out var chinese));
+        Assert.Contains("Sheet(Item", chinese);
+    }
+
+    [Fact]
     public void TryGetAddonText_IgnoresTemplateWithNoLiteralText()
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,

@@ -331,8 +331,16 @@ public sealed class TranslationStore
     /// Returns the stored Chinese raw text; the caller fills its parameters.
     /// </summary>
     public bool TryGetAddonText(string? englishText, out string chineseText)
+        => TryGetAddonText(englishText, out chineseText, out _);
+
+    /// <summary>
+    /// Resolves an Addon-sheet prompt and returns the text captured by its wildcard
+    /// placeholders. Callers can use the captures to fill stored item or level text.
+    /// </summary>
+    public bool TryGetAddonText(string? englishText, out string chineseText, out string[] captures)
     {
         chineseText = string.Empty;
+        captures = [];
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0 || _addonTemplates.Count == 0)
@@ -340,7 +348,7 @@ public sealed class TranslationStore
 
         foreach (var (template, chinese) in _addonTemplates)
         {
-            if (!ScriptTextTemplate.Matches(template, key))
+            if (!ScriptTextTemplate.TryMatch(template, key, out captures))
                 continue;
 
             chineseText = chinese;
@@ -591,6 +599,19 @@ public sealed class TranslationStore
                                 {
                                     _addonTemplates.Add((prefix, chineseSlots[i]));
                                 }
+                            }
+                        }
+
+                        // Blank placeholders in the English Addon row become
+                        // double spaces. Treat each gap between words as dynamic.
+                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
+                            && variants[v].Contains("  ", StringComparison.Ordinal))
+                        {
+                            var wordTemplate = ScriptTextTemplate.BuildWordGapTemplate(variants[v]);
+                            if (ScriptTextTemplate.LiteralLength(wordTemplate) >= 4
+                                && _addonTemplateKeys.Add(wordTemplate))
+                            {
+                                _addonTemplates.Add((wordTemplate, chineseSlots[i]));
                             }
                         }
                     }
