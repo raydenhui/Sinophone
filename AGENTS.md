@@ -105,7 +105,9 @@ scene filter. `TalkEventSurfaces` maps an event content id to a sheet row; curre
 that is `DefaultTalk`, `GuildleveAssignmentTalk`, `CraftLeveTalk`, `GimmickTalk`,
 `GimmickBill`, and `GoldSaucerTalk`. A row is used only when exactly one active handler
 maps to one, so an ambiguous scene does not guess. Quest and custom talk lines get
-candidate script keys from `LuaEventHandler.LuaTexts`.
+candidate script keys from `LuaEventHandler.LuaTexts`. `DefaultTalk` row ids are packed
+as `(content << 16) | entry`, so use `EventId.Id`, not `EntryId`; the other mapped sheets
+use `EntryId` as their row id.
 
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event

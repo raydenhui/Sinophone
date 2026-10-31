@@ -36,7 +36,7 @@ internal sealed class TalkEventReader
 
         foreach (var handler in handlers)
         {
-            if (TalkEventSurfaces.TryGetRow(handler.ContentId, handler.EntryId, out var row))
+            if (TalkEventSurfaces.TryGetRow(handler.EventId, handler.ContentId, handler.EntryId, out var row))
                 rows.Add(row);
 
             if (handler.LuaTexts is not null)
@@ -267,12 +267,14 @@ internal sealed record TalkEventState(
 /// <summary>Maps an event content id to a sheet row whose text the Talk window can show.</summary>
 internal static class TalkEventSurfaces
 {
-    public static bool TryGetRow(int contentId, ushort entryId, out DialogueRowId row)
+    public static bool TryGetRow(uint eventId, int contentId, ushort entryId, out DialogueRowId row)
     {
         switch ((EventHandlerContent)contentId)
         {
             case EventHandlerContent.DefaultTalk:
-                row = new DialogueRowId("DefaultTalk", entryId, "Text");
+                // DefaultTalk row ids are packed as (content << 16) | entry, which is
+                // exactly EventId.Id. EntryId alone is only the low half.
+                row = new DialogueRowId("DefaultTalk", eventId, "Text");
                 return true;
 
             case EventHandlerContent.GuildLeveAssignment:

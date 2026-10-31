@@ -10,20 +10,26 @@ namespace Sinophone.Tests;
 public class TalkEventReaderTests
 {
     [Theory]
-    [InlineData(9, "DefaultTalk", "Text")]
-    [InlineData(6, "GuildleveAssignmentTalk", "Talk")]
-    [InlineData(14, "CraftLeveTalk", "Talk")]
-    [InlineData(15, "GimmickTalk", "Message")]
-    [InlineData(16, "GimmickBill", "Text")]
-    [InlineData(17, "GimmickTalk", "Message")]
-    [InlineData(41, "GoldSaucerTalk", "Message")]
-    public void TryGetRow_MapsTalkContentToSheet_WhenContentIsKnown(int contentId, string sheet, string field)
+    [InlineData(9, 590415, 591, "DefaultTalk", 590415u, "Text")]
+    [InlineData(6, 393339, 123, "GuildleveAssignmentTalk", 123u, "Talk")]
+    [InlineData(14, 917627, 123, "CraftLeveTalk", 123u, "Talk")]
+    [InlineData(15, 983163, 123, "GimmickTalk", 123u, "Message")]
+    [InlineData(16, 1048699, 123, "GimmickBill", 123u, "Text")]
+    [InlineData(17, 1114235, 123, "GimmickTalk", 123u, "Message")]
+    [InlineData(41, 2687099, 123, "GoldSaucerTalk", 123u, "Message")]
+    public void TryGetRow_MapsTalkContentToSheet_WhenContentIsKnown(
+        int contentId,
+        uint eventId,
+        ushort entryId,
+        string sheet,
+        uint rowId,
+        string field)
     {
-        var found = TalkEventSurfaces.TryGetRow(contentId, 123, out var row);
+        var found = TalkEventSurfaces.TryGetRow(eventId, contentId, entryId, out var row);
 
         Assert.True(found);
         Assert.Equal(sheet, row.Sheet);
-        Assert.Equal(123u, row.RowId);
+        Assert.Equal(rowId, row.RowId);
         Assert.Equal(field, row.Field);
         Assert.Equal(-1, row.Slot);
     }
@@ -35,6 +41,6 @@ public class TalkEventReaderTests
     [InlineData(999)]
     public void TryGetRow_ReturnsFalse_WhenContentHasNoDirectRow(int contentId)
     {
-        Assert.False(TalkEventSurfaces.TryGetRow(contentId, 123, out _));
+        Assert.False(TalkEventSurfaces.TryGetRow((uint)(contentId << 16) | 123u, contentId, 123, out _));
     }
 }
