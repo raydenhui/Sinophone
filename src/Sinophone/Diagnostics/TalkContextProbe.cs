@@ -1,4 +1,6 @@
 #if DEBUG
+using FFXIVClientStructs.FFXIV.Client.UI;
+
 namespace Sinophone.Diagnostics;
 
 /// <summary>
