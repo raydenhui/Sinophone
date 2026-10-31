@@ -55,6 +55,29 @@ public class SelectionDialogHandlerTests
         Assert.Empty(chinese);
     }
 
+    [Fact]
+    public void ResolveAddonText_FillsQuestNameAndLevels()
+    {
+        const string chinese =
+            "要开始“<Highlight>StringParameter(1)</Highlight>”的战斗吗？\n\n" +
+            "※此任务是等级同步任务，\n\u3000超过上限时会自动调整为：\n" +
+            "\u3000\uE0BC等级：<Sheet(QuestBattle,IntegerParameter(2),3)/>" +
+            "<If(GreaterThan(IntegerParameter(3),0))>\n" +
+            "\u3000\uE0BD品级：<Value>IntegerParameter(3)</Value><Else/></If>";
+        const string live =
+            "Duty calls. Commence battle for\n“Inform the Cold?”\n\n" +
+            "**※Level sync is in effect.** If you are above the maximum allowed level, " +
+            "it will be synced as follows:\n\n\uE0BC Level: 90\n\uE0BD Item level: 665**";
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(chinese, live);
+
+        Assert.Contains("Inform the Cold?", resolved);
+        Assert.Contains("等级：90", resolved);
+        Assert.Contains("品级：665", resolved);
+        Assert.DoesNotContain("StringParameter", resolved);
+        Assert.DoesNotContain("IntegerParameter", resolved);
+    }
+
     private static TranslationStore LoadStore(string json)
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,

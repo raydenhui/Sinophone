@@ -32,6 +32,7 @@ public sealed unsafe class NativeTextWriter
     private readonly IGameGui _gameGui;
     private readonly IPluginLog _log;
     private readonly Dictionary<(string Addon, uint NodeId), SavedText> _saved = [];
+    private readonly Dictionary<(string Addon, nint Address), SavedText> _savedAt = [];
 
     public NativeTextWriter(IGameGui gameGui, IPluginLog log)
     {
@@ -40,7 +41,7 @@ public sealed unsafe class NativeTextWriter
     }
 
     /// <summary>Number of nodes currently holding text this writer put there.</summary>
-    public int ChangedNodeCount => _saved.Count;
+    public int ChangedNodeCount => _saved.Count + _savedAt.Count;
 
     /// <summary>
     /// Writes <paramref name="text"/> into one text node. Returns false when the node is
@@ -78,6 +79,100 @@ public sealed unsafe class NativeTextWriter
 
         _log.Debug("Native text: wrote {Length} chars into {Addon} node {NodeId}.",
             text.Length, addonName, nodeId);
+        return true;
+    }
+
+    /// <summary>
+    /// Writes into one exact text node. Selection dialogs can have several nodes with
+    /// the same node id, so writing by id can change the wrong node.
+    /// </summary>
+    public bool WriteAt(string addonName, nint address, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var node = (AtkTextNode*)address;
+        if (node is null)
+            return false;
+
+        var current = node->NodeText.ToString();
+        if (string.Equals(current, text, StringComparison.Ordinal))
+            return true;
+
+        var writtenUtf8 = Encoding.UTF8.GetBytes(text);
+        var key = (addonName, address);
+        _savedAt[key] = _savedAt.TryGetValue(key, out var saved)
+                        && string.Equals(current, saved.Written, StringComparison.Ordinal)
+            ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
+            : new SavedText(current, text, writtenUtf8);
+
+        node->SetText(text);
+        node->ResizeNodeForCurrentText();
+
+        _log.Debug("Native text: wrote {Length} chars into {Addon} node {NodeId} at {Address:X}.",
+            text.Length, addonName, node->NodeId, address);
+        return true;
+    }
+
+    /// <summary>Drops the saved text for an exact node without writing it back.</summary>
+    public void ForgetAt(string addonName, nint address)
+        => _savedAt.Remove((addonName, address));
+
+    /// <summary>True when the exact node still holds text this writer put there.</summary>
+    public bool IsStillOursAt(string addonName, nint address)
+    {
+        if (!_savedAt.TryGetValue((addonName, address), out var saved))
+            return false;
+
+        var node = (AtkTextNode*)address;
+        return node is not null && node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8);
+    }
+
+    /// <summary>Clears an exact node if it still holds our text.</summary>
+    public bool ClearIfStillOursAt(string addonName, nint address)
+    {
+        var key = (addonName, address);
+        if (!_savedAt.Remove(key, out var saved))
+            return false;
+
+        var node = (AtkTextNode*)address;
+        if (node is null)
+            return false;
+
+        if (!node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8))
+            return true;
+
+        node->SetText(string.Empty);
+        node->ResizeNodeForCurrentText();
+        _log.Debug("Native text: cleared stale text in {Addon} node {NodeId} at {Address:X}.",
+            addonName, node->NodeId, address);
+        return true;
+    }
+
+    /// <summary>Reapplies the saved text to an exact node.</summary>
+    public bool ReapplyAt(string addonName, nint address)
+    {
+        var key = (addonName, address);
+        if (!_savedAt.TryGetValue(key, out var saved))
+            return false;
+
+        var node = (AtkTextNode*)address;
+        if (node is null)
+            return false;
+
+        if (node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8))
+            return false;
+
+        node->SetText(saved.Written);
+        node->ResizeNodeForCurrentText();
+
+        if (!saved.Reapplied)
+        {
+            _savedAt[key] = saved with { Reapplied = true };
+            _log.Debug("Native text: the game replaced {Addon} node {NodeId} at {Address:X}; keeping the Chinese for this line.",
+                addonName, node->NodeId, address);
+        }
+
         return true;
     }
 
@@ -189,11 +284,27 @@ public sealed unsafe class NativeTextWriter
     /// <summary>Puts the game's own text back into every node this writer changed.</summary>
     public void RestoreAll()
     {
-        if (_saved.Count == 0)
-            return;
-
         foreach (var key in _saved.Keys.ToArray())
             Restore(key.Addon, key.NodeId);
+
+        foreach (var key in _savedAt.Keys.ToArray())
+            RestoreAt(key.Addon, key.Address);
+    }
+
+    private void RestoreAt(string addonName, nint address)
+    {
+        var key = (addonName, address);
+        if (!_savedAt.Remove(key, out var saved))
+            return;
+
+        var node = (AtkTextNode*)address;
+        if (node is null)
+            return;
+
+        node->SetText(saved.Original);
+        node->ResizeNodeForCurrentText();
+        _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId} at {Address:X}.",
+            saved.Original.Length, addonName, node->NodeId, address);
     }
 
     private AtkTextNode* GetNode(string addonName, uint nodeId)
