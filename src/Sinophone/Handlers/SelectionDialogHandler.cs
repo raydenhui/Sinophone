@@ -490,8 +490,8 @@ public sealed class SelectionDialogHandler : IDisposable
         if (!match.Success)
             return chinese;
 
-        var first = match.Groups[1].Value.Trim();
-        var second = match.Groups[2].Value.Trim();
+        var first = NormalizeItemName(match.Groups[1].Value);
+        var second = NormalizeItemName(match.Groups[2].Value);
 
         if (store is not null)
         {
@@ -503,6 +503,22 @@ public sealed class SelectionDialogHandler : IDisposable
 
         chinese = Regex.Replace(chinese, @"<Sheet\(Item,IntegerParameter\(1\),0\)\s*/>", first);
         return Regex.Replace(chinese, @"<Sheet\(Item,IntegerParameter\(2\),0\)\s*/>", second);
+    }
+
+    private static string NormalizeItemName(string name)
+    {
+        var normalized = MacroNormalizer.NormalizeKey(name);
+
+        if (normalized.StartsWith("an ", StringComparison.OrdinalIgnoreCase))
+            return normalized[3..];
+
+        if (normalized.StartsWith("a ", StringComparison.OrdinalIgnoreCase))
+            return normalized[2..];
+
+        if (normalized.StartsWith("the ", StringComparison.OrdinalIgnoreCase))
+            return normalized[4..];
+
+        return normalized;
     }
 
     public void Dispose()

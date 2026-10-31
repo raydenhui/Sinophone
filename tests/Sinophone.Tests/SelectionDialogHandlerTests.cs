@@ -92,6 +92,8 @@ public class SelectionDialogHandlerTests
         Assert.Contains("bag of grade 3 Thanalan", resolved);
         Assert.Contains("topsoil", resolved);
         Assert.DoesNotContain("Sheet(Item", resolved);
+        Assert.DoesNotContain("a bag", resolved);
+        Assert.DoesNotContain("\n", resolved);
     }
 
     private static TranslationStore LoadStore(string json)
