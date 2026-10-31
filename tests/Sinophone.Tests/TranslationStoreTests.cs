@@ -426,6 +426,23 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Load_StripsSpeakerPrefixFromScriptEnglish()
+    {
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", Scripts(
+                ("(-Radio-)We...have gained the power...take back...rightfully ours.",
+                 "(-收音機-)朕乃……加雷馬帝國……皇帝……"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "We...have gained the power...take back...rightfully ours.", out var chinese));
+        Assert.Equal("朕乃……加雷馬帝國……皇帝……", chinese);
+    }
+
+    [Fact]
     public void Load_SkipsScriptLines_WhenEnglishOrTextIsEmpty()
     {
         var artifacts = Artifacts(

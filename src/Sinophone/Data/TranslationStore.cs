@@ -509,7 +509,10 @@ public sealed class TranslationStore
 
         foreach (var (scriptKey, entry) in artifact.Scripts)
         {
-            var key = MacroNormalizer.NormalizeKey(entry.English);
+            // The dumps may prefix the English line with a speaker alias such as
+            // "(-Radio-)". The game draws that name in a separate node, so the
+            // dialogue text lookup must not include it.
+            var key = MacroNormalizer.NormalizeKey(MacroNormalizer.StripSpeakerPrefix(entry.English));
             if (key.Length == 0 || string.Equals(key, "UNKNOWN", StringComparison.OrdinalIgnoreCase))
             {
                 _log?.Debug("Skipping script entry with placeholder English: {ScriptKey}", scriptKey);
