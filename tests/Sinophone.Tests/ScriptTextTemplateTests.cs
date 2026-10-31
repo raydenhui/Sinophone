@@ -62,6 +62,17 @@ public class ScriptTextTemplateTests
         Assert.True(ScriptTextTemplate.Matches(template, "Hide-and-seek? What's that?"));
     }
 
+    [Theory]
+    [InlineData("There you are, Player!", "There you are, Nedyar!")]
+    [InlineData("Hello, Player Player.", "Hello, Alice Rivers.")]
+    public void Build_TreatsPlayerPlaceholderAsOneWildcard(string dump, string live)
+    {
+        var value = new ReadOnlySeString(Encoding.UTF8.GetBytes(dump));
+        var template = ScriptTextTemplate.Build(value.AsSpan());
+
+        Assert.True(ScriptTextTemplate.Matches(template, live));
+    }
+
     [Fact]
     public void Build_KeepsPlainTextAsAnExactTemplate()
     {
