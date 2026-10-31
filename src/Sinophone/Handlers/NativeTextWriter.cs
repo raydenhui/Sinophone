@@ -31,13 +31,15 @@ public sealed unsafe class NativeTextWriter
     public const uint TalkNameNodeId = 2;
 
     private readonly IGameGui _gameGui;
+    private readonly IDataManager _dataManager;
     private readonly IPluginLog _log;
     private readonly Dictionary<(string Addon, uint NodeId), SavedText> _saved = [];
     private readonly Dictionary<(string Addon, nint Address), SavedText> _savedAt = [];
 
-    public NativeTextWriter(IGameGui gameGui, IPluginLog log)
+    public NativeTextWriter(IGameGui gameGui, IDataManager dataManager, IPluginLog log)
     {
         _gameGui = gameGui;
+        _dataManager = dataManager;
         _log = log;
     }
 
@@ -165,7 +167,10 @@ public sealed unsafe class NativeTextWriter
             return false;
 
         if (node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8))
+        {
+            ApplyStyle(node, saved.Style);
             return false;
+        }
 
         node->SetText(saved.Written);
         node->ResizeNodeForCurrentText();
@@ -324,38 +329,40 @@ public sealed unsafe class NativeTextWriter
         return addon is null ? null : addon->GetTextNodeById(nodeId);
     }
 
-    private static void ApplyStyle(AtkTextNode* node, UiTextStyle style)
+    private void ApplyStyle(AtkTextNode* node, UiTextStyle style)
     {
-        if (style.Foreground is uint foreground)
-            node->TextColor = ToByteColor(foreground);
-
-        if (style.Glow is uint glow)
+        if (style.ForegroundKey is not ushort foregroundKey
+            && style.GlowKey is not ushort)
         {
-            node->EdgeColor = ToByteColor(glow);
+            return;
+        }
+
+        var sheet = _dataManager.GetExcelSheet<UIColor>();
+        if (sheet is null)
+            return;
+
+        if (style.ForegroundKey is ushort fgKey
+            && sheet.GetRowOrDefault(fgKey) is { } foreground)
+        {
+            node->TextColor = ToByteColor(foreground.Dark);
+        }
+
+        if (style.GlowKey is ushort glowKey
+            && sheet.GetRowOrDefault(glowKey) is { } glow)
+        {
+            node->EdgeColor = ToByteColor(glow.Light);
             node->TextFlags |= TextFlags.Edge;
         }
     }
 
-    private static ByteColor ToByteColor(uint value)
-    {
-        var color = new ByteColor { A = 0xFF };
-
-        if (value <= 0xFFFFFF)
+    private static ByteColor ToByteColor(uint rgba)
+        => new()
         {
-            color.R = (byte)(value >> 16);
-            color.G = (byte)(value >> 8);
-            color.B = (byte)value;
-        }
-        else
-        {
-            color.A = (byte)(value >> 24);
-            color.R = (byte)(value >> 16);
-            color.G = (byte)(value >> 8);
-            color.B = (byte)value;
-        }
-
-        return color;
-    }
+            R = (byte)(rgba >> 24),
+            G = (byte)(rgba >> 16),
+            B = (byte)(rgba >> 8),
+            A = (byte)rgba,
+        };
 
     private readonly record struct SavedText(
         string Original,

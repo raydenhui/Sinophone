@@ -7,7 +7,7 @@ namespace Sinophone.Data;
 /// applies these to the native text node; the plain displayed string does not keep
 /// the tags.
 /// </summary>
-public readonly record struct UiTextStyle(uint? Foreground, uint? Glow)
+public readonly record struct UiTextStyle(ushort? ForegroundKey, ushort? GlowKey)
 {
     private static readonly Regex ForegroundPattern = new(
         @"<UIForeground>([0-9A-Fa-f]{6,8})</UIForeground>",
@@ -27,17 +27,17 @@ public readonly record struct UiTextStyle(uint? Foreground, uint? Glow)
         var foreground = ForegroundPattern.Match(text);
         var glow = GlowPattern.Match(text);
 
-        uint? foregroundColor = foreground.Success
-            ? uint.Parse(foreground.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)
+        ushort? foregroundKey = foreground.Success
+            ? (ushort)(uint.Parse(foreground.Groups[1].Value, System.Globalization.NumberStyles.HexNumber) & 0xFFFF)
             : null;
-        uint? glowColor = glow.Success
-            ? uint.Parse(glow.Groups[1].Value, System.Globalization.NumberStyles.HexNumber)
+        ushort? glowKey = glow.Success
+            ? (ushort)(uint.Parse(glow.Groups[1].Value, System.Globalization.NumberStyles.HexNumber) & 0xFFFF)
             : null;
 
-        if (foregroundColor is null && glowColor is null)
+        if (foregroundKey is null && glowKey is null)
             return false;
 
-        style = new UiTextStyle(foregroundColor, glowColor);
+        style = new UiTextStyle(foregroundKey, glowKey);
         return true;
     }
 }
