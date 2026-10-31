@@ -1,19 +1,21 @@
-{
-  "Author": "raydenhui",
-  "Name": "Sinophone",
-  "Punchline": "Official Chinese dialogue, in an overlay.",
-  "Description": "Displays the official Simplified or Traditional Chinese translation of FFXIV dialogue in an overlay above the Talk window.",
-  "Tags": [
-    "translation",
-    "chinese",
-    "dialogue"
-  ],
-  "InternalName": "Sinophone",
-  "RepoUrl": "https://github.com/raydenhui/Sinophone",
-  "LastUpdate": 1793441976,
-  "DownloadLinkInstall": "https://github.com/raydenhui/Sinophone/releases/latest/download/latest.zip",
-  "DownloadLinkUpdate": "https://github.com/raydenhui/Sinophone/releases/latest/download/latest.zip",
-  "AssemblyVersion": "0.1.6.0",
-  "ApplicableVersion": "any",
-  "DalamudApiLevel": "15"
-}
+[
+  {
+    "Author": "raydenhui",
+    "Name": "Sinophone",
+    "Punchline": "Official Chinese dialogue, in an overlay.",
+    "Description": "Displays the official Simplified or Traditional Chinese translation of FFXIV dialogue in an overlay above the Talk window.",
+    "Tags": [
+      "translation",
+      "chinese",
+      "dialogue"
+    ],
+    "InternalName": "Sinophone",
+    "RepoUrl": "https://github.com/raydenhui/Sinophone",
+    "LastUpdate": 1793441976,
+    "DownloadLinkInstall": "https://github.com/raydenhui/Sinophone/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/raydenhui/Sinophone/releases/latest/download/latest.zip",
+    "AssemblyVersion": "0.1.6.0",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": "15"
+  }
+]
