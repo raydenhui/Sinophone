@@ -78,6 +78,22 @@ public class SelectionDialogHandlerTests
         Assert.DoesNotContain("IntegerParameter", resolved);
     }
 
+    [Fact]
+    public void ResolveAddonText_FillsItemNamesAcrossLineBreaks()
+    {
+        const string chinese =
+            "确定要将<Sheet(Item,IntegerParameter(2),0)/>种植在<Sheet(Item,IntegerParameter(1),0)/>中吗？";
+        const string live =
+            "Prepare the bed with a bag of grade 3 Thanalan '+n+'topsoil and a bag of voidrake seeds?";
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(chinese, live);
+
+        Assert.Contains("bag of voidrake seeds", resolved);
+        Assert.Contains("bag of grade 3 Thanalan", resolved);
+        Assert.Contains("topsoil", resolved);
+        Assert.DoesNotContain("Sheet(Item", resolved);
+    }
+
     private static TranslationStore LoadStore(string json)
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,

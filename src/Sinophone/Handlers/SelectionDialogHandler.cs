@@ -486,7 +486,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
         // Addon row 6413: "Prepare the bed with <item> and <item>?"
         var match = Regex.Match(liveEnglish, @"^Prepare the bed with (.+) and (.+)\?$",
-            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (!match.Success)
             return chinese;
 
