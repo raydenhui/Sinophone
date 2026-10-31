@@ -131,6 +131,14 @@ public static partial class MacroNormalizer
     }
 
     /// <summary>
+    /// Removes a leading speaker alias such as "(-Radio-)". The script dumps put
+    /// the alias in the English line, but the game draws it in the speaker node,
+    /// not in the dialogue text.
+    /// </summary>
+    public static string StripSpeakerPrefix(string? text)
+        => string.IsNullOrEmpty(text) ? text ?? string.Empty : SpeakerPrefixPattern().Replace(text, string.Empty);
+
+    /// <summary>
     /// Normalizes text for use as a dictionary key. All whitespace, including
     /// line breaks, is collapsed to a single space.
     /// </summary>
