@@ -37,6 +37,22 @@ public class PositionalSheetTests : IDisposable
     }
 
     [Fact]
+    public void ProcessSheet_ReadsNpcYellTextAtItsActualColumn_WhenHeaderIsShifted()
+    {
+        Write("NpcYell", "key,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14",
+            "#,,,,,OutputType,,BalloonTime,IsBalloonSlow,BattleTalkTime,,,Text,,,",
+            "int32,uint32,bit&01,bit&02,bit&04,byte,byte,uint32,single,single,bit&08,bit&10,byte,byte,str,uint16",
+            "11203,0,False,False,False,3,0,0,0,4,False,False,1,25,\"刚才这些就是\n最后的了吧？\",0");
+
+        var spec = new Program.SheetSpec("NpcYell", "Text", []) { Indices = [14] };
+        var rows = Program.ProcessSheet(spec, _directory);
+
+        Assert.NotNull(rows);
+        Assert.True(rows!.TryGetValue("11203", out var fields));
+        Assert.Equal(["刚才这些就是\n最后的了吧？"], fields["Text"]);
+    }
+
+    [Fact]
     public void ProcessSheet_ReadsLastColumn_WhenSpecUsesLastColumn()
     {
         Write("GimmickTalk", "key,0,1,2", "#,,,", "int32,byte,bit&01,str", "1,7,False,\"Object text\"");
