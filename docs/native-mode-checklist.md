@@ -29,6 +29,13 @@ Two runs are needed:
 | Cutscene subtitle | Overlay still used; native mode does not cover subtitles yet |
 | Chat bubble from an NPC | Overlay still used; native mode does not cover bubbles yet |
 | Line with oblique words | Note whether the English fragments stay on screen. If they do, open an issue |
+| Yes/No dialog | Prompt and button labels are Chinese; no overlay |
+| String selection dialog | Prompt and every option are Chinese; no overlay |
+| Icon selection dialog | Every option is Chinese; no overlay |
+| OK dialog | Prompt and OK label are Chinese; no overlay |
+| Cutscene string selection | Prompt and every option are Chinese; no overlay |
+| Selection dialog with an untranslated option | That option stays English; other options still translate |
+| Close and reopen a selection dialog | No stale text from the previous dialog |
 
 ## Done when
 

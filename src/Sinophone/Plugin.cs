@@ -27,6 +27,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ItemNameWindow _itemNameWindow;
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
+    private readonly SelectionDialogHandler _selectionDialogHandler;
     private readonly TargetNameHandler _targetNameHandler;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
@@ -115,6 +116,13 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _overlay,
+            _nativeTextWriter);
+        _selectionDialogHandler = new SelectionDialogHandler(
+            AddonLifecycle,
+            GameGui,
+            Log,
+            _configuration,
+            () => _store,
             _nativeTextWriter);
         _targetNameHandler = new TargetNameHandler(
             AddonLifecycle,
@@ -475,6 +483,7 @@ public sealed class Plugin : IDalamudPlugin
         _nativeProbe.Dispose();
         _talkContextProbe.Dispose();
 #endif
+        _selectionDialogHandler.Dispose();
         _talkHandler.Dispose();
         _targetNameHandler.Dispose();
         _itemNameHandler.Dispose();

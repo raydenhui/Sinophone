@@ -19,6 +19,7 @@ src/Sinophone/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
     TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
+    SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name window.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
   UI/
@@ -118,6 +119,13 @@ Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialo
 to the game's own dialogue box: `TalkHandler` resolves the line as usual, then `NativeTextWriter`
 writes the Chinese into the addon's text node. The settings section is labelled **Alpha: In-game
 text** so it does not read as a finished feature.
+
+The selection dialogs (`SelectYesno`, `SelectString`, `SelectIconString`,
+`SelectOk`, and `CutSceneSelectString`) use the same native mode. Their handler
+walks the addon's text nodes, looks each visible string up in the store, and
+writes the Chinese back into the same node. There is no overlay for these
+surfaces. The `Addon` sheet supplies short UI labels such as `Yes.`, `No.`, `OK`,
+and `Cancel`.
 
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
   live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds
