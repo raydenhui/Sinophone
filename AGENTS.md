@@ -98,10 +98,14 @@ Every layer fails open. A missing event, a changed game structure, or an old art
 falls through to text, so a surface without an id keeps the old behaviour.
 
 `TalkEventReader` reads `EventFramework` and the active handlers at Talk time.
-`TalkEventSurfaces` maps an event content id to a sheet row; currently that is
-`DefaultTalk`, `GoldSaucerTalk`, and `GimmickBill`. A row is used only when exactly
-one active handler maps to one, so an ambiguous scene does not guess. Quest and
-custom talk lines get candidate script keys from `LuaEventHandler.LuaTexts`.
+The current target's `EventHandler` is the first choice, because the event state is
+cleared when the Talk window opens and `Scene` is -1 for most handlers. If no handler
+owns the target, the reader falls back to `EventState1`/`EventState2`, then to the old
+scene filter. `TalkEventSurfaces` maps an event content id to a sheet row; currently
+that is `DefaultTalk`, `GuildleveAssignmentTalk`, `CraftLeveTalk`, `GimmickTalk`,
+`GimmickBill`, and `GoldSaucerTalk`. A row is used only when exactly one active handler
+maps to one, so an ambiguous scene does not guess. Quest and custom talk lines get
+candidate script keys from `LuaEventHandler.LuaTexts`.
 
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event

@@ -81,7 +81,7 @@ public sealed class Plugin : IDalamudPlugin
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
         _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, Log);
-        _talkContextProbe = new TalkContextProbe(AddonLifecycle, Log);
+        _talkContextProbe = new TalkContextProbe(AddonLifecycle, TargetManager, Log);
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -111,6 +111,7 @@ public sealed class Plugin : IDalamudPlugin
         _talkHandler = new TalkHandler(
             AddonLifecycle,
             Log,
+            TargetManager,
             _configuration,
             () => _store,
             _overlay,

@@ -21,6 +21,7 @@ public sealed class TalkHandler : IDisposable
     private readonly OverlayWindow _overlay;
     private readonly NativeTextWriter _nativeWriter;
     private readonly TalkEventReader _eventReader;
+    private readonly ITargetManager _targetManager;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private bool _disposed;
@@ -28,6 +29,7 @@ public sealed class TalkHandler : IDisposable
     public TalkHandler(
         IAddonLifecycle addonLifecycle,
         IPluginLog log,
+        ITargetManager targetManager,
         Configuration configuration,
         Func<TranslationStore?> getStore,
         OverlayWindow overlay,
@@ -35,6 +37,7 @@ public sealed class TalkHandler : IDisposable
     {
         _addonLifecycle = addonLifecycle;
         _log = log;
+        _targetManager = targetManager;
         _configuration = configuration;
         _getStore = getStore;
         _overlay = overlay;
@@ -145,7 +148,7 @@ public sealed class TalkHandler : IDisposable
             englishText ?? "(null)");
 
         var context = string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
-            ? _eventReader.ReadContext(englishText)
+            ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0)
             : default;
 
         var content = Resolve(store, _configuration, englishText, englishName, context);

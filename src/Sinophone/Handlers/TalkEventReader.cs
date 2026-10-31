@@ -21,13 +21,13 @@ internal sealed class TalkEventReader
     /// text instead of guessing. Script keys are collected only when a Lua handler's
     /// value is the line on screen.
     /// </summary>
-    public unsafe DialogueContext ReadContext(string? englishText)
+    public unsafe DialogueContext ReadContext(string? englishText, nint targetAddress = 0)
     {
         var framework = EventFramework.Instance();
         if (framework is null)
             return default;
 
-        var handlers = CollectHandlers(framework, readAllLuaTexts: false, englishText);
+        var handlers = CollectHandlers(framework, readAllLuaTexts: false, englishText, targetAddress);
         if (handlers.Count == 0)
             return default;
 
@@ -65,7 +65,7 @@ internal sealed class TalkEventReader
         if (framework is null)
             return null;
 
-        var handlers = CollectHandlers(framework, readAllLuaTexts: true, englishText: null);
+        var handlers = CollectHandlers(framework, readAllLuaTexts: true, englishText: null, targetAddress: 0);
         var sceneData = new int[framework->SceneData.Count];
         var values = framework->SceneData.Values;
         for (var i = 0; i < sceneData.Length && i < values.Length; i++)
@@ -93,9 +93,36 @@ internal sealed class TalkEventReader
     private unsafe List<TalkHandlerSnapshot> CollectHandlers(
         EventFramework* framework,
         bool readAllLuaTexts,
-        string? englishText)
+        string? englishText,
+        nint targetAddress)
     {
         var result = new List<TalkHandlerSnapshot>();
+
+        // The player usually targets the NPC or object before talking. Its
+        // EventHandler pointer is the handler running the dialogue. This is the only
+        // link that survives the event state being cleared when Talk opens.
+        if (targetAddress != 0)
+        {
+            foreach (var (_, pointer) in framework->EventHandlerModule.EventHandlerMap)
+            {
+                var handler = pointer.Value;
+                if (handler is null || handler->Info.EventId.Id == 0)
+                    continue;
+
+                var ownsTarget = handler->EventGameObject is not null
+                                 && (nint)handler->EventGameObject == targetAddress;
+
+                if (!ownsTarget && handler->SceneGameObject is not null)
+                    ownsTarget = (nint)handler->SceneGameObject == targetAddress;
+
+                if (ownsTarget)
+                    result.Add(CreateSnapshot(handler, readAllLuaTexts, englishText));
+            }
+
+            if (result.Count > 0)
+                return result;
+        }
+
         var activeIds = new HashSet<uint>();
         AddActiveId(activeIds, framework->EventState1.EventId);
         AddActiveId(activeIds, framework->EventState2.EventId);
@@ -122,16 +149,25 @@ internal sealed class TalkEventReader
                 continue;
             }
 
-            var luaTexts = TryReadLuaTexts(handler, eventId.ContentId, readAllLuaTexts, englishText);
-            result.Add(new TalkHandlerSnapshot(
-                eventId.Id,
-                (int)eventId.ContentId,
-                eventId.EntryId,
-                handler->Scene,
-                luaTexts));
+            result.Add(CreateSnapshot(handler, readAllLuaTexts, englishText));
         }
 
         return result;
+    }
+
+    private static unsafe TalkHandlerSnapshot CreateSnapshot(
+        EventHandler* handler,
+        bool readAllLuaTexts,
+        string? englishText)
+    {
+        var eventId = handler->Info.EventId;
+        var luaTexts = TryReadLuaTexts(handler, eventId.ContentId, readAllLuaTexts, englishText);
+        return new TalkHandlerSnapshot(
+            eventId.Id,
+            (int)eventId.ContentId,
+            eventId.EntryId,
+            handler->Scene,
+            luaTexts);
     }
 
     private static void AddActiveId(HashSet<uint> ids, EventId eventId)
@@ -140,7 +176,7 @@ internal sealed class TalkEventReader
             ids.Add(eventId.Id);
     }
 
-    private unsafe List<KeyValuePair<string, string>>? TryReadLuaTexts(
+    private static unsafe List<KeyValuePair<string, string>>? TryReadLuaTexts(
         EventHandler* handler,
         EventHandlerContent contentId,
         bool readAll,
@@ -239,12 +275,25 @@ internal static class TalkEventSurfaces
                 row = new DialogueRowId("DefaultTalk", entryId, "Text");
                 return true;
 
-            case EventHandlerContent.GoldSaucerTalk:
-                row = new DialogueRowId("GoldSaucerTalk", entryId, "Message");
+            case EventHandlerContent.GuildLeveAssignment:
+                row = new DialogueRowId("GuildleveAssignmentTalk", entryId, "Talk");
+                return true;
+
+            case EventHandlerContent.CraftLeveClient:
+                row = new DialogueRowId("CraftLeveTalk", entryId, "Talk");
+                return true;
+
+            case EventHandlerContent.GimmickAccessor:
+            case EventHandlerContent.GimmickRect:
+                row = new DialogueRowId("GimmickTalk", entryId, "Message");
                 return true;
 
             case EventHandlerContent.GimmickBill:
                 row = new DialogueRowId("GimmickBill", entryId, "Text");
+                return true;
+
+            case EventHandlerContent.GoldSaucerTalk:
+                row = new DialogueRowId("GoldSaucerTalk", entryId, "Message");
                 return true;
 
             default:

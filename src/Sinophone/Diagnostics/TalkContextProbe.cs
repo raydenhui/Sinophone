@@ -16,14 +16,16 @@ public sealed class TalkContextProbe : IDisposable
     private static readonly string[] Addons = ["Talk", "TalkSubtitle"];
 
     private readonly IAddonLifecycle _addonLifecycle;
+    private readonly ITargetManager _targetManager;
     private readonly IPluginLog _log;
     private readonly TalkEventReader _reader = null!;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private bool _disposed;
 
-    public TalkContextProbe(IAddonLifecycle addonLifecycle, IPluginLog log)
+    public TalkContextProbe(IAddonLifecycle addonLifecycle, ITargetManager targetManager, IPluginLog log)
     {
         _addonLifecycle = addonLifecycle;
+        _targetManager = targetManager;
         _log = log;
         _reader = new TalkEventReader(log);
         _onAddonEvent = OnAddonEvent;
@@ -44,6 +46,12 @@ public sealed class TalkContextProbe : IDisposable
     /// <summary>Reads and logs the current event state once.</summary>
     public void LogCurrent()
     {
+        var target = _targetManager.Target;
+        _log.Info("Talk probe target: {Name} ({ObjectId}), address {Address}.",
+            target?.Name.ToString() ?? "(none)",
+            target?.GameObjectId ?? 0,
+            target?.Address ?? 0);
+
         var snapshot = _reader.ReadSnapshot();
         if (snapshot is null)
         {
@@ -85,6 +93,45 @@ public sealed class TalkContextProbe : IDisposable
         LastResult = $"Event state 1 {Describe(snapshot.EventState1)}; {snapshot.Handlers.Count} matching handler(s). See the plugin log.";
     }
 
+    /// <summary>
+    /// Dumps the Talk addon's own strings and Param. If the game stores the row or
+    /// text key on the addon, this is where the id path gets it without guessing
+    /// which event handler is active.
+    /// </summary>
+    private unsafe void LogAddon(AddonArgs args)
+    {
+        try
+        {
+            var addon = args.GetAddonPointer<AtkUnitBase>();
+            if (addon is null)
+                return;
+
+            var talk = (AddonTalk*)addon;
+            _log.Info("Talk probe addon: param {Param}, strings: {Strings}.",
+                talk->Param,
+                string.Join(" | ", new[]
+                {
+                    DescribeString(talk->String268),
+                    DescribeString(talk->String2D0),
+                    DescribeString(talk->String338),
+                    DescribeString(talk->String408),
+                    DescribeString(talk->String470),
+                    DescribeString(talk->String4D8),
+                    DescribeString(talk->String540),
+                }));
+        }
+        catch (Exception ex)
+        {
+            _log.Debug(ex, "Talk probe addon read failed.");
+        }
+    }
+
+    private static string DescribeString(FFXIVClientStructs.FFXIV.Client.System.String.Utf8String value)
+    {
+        var text = value.ToString().Trim();
+        return text.Length == 0 ? "(empty)" : $"[{text.Length}] {text[..Math.Min(text.Length, 80)]}";
+    }
+
     private static string Describe(TalkEventState state)
         => state.EventId == 0
             ? "none"
@@ -97,6 +144,7 @@ public sealed class TalkContextProbe : IDisposable
 
         _log.Debug("Talk probe triggered by {Addon} {Event}.", args.AddonName, eventType);
         LogAtkValues(args);
+        LogAddon(args);
         LogCurrent();
     }
 
