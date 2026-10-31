@@ -125,8 +125,7 @@ public sealed class SelectionDialogHandler : IDisposable
                 CollectTextNodes(addon->UldManager.NodeList[i], 0);
         }
 
-        if (string.Equals(addonName, "CutSceneSelectString", StringComparison.Ordinal))
-            CollectCutSceneTextNodes(addon);
+        CollectTypedTextNodes(addonName, addon);
 
         var traceNodes = string.Equals(addonName, "CutSceneSelectString", StringComparison.Ordinal)
                          && _lateAttempts.GetValueOrDefault(addonName) <= 1;
@@ -168,17 +167,63 @@ public sealed class SelectionDialogHandler : IDisposable
         => _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
 
     /// <summary>
-    /// The cutscene dialog keeps its prompt and options in typed component fields,
-    /// not in the normal node tree. Add their text nodes to the scan.
+    /// Some dialogs keep their prompt and options in typed component fields, not
+    /// in the normal node tree. Add those text nodes to the scan.
     /// </summary>
-    private unsafe void CollectCutSceneTextNodes(AtkUnitBase* addon)
+    private unsafe void CollectTypedTextNodes(string addonName, AtkUnitBase* addon)
     {
-        var cutScene = (AddonCutSceneSelectString*)addon;
+        switch (addonName)
+        {
+            case "SelectYesno":
+            {
+                var yesNo = (AddonSelectYesno*)addon;
+                if (yesNo->PromptText is not null)
+                    AddNode(yesNo->PromptText);
 
-        if (cutScene->TextLabel is not null && cutScene->TextLabel->AtkTextNode is not null)
-            AddNode(cutScene->TextLabel->AtkTextNode);
+                AddButtonNode(yesNo->YesButton);
+                AddButtonNode(yesNo->NoButton);
+                AddButtonNode(yesNo->AtkComponentButton238);
+                break;
+            }
 
-        var list = cutScene->OptionList;
+            case "SelectOk":
+            {
+                var selectOk = (AddonSelectOk*)addon;
+                if (selectOk->PromptText is not null)
+                    AddNode(selectOk->PromptText);
+
+                AddButtonNode(selectOk->OkButton);
+                break;
+            }
+
+            case "SelectString":
+                AddListNodes(((AddonSelectString*)addon)->PopupMenu.PopupMenu.List);
+                break;
+
+            case "SelectIconString":
+                AddListNodes(((AddonSelectIconString*)addon)->PopupMenu.PopupMenu.List);
+                break;
+
+            case "CutSceneSelectString":
+            {
+                var cutScene = (AddonCutSceneSelectString*)addon;
+                if (cutScene->TextLabel is not null && cutScene->TextLabel->AtkTextNode is not null)
+                    AddNode(cutScene->TextLabel->AtkTextNode);
+
+                AddListNodes(cutScene->OptionList);
+                break;
+            }
+        }
+    }
+
+    private unsafe void AddButtonNode(AtkComponentButton* button)
+    {
+        if (button is not null && button->ButtonTextNode is not null)
+            AddNode(button->ButtonTextNode);
+    }
+
+    private unsafe void AddListNodes(AtkComponentList* list)
+    {
         if (list is null)
             return;
 
