@@ -526,7 +526,7 @@ public class TranslationStoreTests
         Assert.True(store.TryGetDialogue("I... I...", out var line));
         Assert.Equal("我，我是……", line);
         Assert.True(store.TryGetStyle(line, out var style));
-        Assert.Equal(0xF20223u, style.Foreground);
+        Assert.Equal((ushort)0x0223, style.ForegroundKey);
     }
 
     [Fact]

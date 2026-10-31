@@ -77,7 +77,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
-        _nativeTextWriter = new NativeTextWriter(GameGui, Log);
+        _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
