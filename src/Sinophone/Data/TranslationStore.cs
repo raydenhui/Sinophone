@@ -104,7 +104,8 @@ public sealed class TranslationStore
         // Second chances, only after a miss so the common line stays one hit. The
         // game fills in the player's name where the dumps have a placeholder, and
         // script lines from the English dump hold one gender's wording.
-        var alternate = MacroNormalizer.RestorePlayerNamePlaceholder(key, _playerName?.Invoke());
+        var playerName = _playerName?.Invoke();
+        var alternate = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
 
         if (!ReferenceEquals(alternate, key) && _textLookup.TryGetValue(alternate, out var restored))
         {
@@ -112,8 +113,21 @@ public sealed class TranslationStore
             return true;
         }
 
-        if (!TryLookupGenderNeutral(alternate, out var match))
+        // Some dumps write one "Player" instead of "Player Player".
+        var single = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(key, playerName);
+        if (!ReferenceEquals(single, key)
+            && !string.Equals(single, alternate, StringComparison.Ordinal)
+            && _textLookup.TryGetValue(single, out var singleRestored))
+        {
+            chineseText = ResolveDisplay(singleRestored);
+            return true;
+        }
+
+        if (!TryLookupGenderNeutral(alternate, out var match)
+            && !TryLookupGenderNeutral(single, out match))
+        {
             return false;
+        }
 
         chineseText = ResolveDisplay(match);
         return true;
