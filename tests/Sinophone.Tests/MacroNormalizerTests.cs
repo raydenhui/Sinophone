@@ -284,4 +284,20 @@ public class MacroNormalizerTests
 
         Assert.Equal("沒有參數。", actual);
     }
+
+    [Fact]
+    public void CleanForDisplay_StripsLeadingSpeakerAlias()
+    {
+        var actual = MacroNormalizer.CleanForDisplay("\r\n(-Pattin-)噗哈——！\r\n被发现了！");
+
+        Assert.Equal("噗哈——！\n被发现了！", actual);
+    }
+
+    [Fact]
+    public void CleanForDisplay_KeepsSpeakerLikeTextInsideTheLine()
+    {
+        var actual = MacroNormalizer.CleanForDisplay("He said (-Pattin-) is here.");
+
+        Assert.Equal("He said (-Pattin-) is here.", actual);
+    }
 }

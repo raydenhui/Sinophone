@@ -21,6 +21,9 @@ public static partial class MacroNormalizer
     [GeneratedRegex(@"IntegerParameter\((\d+)\)", RegexOptions.CultureInvariant)]
     private static partial Regex IntegerParameterPattern();
 
+    [GeneratedRegex(@"^\s*\(-[^)]*-\)", RegexOptions.CultureInvariant)]
+    private static partial Regex SpeakerPrefixPattern();
+
     /// <summary>
     /// The script dumps wrap italics in one asterisk and bold in two. The game draws
     /// the same emphasis, but its text node carries control codes, not asterisks, so
@@ -174,6 +177,11 @@ public static partial class MacroNormalizer
         cleaned = cleaned.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         cleaned = LineBreakPattern().Replace(cleaned, "\n");
         cleaned = ConditionalText.Resolve(cleaned, evaluate);
+
+        // The script dumps prefix some lines with a speaker alias such as
+        // "(-Pattin-)". The game draws that name in the speaker node, so it is
+        // metadata, not part of the dialogue the overlay should show.
+        cleaned = SpeakerPrefixPattern().Replace(cleaned, string.Empty);
 
         // Before the macro strip: that strip removes <Highlight> and </Highlight> but
         // leaves the parameter text between them sitting in the sentence.
