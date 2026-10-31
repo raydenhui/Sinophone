@@ -245,8 +245,8 @@ public sealed class TalkHandler : IDisposable
         if (!string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
             return;
 
-        _nativeWriter.Forget(TalkAddonName, NativeTextWriter.TalkNameNodeId);
-        _nativeWriter.Forget(TalkAddonName, NativeTextWriter.TalkTextNodeId);
+        _nativeWriter.ClearIfStillOurs(TalkAddonName, NativeTextWriter.TalkNameNodeId);
+        _nativeWriter.ClearIfStillOurs(TalkAddonName, NativeTextWriter.TalkTextNodeId);
     }
 
     /// <summary>
@@ -257,6 +257,8 @@ public sealed class TalkHandler : IDisposable
     {
         if (_configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(content.ChineseName))
             _nativeWriter.Write(TalkAddonName, NativeTextWriter.TalkNameNodeId, content.ChineseName);
+        else
+            _nativeWriter.ClearIfStillOurs(TalkAddonName, NativeTextWriter.TalkNameNodeId);
 
         return _nativeWriter.Write(TalkAddonName, NativeTextWriter.TalkTextNodeId, content.ChineseText);
     }

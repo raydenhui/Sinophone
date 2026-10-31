@@ -125,6 +125,31 @@ public sealed unsafe class NativeTextWriter
     public void Forget(string addonName, uint nodeId)
         => _saved.Remove((addonName, nodeId));
 
+    /// <summary>
+    /// Clears a node that still holds text from the previous line. If the game has
+    /// already replaced it with the current line's text, leave that text alone.
+    /// Used for a speaker name when the current line has no speaker.
+    /// </summary>
+    public bool ClearIfStillOurs(string addonName, uint nodeId)
+    {
+        var key = (addonName, nodeId);
+        if (!_saved.Remove(key, out var saved))
+            return false;
+
+        var node = GetNode(addonName, nodeId);
+        if (node is null)
+            return false;
+
+        if (!node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8))
+            return true;
+
+        node->SetText(string.Empty);
+        node->ResizeNodeForCurrentText();
+        _log.Debug("Native text: cleared stale text in {Addon} node {NodeId}.",
+            addonName, nodeId);
+        return true;
+    }
+
     /// <summary>Puts the game's own text back into one node.</summary>
     public void Restore(string addonName, uint nodeId)
     {
