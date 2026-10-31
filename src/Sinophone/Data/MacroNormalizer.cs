@@ -18,6 +18,9 @@ public static partial class MacroNormalizer
     [GeneratedRegex(@"ObjectParameter\((\d+)\)", RegexOptions.CultureInvariant)]
     private static partial Regex ObjectParameterPattern();
 
+    [GeneratedRegex(@"IntegerParameter\((\d+)\)", RegexOptions.CultureInvariant)]
+    private static partial Regex IntegerParameterPattern();
+
     /// <summary>
     /// The script dumps wrap italics in one asterisk and bold in two. The game draws
     /// the same emphasis, but its text node carries control codes, not asterisks, so
@@ -86,6 +89,27 @@ public static partial class MacroNormalizer
 
             return string.Empty;
         });
+
+    /// <summary>
+    /// Replaces <c>IntegerParameter(n)</c> left in stored text after macro
+    /// stripping. The values come from the addon's numeric AtkValues. A missing
+    /// value is removed rather than shown as the macro name.
+    /// </summary>
+    public static string ResolveIntegerParameters(string? text, IReadOnlyList<int>? parameters)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains("IntegerParameter(", StringComparison.Ordinal))
+            return text ?? string.Empty;
+
+        return IntegerParameterPattern().Replace(text, match =>
+        {
+            if (!int.TryParse(match.Groups[1].Value, out var index) || parameters is null)
+                return string.Empty;
+
+            return index > 0 && index <= parameters.Count
+                ? parameters[index - 1].ToString()
+                : string.Empty;
+        });
+    }
 
     /// <summary>
     /// Normalizes text for use as a dictionary key. All whitespace, including
