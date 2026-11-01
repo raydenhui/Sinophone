@@ -17,14 +17,12 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
-    [PluginService] public static IGameInteropProvider GameInterop { get; private set; } = null!;
 
     private readonly Configuration _configuration;
     private readonly WindowSystem _windowSystem = new("Sinophone");
     private readonly FontManager _fontManager;
     private readonly OverlayWindow _overlay;
     private readonly NativeTextWriter _nativeTextWriter;
-    private readonly AddonTextParameterCapture _addonTextCapture;
     private readonly TargetNameWindow _targetNameWindow;
     private readonly ItemNameWindow _itemNameWindow;
     private readonly ConfigWindow _configWindow;
@@ -80,7 +78,6 @@ public sealed class Plugin : IDalamudPlugin
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
-        _addonTextCapture = new AddonTextParameterCapture(GameInterop, Log);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
@@ -486,7 +483,6 @@ public sealed class Plugin : IDalamudPlugin
         _nativeProbe.Dispose();
         _talkContextProbe.Dispose();
 #endif
-        _addonTextCapture.Dispose();
         _selectionDialogHandler.Dispose();
         _talkHandler.Dispose();
         _targetNameHandler.Dispose();

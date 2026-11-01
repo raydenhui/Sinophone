@@ -47,7 +47,6 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly List<nint> _nodes = [];
     private readonly Dictionary<string, List<nint>> _translated = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
-    private nint _tracedAddon;
 
     private bool _disposed;
 
@@ -121,8 +120,6 @@ public sealed class SelectionDialogHandler : IDisposable
         if (addon is null)
             return;
 
-        TraceAddonValues(addonName, addon);
-
         _nodes.Clear();
 
         // Most addons expose their text under RootNode, but the cutscene selection
@@ -176,54 +173,6 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private unsafe AtkUnitBase* GetAddon(string addonName)
         => _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
-
-    /// <summary>
-    /// Development trace for issue #90. Logs the typed AtkValues once per dialog so
-    /// we can map the prompt parameters to game data instead of parsing the text.
-    /// </summary>
-    private unsafe void TraceAddonValues(string addonName, AtkUnitBase* addon)
-    {
-        var address = (nint)addon;
-        if (_tracedAddon == address)
-            return;
-
-        _tracedAddon = address;
-        var values = addon->AtkValues;
-        var count = addon->AtkValuesCount;
-        if (values is null || count == 0)
-        {
-            _log.Debug("{Addon} AtkValues: none.", addonName);
-            return;
-        }
-
-        _log.Debug("{Addon} AtkValues: {Count}.", addonName, count);
-        for (uint i = 0; i < count; i++)
-        {
-            ref var value = ref values[i];
-            switch (value.Type)
-            {
-                case AtkValueType.Int:
-                    _log.Debug("  {Addon} AtkValue[{Index}] Int: {Value}", addonName, i, value.Int);
-                    break;
-                case AtkValueType.UInt:
-                    _log.Debug("  {Addon} AtkValue[{Index}] UInt: {Value}", addonName, i, value.UInt);
-                    break;
-                case AtkValueType.Bool:
-                    _log.Debug("  {Addon} AtkValue[{Index}] Bool: {Value}", addonName, i, value.Byte != 0);
-                    break;
-                case AtkValueType.String:
-                case AtkValueType.ManagedString:
-                    var text = value.String.HasValue
-                        ? MemoryHelper.ReadSeStringAsString(out _, (nint)value.String.Value, 8192, false, string.Empty)
-                        : string.Empty;
-                    _log.Debug("  {Addon} AtkValue[{Index}] String: {Text}", addonName, i, text);
-                    break;
-                default:
-                    _log.Debug("  {Addon} AtkValue[{Index}] {Type}.", addonName, i, value.Type);
-                    break;
-            }
-        }
-    }
 
     /// <summary>
     /// Some dialogs keep their prompt and options in typed component fields, not
@@ -390,7 +339,6 @@ public sealed class SelectionDialogHandler : IDisposable
     private void ForgetTracked(string addonName)
     {
         _lateAttempts.Remove(addonName);
-        _tracedAddon = 0;
 
         if (!_translated.Remove(addonName, out var addresses))
             return;

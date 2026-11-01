@@ -323,12 +323,6 @@ public sealed class TranslationStore
             return false;
 
         chineseText = ResolveDisplay(stored);
-        if (key.Contains("Bed", StringComparison.OrdinalIgnoreCase)
-            || key.Contains("Patch", StringComparison.OrdinalIgnoreCase))
-        {
-            _log?.Debug("Addon label matched: {Key} -> {Chinese}", key, chineseText);
-        }
-
         return true;
     }
 
@@ -575,13 +569,6 @@ public sealed class TranslationStore
                         if (key.Length == 0)
                             continue;
 
-                        if (descriptor.Name == "Addon"
-                            && (rowId == 6420 || rowId == 6413)
-                            && v == 0)
-                        {
-                            log.Debug("Addon {RowId} English: {Text}", rowId, variants[v]);
-                        }
-
                         if (target.TryAdd(key, display))
                             indexedSlots++;
 
@@ -594,13 +581,6 @@ public sealed class TranslationStore
                                 && parameterized.TryBuildTemplate(rowId, out var parameterTemplate)
                                 && _addonTemplateKeys.Add(parameterTemplate.Template))
                             {
-                                if (rowId == 6420)
-                                {
-                                    log.Debug("Addon 6420 parameter template: {Template} indices: {Indices}",
-                                        parameterTemplate.Template,
-                                        string.Join(",", parameterTemplate.ParameterIndices));
-                                }
-
                                 _addonTemplates.Add((
                                     parameterTemplate.Template,
                                     chineseSlots[i],
