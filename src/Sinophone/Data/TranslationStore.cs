@@ -579,6 +579,7 @@ public sealed class TranslationStore
 
                             if (descriptor is IParameterizedTemplateDescriptor parameterized
                                 && parameterized.TryBuildTemplate(rowId, out var parameterTemplate)
+                                && ScriptTextTemplate.LiteralLength(parameterTemplate.Template) >= 4
                                 && _addonTemplateKeys.Add(parameterTemplate.Template))
                             {
                                 _addonTemplates.Add((
