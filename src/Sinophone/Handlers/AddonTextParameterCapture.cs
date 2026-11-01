@@ -19,6 +19,8 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
     private readonly Hook<RaptureTextModule.Delegates.FormatAddonText2IntIntUInt> _twoIntIntUInt;
     private readonly Hook<RaptureTextModule.Delegates.FormatAddonText1IntIntUInt> _oneIntIntUInt;
     private readonly Hook<RaptureTextModule.Delegates.FormatAddonTextApply> _apply;
+    private readonly Hook<RaptureTextModule.Delegates.GetAddonText> _getAddonText;
+    private bool _logged6420;
 
     public AddonTextParameterCapture(IGameInteropProvider hooks, IPluginLog log)
     {
@@ -34,12 +36,15 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
             RaptureTextModule.Addresses.FormatAddonText1IntIntUInt.Value, DetourOneIntIntUInt);
         _apply = hooks.HookFromAddress<RaptureTextModule.Delegates.FormatAddonTextApply>(
             RaptureTextModule.Addresses.FormatAddonTextApply.Value, DetourApply);
+        _getAddonText = hooks.HookFromAddress<RaptureTextModule.Delegates.GetAddonText>(
+            RaptureTextModule.Addresses.GetAddonText.Value, DetourGetAddonText);
 
         _twoInt.Enable();
         _twoIntInt.Enable();
         _twoIntIntUInt.Enable();
         _oneIntIntUInt.Enable();
         _apply.Enable();
+        _getAddonText.Enable();
     }
 
     private CStringPointer DetourTwoInt(RaptureTextModule* module, uint addonId, int value)
@@ -66,6 +71,17 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
     {
         Log(addonId, value1, value2, (int)value3);
         return _oneIntIntUInt.Original(module, addonId, value1, value2, value3);
+    }
+
+    private CStringPointer DetourGetAddonText(RaptureTextModule* module, uint addonId)
+    {
+        if (addonId == 6420 && !_logged6420)
+        {
+            _logged6420 = true;
+            _log.Debug("GetAddonText(6420) call stack: {Stack}", Environment.StackTrace);
+        }
+
+        return _getAddonText.Original(module, addonId);
     }
 
     private CStringPointer DetourApply(
@@ -109,5 +125,6 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
         _twoIntIntUInt.Dispose();
         _oneIntIntUInt.Dispose();
         _apply.Dispose();
+        _getAddonText.Dispose();
     }
 }
