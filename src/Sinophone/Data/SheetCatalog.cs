@@ -24,20 +24,39 @@ public interface ISheetDescriptor
 }
 
 /// <summary>
+/// Optional descriptor support for Addon rows whose raw SeString keeps the
+/// IntegerParameter / StringParameter macro indices.
+/// </summary>
+public interface IParameterizedTemplateDescriptor
+{
+    bool TryBuildTemplate(uint rowId, out AddonParameterTemplate template);
+}
+
+public sealed record AddonParameterTemplate(string Template, int[] ParameterIndices);
+
+/// <summary>
 /// Typed implementation of <see cref="ISheetDescriptor"/> bound to one Lumina sheet.
 /// </summary>
 public sealed class SheetDescriptor<T> : ISheetDescriptor where T : struct, IExcelRow<T>
 {
     private readonly ExcelSheet<T>? _sheet;
     private readonly Func<T, IReadOnlyList<IReadOnlyList<string>>> _extract;
+    private readonly Func<T, ReadOnlySeString>? _templateSource;
 
-    public SheetDescriptor(string name, string fieldName, bool isNameSheet, ExcelSheet<T>? sheet, Func<T, IReadOnlyList<IReadOnlyList<string>>> extract)
+    public SheetDescriptor(
+        string name,
+        string fieldName,
+        bool isNameSheet,
+        ExcelSheet<T>? sheet,
+        Func<T, IReadOnlyList<IReadOnlyList<string>>> extract,
+        Func<T, ReadOnlySeString>? templateSource = null)
     {
         Name = name;
         FieldName = fieldName;
         IsNameSheet = isNameSheet;
         _sheet = sheet;
         _extract = extract;
+        _templateSource = templateSource;
     }
 
     public string Name { get; }
@@ -45,6 +64,20 @@ public sealed class SheetDescriptor<T> : ISheetDescriptor where T : struct, IExc
     public string FieldName { get; }
 
     public bool IsNameSheet { get; }
+
+    public bool TryBuildTemplate(uint rowId, out AddonParameterTemplate template)
+    {
+        template = null!;
+
+        if (_templateSource is null || _sheet is null)
+            return false;
+
+        var row = _sheet.GetRowOrDefault(rowId);
+        if (row is null)
+            return false;
+
+        return AddonParameterTemplateFactory.TryBuild(_templateSource(row.Value).AsSpan(), out template);
+    }
 
     public bool TryExtract(uint rowId, out IReadOnlyList<IReadOnlyList<string>> texts)
     {
@@ -139,7 +172,8 @@ public static class SheetCatalog
             static row => ExtractSingle(row.Unknown0));
 
         Add<Addon>(dataManager, descriptors, "Addon", "Text", false,
-            static row => ExtractSingle(row.Text));
+            static row => ExtractSingle(row.Text),
+            static row => row.Text);
 
         Add<MKDLore>(dataManager, descriptors, "MKDLore", "Name", true,
             static row => ExtractSingle(row.Name));
@@ -160,11 +194,18 @@ public static class SheetCatalog
         return descriptors;
     }
 
-    private static void Add<T>(IDataManager dataManager, List<ISheetDescriptor> descriptors, string name, string fieldName, bool isNameSheet, Func<T, IReadOnlyList<IReadOnlyList<string>>> extract)
+    private static void Add<T>(
+        IDataManager dataManager,
+        List<ISheetDescriptor> descriptors,
+        string name,
+        string fieldName,
+        bool isNameSheet,
+        Func<T, IReadOnlyList<IReadOnlyList<string>>> extract,
+        Func<T, ReadOnlySeString>? templateSource = null)
         where T : struct, IExcelRow<T>
     {
         var sheet = dataManager.GetExcelSheet<T>();
-        descriptors.Add(new SheetDescriptor<T>(name, fieldName, isNameSheet, sheet, extract));
+        descriptors.Add(new SheetDescriptor<T>(name, fieldName, isNameSheet, sheet, extract, templateSource));
     }
 
     private static IReadOnlyList<IReadOnlyList<string>> ExtractSingle(ReadOnlySeString value)

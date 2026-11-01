@@ -422,9 +422,9 @@ public sealed class SelectionDialogHandler : IDisposable
         if (store.TryGetDialogue(text, out chinese))
             return true;
 
-        if (store.TryGetAddonText(plainText, out var addonText, out var captures))
+        if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices))
         {
-            chinese = ResolveAddonText(addonText, plainText, captures, store);
+            chinese = ResolveAddonText(addonText, plainText, captures, store, parameterIndices);
             return chinese.Length > 0;
         }
 
@@ -458,13 +458,32 @@ public sealed class SelectionDialogHandler : IDisposable
         string chinese,
         string liveEnglish,
         IReadOnlyList<string>? captures = null,
-        TranslationStore? store = null)
+        TranslationStore? store = null,
+        IReadOnlyList<int>? parameterIndices = null)
     {
         var questName = QuotedText.Match(liveEnglish).Groups[1].Value;
         var level = EnglishLevel.Match(liveEnglish).Groups[1].Value;
         var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
 
         var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
+
+        if (parameterIndices is not null && captures is not null)
+        {
+            var count = Math.Min(parameterIndices.Count, captures.Count);
+            for (var i = 0; i < count; i++)
+            {
+                var index = parameterIndices[i];
+                if (index <= 0)
+                    continue;
+
+                var captured = captures[i];
+                resolved = resolved.Replace($"StringParameter({index})", captured, StringComparison.Ordinal);
+                var number = Regex.Match(captured, @"\d+");
+                if (number.Success)
+                    resolved = resolved.Replace($"IntegerParameter({index})", number.Value, StringComparison.Ordinal);
+            }
+        }
+
         resolved = QuestBattleLevel.Replace(resolved, level);
         resolved = Regex.Replace(resolved, @"StringParameter\(1\)", questName);
         if (level.Length > 0)

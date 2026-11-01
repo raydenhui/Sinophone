@@ -33,7 +33,7 @@ public sealed class TranslationStore
     /// </summary>
     private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
-    private readonly List<(string Template, string Chinese)> _addonTemplates = [];
+    private readonly List<(string Template, string Chinese, int[]? ParameterIndices)> _addonTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -333,37 +333,42 @@ public sealed class TranslationStore
     }
 
     /// <summary>
-    /// Resolves an Addon-sheet prompt that contains runtime UNKNOWN placeholders.
-    /// Returns the stored Chinese raw text; the caller fills its parameters.
+    /// Resolves an Addon-sheet prompt that contains runtime placeholders.
     /// </summary>
     public bool TryGetAddonText(string? englishText, out string chineseText)
-        => TryGetAddonText(englishText, out chineseText, out _);
+        => TryGetAddonText(englishText, out chineseText, out _, out _);
+
+    public bool TryGetAddonText(
+        string? englishText,
+        out string chineseText,
+        out string[] captures)
+        => TryGetAddonText(englishText, out chineseText, out captures, out _);
 
     /// <summary>
-    /// Resolves an Addon-sheet prompt and returns the text captured by its wildcard
-    /// placeholders. Callers can use the captures to fill stored item or level text.
+    /// Resolves an Addon-sheet prompt and returns the captured values plus the
+    /// IntegerParameter / StringParameter indices that produced them.
     /// </summary>
-    public bool TryGetAddonText(string? englishText, out string chineseText, out string[] captures)
+    public bool TryGetAddonText(
+        string? englishText,
+        out string chineseText,
+        out string[] captures,
+        out int[]? parameterIndices)
     {
         chineseText = string.Empty;
         captures = [];
+        parameterIndices = null;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0 || _addonTemplates.Count == 0)
             return false;
 
-        foreach (var (template, chinese) in _addonTemplates)
+        foreach (var (template, chinese, indices) in _addonTemplates)
         {
             if (!ScriptTextTemplate.TryMatch(template, key, out captures))
                 continue;
 
             chineseText = chinese;
-            if (key.Contains("Bed", StringComparison.OrdinalIgnoreCase)
-                || key.Contains("Patch", StringComparison.OrdinalIgnoreCase))
-            {
-                _log?.Debug("Addon template matched: {Key} -> {Chinese}", key, chineseText);
-            }
-
+            parameterIndices = indices;
             return true;
         }
 
@@ -584,6 +589,16 @@ public sealed class TranslationStore
                             && !descriptor.IsNameSheet)
                         {
                             _addonLookup.TryAdd(key, display);
+
+                            if (descriptor is IParameterizedTemplateDescriptor parameterized
+                                && parameterized.TryBuildTemplate(rowId, out var parameterTemplate)
+                                && _addonTemplateKeys.Add(parameterTemplate.Template))
+                            {
+                                _addonTemplates.Add((
+                                    parameterTemplate.Template,
+                                    chineseSlots[i],
+                                    parameterTemplate.ParameterIndices));
+                            }
                         }
 
                         if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
@@ -593,7 +608,7 @@ public sealed class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(template) >= 4
                                 && _addonTemplateKeys.Add(template))
                             {
-                                _addonTemplates.Add((template, chineseSlots[i]));
+                                _addonTemplates.Add((template, chineseSlots[i], null));
                             }
 
                             var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
@@ -601,7 +616,7 @@ public sealed class TranslationStore
                                 && !string.Equals(loose, template, StringComparison.Ordinal)
                                 && _addonTemplateKeys.Add(loose))
                             {
-                                _addonTemplates.Add((loose, chineseSlots[i]));
+                                _addonTemplates.Add((loose, chineseSlots[i], null));
                             }
 
                             // A prompt with several lines can change which detail
@@ -616,7 +631,7 @@ public sealed class TranslationStore
                                 if (ScriptTextTemplate.LiteralLength(prefix) >= 4
                                     && _addonTemplateKeys.Add(prefix))
                                 {
-                                    _addonTemplates.Add((prefix, chineseSlots[i]));
+                                    _addonTemplates.Add((prefix, chineseSlots[i], null));
                                 }
                             }
                         }
@@ -630,7 +645,7 @@ public sealed class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(wordTemplate) >= 4
                                 && _addonTemplateKeys.Add(wordTemplate))
                             {
-                                _addonTemplates.Add((wordTemplate, chineseSlots[i]));
+                                _addonTemplates.Add((wordTemplate, chineseSlots[i], null));
                             }
                         }
                     }
