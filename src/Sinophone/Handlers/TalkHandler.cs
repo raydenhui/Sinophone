@@ -317,6 +317,11 @@ public sealed class TalkHandler : IDisposable
         if (chinese.Length == 0)
             return english;
 
+        // A masked name such as "???" is intentional. Do not reveal the English
+        // name next to it.
+        if (chinese.All(static ch => ch is '?' or '？'))
+            return chinese;
+
         if (english.Length == 0 || string.Equals(chinese, english, StringComparison.Ordinal))
             return chinese;
 

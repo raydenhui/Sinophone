@@ -36,6 +36,8 @@ public class TalkHandlerTests
     [InlineData("阿莉塞", null, "阿莉塞")]
     [InlineData(null, "Alisaie", "Alisaie")]
     [InlineData("阿莉塞", "阿莉塞", "阿莉塞")]
+    [InlineData("???", "Mysterious Voice", "???")]
+    [InlineData("？？？", "Mysterious Voice", "？？？")]
     public void FormatSpeakerName_ShowsBothNames(string? chinese, string? english, string expected)
         => Assert.Equal(expected, TalkHandler.FormatSpeakerName(chinese, english));
 
