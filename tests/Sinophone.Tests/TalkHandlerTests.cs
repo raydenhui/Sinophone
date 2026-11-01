@@ -29,6 +29,18 @@ public class TalkHandlerTests
         Assert.Equal("Plain line.", text);
     }
 
+    [Theory]
+    [InlineData("阿莉塞", "Alisaie", "阿莉塞 (Alisaie)")]
+    [InlineData("", "Alisaie", "Alisaie")]
+    [InlineData("阿莉塞", "", "阿莉塞")]
+    [InlineData("阿莉塞", null, "阿莉塞")]
+    [InlineData(null, "Alisaie", "Alisaie")]
+    [InlineData("阿莉塞", "阿莉塞", "阿莉塞")]
+    [InlineData("???", "Mysterious Voice", "???")]
+    [InlineData("？？？", "Mysterious Voice", "？？？")]
+    public void FormatSpeakerName_ShowsBothNames(string? chinese, string? english, string expected)
+        => Assert.Equal(expected, TalkHandler.FormatSpeakerName(chinese, english));
+
     private static byte[] BuildEmphasizedText()
     {
         var bytes = new List<byte>();
