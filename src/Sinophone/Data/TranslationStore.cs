@@ -594,6 +594,13 @@ public sealed class TranslationStore
                                 && parameterized.TryBuildTemplate(rowId, out var parameterTemplate)
                                 && _addonTemplateKeys.Add(parameterTemplate.Template))
                             {
+                                if (rowId == 6420)
+                                {
+                                    log.Debug("Addon 6420 parameter template: {Template} indices: {Indices}",
+                                        parameterTemplate.Template,
+                                        string.Join(",", parameterTemplate.ParameterIndices));
+                                }
+
                                 _addonTemplates.Add((
                                     parameterTemplate.Template,
                                     chineseSlots[i],
