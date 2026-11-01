@@ -112,6 +112,8 @@ public static class SheetCatalog
 
         Add<DefaultTalk>(dataManager, descriptors, "DefaultTalk", "Text", false,
             static row => ExtractCollection(row.Text));
+        Add<Warp>(dataManager, descriptors, "Warp", "Question", false,
+            static row => ExtractSingle(row.Question));
         Add<Balloon>(dataManager, descriptors, "Balloon", "Dialogue", false,
             static row => ExtractSingle(row.Dialogue));
         Add<NpcYell>(dataManager, descriptors, "NpcYell", "Text", false,

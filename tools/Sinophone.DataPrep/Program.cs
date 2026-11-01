@@ -103,6 +103,7 @@ internal static class Program
     private static readonly SheetSpec[] Sheets =
     [
         new("DefaultTalk", "Text", ["Text[0]", "Text[1]", "Text[2]"]),
+        new("Warp", "Question", ["Question"]),
         new("Balloon", "Dialogue", ["Dialogue"]),
         // The CN/TC NpcYell header calls column 12 "Text", but the row's text is
         // column 14. Read it by position so rows do not pick up a nearby flag value.
