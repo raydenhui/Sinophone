@@ -579,7 +579,9 @@ public sealed class TranslationStore
 
                             if (descriptor is IParameterizedTemplateDescriptor parameterized
                                 && parameterized.TryBuildTemplate(rowId, out var parameterTemplate)
-                                && ScriptTextTemplate.LiteralLength(parameterTemplate.Template) >= 4
+                                // "Enter ?" is only 7 literal characters and would match
+                                // unrelated prompts such as "Enter the estate hall?".
+                                && ScriptTextTemplate.LiteralLength(parameterTemplate.Template) >= 10
                                 && _addonTemplateKeys.Add(parameterTemplate.Template))
                             {
                                 _addonTemplates.Add((
