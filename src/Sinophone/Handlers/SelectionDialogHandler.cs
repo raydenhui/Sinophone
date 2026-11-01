@@ -462,6 +462,17 @@ public sealed class SelectionDialogHandler : IDisposable
             resolved = resolved.Replace($"IntegerParameter({i + 1})", numbers[i], StringComparison.Ordinal);
         resolved = Regex.Replace(resolved, @"IntegerParameter(\d+)", string.Empty);
 
+        // If a required parameter could not be filled, do not show a broken
+        // Chinese prompt. Leaving the original English is safer.
+        if (resolved.Contains("IntegerParameter(", StringComparison.Ordinal)
+            || resolved.Contains("StringParameter(", StringComparison.Ordinal)
+            || resolved.Contains("PlayerParameter(", StringComparison.Ordinal)
+            || resolved.Contains("TopLevelParameter(", StringComparison.Ordinal)
+            || resolved.Contains("<Sheet(", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
         // These private-use characters are UI icons, not text.
         resolved = resolved.Replace("", string.Empty, StringComparison.Ordinal)
             .Replace("", string.Empty, StringComparison.Ordinal);

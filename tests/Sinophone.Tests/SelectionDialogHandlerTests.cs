@@ -79,6 +79,14 @@ public class SelectionDialogHandlerTests
     }
 
     [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenParameterIsStillMissing()
+    {
+        const string chinese = "「」×IntegerParameter(2)需要提交軍票。";
+
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(chinese, "Exchange 430 MGC for the following item?"));
+    }
+
+    [Fact]
     public void ResolveAddonText_FillsItemNamesAcrossLineBreaks()
     {
         const string chinese =
