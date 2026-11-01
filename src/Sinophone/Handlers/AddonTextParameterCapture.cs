@@ -1,5 +1,7 @@
 using Dalamud.Hooking;
 using InteropGenerator.Runtime;
+using FFXIVClientStructs.FFXIV.Component.Text;
+using FFXIVClientStructs.STD;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 
@@ -16,6 +18,7 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
     private readonly Hook<RaptureTextModule.Delegates.FormatAddonText2IntInt> _twoIntInt;
     private readonly Hook<RaptureTextModule.Delegates.FormatAddonText2IntIntUInt> _twoIntIntUInt;
     private readonly Hook<RaptureTextModule.Delegates.FormatAddonText1IntIntUInt> _oneIntIntUInt;
+    private readonly Hook<RaptureTextModule.Delegates.FormatAddonTextApply> _apply;
 
     public AddonTextParameterCapture(IGameInteropProvider hooks, IPluginLog log)
     {
@@ -29,11 +32,14 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
             RaptureTextModule.Addresses.FormatAddonText2IntIntUInt.Value, DetourTwoIntIntUInt);
         _oneIntIntUInt = hooks.HookFromAddress<RaptureTextModule.Delegates.FormatAddonText1IntIntUInt>(
             RaptureTextModule.Addresses.FormatAddonText1IntIntUInt.Value, DetourOneIntIntUInt);
+        _apply = hooks.HookFromAddress<RaptureTextModule.Delegates.FormatAddonTextApply>(
+            RaptureTextModule.Addresses.FormatAddonTextApply.Value, DetourApply);
 
         _twoInt.Enable();
         _twoIntInt.Enable();
         _twoIntIntUInt.Enable();
         _oneIntIntUInt.Enable();
+        _apply.Enable();
     }
 
     private CStringPointer DetourTwoInt(RaptureTextModule* module, uint addonId, int value)
@@ -62,6 +68,32 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
         return _oneIntIntUInt.Original(module, addonId, value1, value2, value3);
     }
 
+    private CStringPointer DetourApply(
+        RaptureTextModule* module,
+        uint addonId,
+        RaptureTextModule.FormatAddonTextApplyMode mode,
+        StdDeque<TextParameter>* localParameters,
+        FFXIVClientStructs.FFXIV.Client.System.String.Utf8String* formatBuffer,
+        FFXIVClientStructs.FFXIV.Client.System.String.Utf8String* normalizationBuffer)
+    {
+        if (addonId is >= 6000 and <= 7000 && localParameters is not null && localParameters->Count > 0)
+        {
+            var values = new List<string>(localParameters->Count);
+            for (var i = 0; i < localParameters->Count; i++)
+            {
+                ref var parameter = ref (*localParameters)[i];
+                values.Add(parameter.Type == TextParameterType.Integer
+                    ? parameter.IntValue.ToString()
+                    : parameter.Type.ToString());
+            }
+
+            _log.Debug("Addon text apply {AddonId} mode {Mode}: {Values}",
+                addonId, mode, string.Join(", ", values));
+        }
+
+        return _apply.Original(module, addonId, mode, localParameters, formatBuffer, normalizationBuffer);
+    }
+
     private void Log(uint addonId, params int[] values)
     {
         // Narrow the trace to the Addon-sheet range around the garden prompt while
@@ -76,5 +108,6 @@ public sealed unsafe class AddonTextParameterCapture : IDisposable
         _twoIntInt.Dispose();
         _twoIntIntUInt.Dispose();
         _oneIntIntUInt.Dispose();
+        _apply.Dispose();
     }
 }
