@@ -122,4 +122,15 @@ public class ScriptTextTemplateTests
 
         Assert.True(ScriptTextTemplate.Matches(template, MacroNormalizer.NormalizeKey(live)));
     }
+
+    [Fact]
+    public void BuildWordGapTemplate_MatchesFilledAddonPrompt()
+    {
+        var template = ScriptTextTemplate.BuildWordGapTemplate("Prepare the bed with  and ?");
+        var live = MacroNormalizer.NormalizeKey(
+            "Prepare the bed with a bag of grade 3 Thanalan topsoil and a bag of voidrake seeds?");
+
+        Assert.True(ScriptTextTemplate.TryMatch(template, live, out var captures), template + " | " + live);
+        Assert.NotEmpty(captures);
+    }
 }

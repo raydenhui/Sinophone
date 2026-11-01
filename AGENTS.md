@@ -187,6 +187,9 @@ Comments explain why, not what. The code already says what it does.
 
 **Never**
 
+- Add a prompt-specific rule. Prefer a general rule that applies to all text, including
+  conditionals, item names, and text effects. If a prompt-specific rule is the only solution,
+  ask the developer before working on it.
 - Commit full translation artifacts or other large generated files.
 - Hand-edit a generated file. Change the generator instead.
 - Rewrite a whole file to make a small change. See the next section.

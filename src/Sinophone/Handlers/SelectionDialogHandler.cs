@@ -47,7 +47,6 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly List<nint> _nodes = [];
     private readonly Dictionary<string, List<nint>> _translated = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
-    private nint _tracedSelectYesno;
 
     private bool _disposed;
 
@@ -121,9 +120,6 @@ public sealed class SelectionDialogHandler : IDisposable
         if (addon is null)
             return;
 
-        if (string.Equals(addonName, "SelectYesno", StringComparison.Ordinal))
-            TraceSelectYesnoValues(addon);
-
         _nodes.Clear();
 
         // Most addons expose their text under RootNode, but the cutscene selection
@@ -151,7 +147,7 @@ public sealed class SelectionDialogHandler : IDisposable
             if (nodeId == 0 || _nativeWriter.IsStillOursAt(addonName, nodeAddress))
                 continue;
 
-            var source = node->NodeText.ToString();
+            var source = TalkHandler.ExtractPlainText(node->NodeText.AsSpan());
             if (string.IsNullOrWhiteSpace(source))
                 continue;
 
@@ -177,54 +173,6 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private unsafe AtkUnitBase* GetAddon(string addonName)
         => _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
-
-    /// <summary>
-    /// Development trace for issue #90. Logs the typed AtkValues once per dialog so
-    /// we can map the prompt parameters to game data instead of parsing the text.
-    /// </summary>
-    private unsafe void TraceSelectYesnoValues(AtkUnitBase* addon)
-    {
-        var address = (nint)addon;
-        if (_tracedSelectYesno == address)
-            return;
-
-        _tracedSelectYesno = address;
-        var values = addon->AtkValues;
-        var count = addon->AtkValuesCount;
-        if (values is null || count == 0)
-        {
-            _log.Debug("SelectYesno AtkValues: none.");
-            return;
-        }
-
-        _log.Debug("SelectYesno AtkValues: {Count}.", count);
-        for (uint i = 0; i < count; i++)
-        {
-            ref var value = ref values[i];
-            switch (value.Type)
-            {
-                case AtkValueType.Int:
-                    _log.Debug("  SelectYesno AtkValue[{Index}] Int: {Value}", i, value.Int);
-                    break;
-                case AtkValueType.UInt:
-                    _log.Debug("  SelectYesno AtkValue[{Index}] UInt: {Value}", i, value.UInt);
-                    break;
-                case AtkValueType.Bool:
-                    _log.Debug("  SelectYesno AtkValue[{Index}] Bool: {Value}", i, value.Byte != 0);
-                    break;
-                case AtkValueType.String:
-                case AtkValueType.ManagedString:
-                    var text = value.String.HasValue
-                        ? MemoryHelper.ReadSeStringAsString(out _, (nint)value.String.Value, 8192, false, string.Empty)
-                        : string.Empty;
-                    _log.Debug("  SelectYesno AtkValue[{Index}] String: {Text}", i, text);
-                    break;
-                default:
-                    _log.Debug("  SelectYesno AtkValue[{Index}] {Type}.", i, value.Type);
-                    break;
-            }
-        }
-    }
 
     /// <summary>
     /// Some dialogs keep their prompt and options in typed component fields, not
@@ -391,7 +339,6 @@ public sealed class SelectionDialogHandler : IDisposable
     private void ForgetTracked(string addonName)
     {
         _lateAttempts.Remove(addonName);
-        _tracedSelectYesno = 0;
 
         if (!_translated.Remove(addonName, out var addresses))
             return;
@@ -412,15 +359,20 @@ public sealed class SelectionDialogHandler : IDisposable
         if (string.IsNullOrWhiteSpace(text))
             return false;
 
-        if (store.TryGetAddonLabel(text, out chinese))
-            return true;
+        var plainText = MacroNormalizer.CleanForDisplay(text);
+
+        if (store.TryGetAddonLabel(plainText, out var addonLabel))
+        {
+            chinese = ResolveAddonText(addonLabel, plainText);
+            return chinese.Length > 0;
+        }
 
         if (store.TryGetDialogue(text, out chinese))
             return true;
 
-        if (store.TryGetAddonText(text, out var addonText))
+        if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices))
         {
-            chinese = ResolveAddonText(addonText, text);
+            chinese = ResolveAddonText(addonText, plainText, captures, store, parameterIndices);
             return chinese.Length > 0;
         }
 
@@ -450,22 +402,128 @@ public sealed class SelectionDialogHandler : IDisposable
     /// Fills the parameters in an Addon-sheet prompt from the live English text.
     /// The sheet stores UNKNOWN where the game puts the quest name and levels.
     /// </summary>
-    internal static string ResolveAddonText(string chinese, string liveEnglish)
+    internal static string ResolveAddonText(
+        string chinese,
+        string liveEnglish,
+        IReadOnlyList<string>? captures = null,
+        TranslationStore? store = null,
+        IReadOnlyList<int>? parameterIndices = null)
     {
         var questName = QuotedText.Match(liveEnglish).Groups[1].Value;
         var level = EnglishLevel.Match(liveEnglish).Groups[1].Value;
         var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
 
-        var resolved = QuestBattleLevel.Replace(chinese, level);
+        var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
+
+        if (parameterIndices is not null && captures is not null)
+        {
+            var count = Math.Min(parameterIndices.Count, captures.Count);
+            for (var i = 0; i < count; i++)
+            {
+                var index = parameterIndices[i];
+                if (index <= 0)
+                    continue;
+
+                var captured = captures[i];
+                resolved = resolved.Replace($"StringParameter({index})", captured, StringComparison.Ordinal);
+                var number = Regex.Match(captured, @"\d+");
+                if (number.Success)
+                    resolved = resolved.Replace($"IntegerParameter({index})", number.Value, StringComparison.Ordinal);
+            }
+        }
+
+        resolved = QuestBattleLevel.Replace(resolved, level);
         resolved = Regex.Replace(resolved, @"StringParameter\(1\)", questName);
-        resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
-        resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
+        if (level.Length > 0)
+            resolved = Regex.Replace(resolved, @"IntegerParameter\(2\)", level);
+        if (itemLevel.Length > 0)
+            resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
+
+        // Addon rows such as "Garden n: Patch n" use the first two integer
+        // parameters. Fill them from the numbers in the live prompt.
+        var numbers = new List<string>();
+        var currentNumber = new StringBuilder();
+        foreach (var ch in liveEnglish)
+        {
+            if (char.IsDigit(ch))
+            {
+                currentNumber.Append(ch);
+            }
+            else if (currentNumber.Length > 0)
+            {
+                numbers.Add(currentNumber.ToString());
+                currentNumber.Clear();
+            }
+        }
+        if (currentNumber.Length > 0)
+            numbers.Add(currentNumber.ToString());
+
+        for (var i = 0; i < numbers.Count; i++)
+            resolved = resolved.Replace($"IntegerParameter({i + 1})", numbers[i], StringComparison.Ordinal);
+        resolved = Regex.Replace(resolved, @"IntegerParameter(\d+)", string.Empty);
+
+        // If a required parameter could not be filled, do not show a broken
+        // Chinese prompt. Leaving the original English is safer.
+        if (resolved.Contains("IntegerParameter(", StringComparison.Ordinal)
+            || resolved.Contains("StringParameter(", StringComparison.Ordinal)
+            || resolved.Contains("PlayerParameter(", StringComparison.Ordinal)
+            || resolved.Contains("TopLevelParameter(", StringComparison.Ordinal)
+            || resolved.Contains("<Sheet(", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
 
         // These private-use characters are UI icons, not text.
         resolved = resolved.Replace("", string.Empty, StringComparison.Ordinal)
             .Replace("", string.Empty, StringComparison.Ordinal);
 
         return MacroNormalizer.CleanForDisplay(resolved);
+    }
+
+    private static string ResolveItemMacros(
+        string chinese,
+        string liveEnglish,
+        IReadOnlyList<string>? captures,
+        TranslationStore? store)
+    {
+        if (!chinese.Contains("Sheet(Item,IntegerParameter(", StringComparison.Ordinal))
+            return chinese;
+
+        // Addon row 6413: "Prepare the bed with <item> and <item>?"
+        var match = Regex.Match(liveEnglish, @"^Prepare the bed with (.+) and (.+)\?$",
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (!match.Success)
+            return chinese;
+
+        var first = NormalizeItemName(match.Groups[1].Value);
+        var second = NormalizeItemName(match.Groups[2].Value);
+
+        if (store is not null)
+        {
+            if (store.TryGetName(first, out var firstChinese))
+                first = firstChinese;
+            if (store.TryGetName(second, out var secondChinese))
+                second = secondChinese;
+        }
+
+        chinese = Regex.Replace(chinese, @"<Sheet\(Item,IntegerParameter\(1\),0\)\s*/>", first);
+        return Regex.Replace(chinese, @"<Sheet\(Item,IntegerParameter\(2\),0\)\s*/>", second);
+    }
+
+    private static string NormalizeItemName(string name)
+    {
+        var normalized = MacroNormalizer.NormalizeKey(name);
+
+        if (normalized.StartsWith("an ", StringComparison.OrdinalIgnoreCase))
+            return normalized[3..];
+
+        if (normalized.StartsWith("a ", StringComparison.OrdinalIgnoreCase))
+            return normalized[2..];
+
+        if (normalized.StartsWith("the ", StringComparison.OrdinalIgnoreCase))
+            return normalized[4..];
+
+        return normalized;
     }
 
     public void Dispose()

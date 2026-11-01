@@ -33,7 +33,9 @@ public sealed class TranslationStore
     /// </summary>
     private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
-    private readonly List<(string Template, string Chinese)> _addonTemplates = [];
+    private readonly Dictionary<(string Sheet, uint RowId), string> _nameRowLookup = new();
+    private readonly List<(string Template, string Chinese, int[]? ParameterIndices)> _addonTemplates = [];
+    private readonly List<(string Template, string Chinese)> _scriptTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -118,6 +120,9 @@ public sealed class TranslationStore
         if (TryLookupPlayerNamePlaceholder(key, out chineseText))
             return true;
 
+        if (TryLookupScriptTemplate(key, out chineseText))
+            return true;
+
         if (!TryLookupGenderNeutral(key, out var match))
             return false;
 
@@ -165,6 +170,22 @@ public sealed class TranslationStore
         return !ReferenceEquals(singlePlaceholder, key)
                && !string.Equals(singlePlaceholder, doublePlaceholder, StringComparison.Ordinal)
                && TryLookupWithGenderFallback(singlePlaceholder, out chineseText);
+    }
+
+    private bool TryLookupScriptTemplate(string key, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        foreach (var (template, chinese) in _scriptTemplates)
+        {
+            if (!ScriptTextTemplate.TryMatch(template, key, out _))
+                continue;
+
+            chineseText = chinese;
+            return true;
+        }
+
+        return false;
     }
 
     private bool TryLookupWithGenderFallback(string key, out string chineseText)
@@ -327,23 +348,42 @@ public sealed class TranslationStore
     }
 
     /// <summary>
-    /// Resolves an Addon-sheet prompt that contains runtime UNKNOWN placeholders.
-    /// Returns the stored Chinese raw text; the caller fills its parameters.
+    /// Resolves an Addon-sheet prompt that contains runtime placeholders.
     /// </summary>
     public bool TryGetAddonText(string? englishText, out string chineseText)
+        => TryGetAddonText(englishText, out chineseText, out _, out _);
+
+    public bool TryGetAddonText(
+        string? englishText,
+        out string chineseText,
+        out string[] captures)
+        => TryGetAddonText(englishText, out chineseText, out captures, out _);
+
+    /// <summary>
+    /// Resolves an Addon-sheet prompt and returns the captured values plus the
+    /// IntegerParameter / StringParameter indices that produced them.
+    /// </summary>
+    public bool TryGetAddonText(
+        string? englishText,
+        out string chineseText,
+        out string[] captures,
+        out int[]? parameterIndices)
     {
         chineseText = string.Empty;
+        captures = [];
+        parameterIndices = null;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0 || _addonTemplates.Count == 0)
             return false;
 
-        foreach (var (template, chinese) in _addonTemplates)
+        foreach (var (template, chinese, indices) in _addonTemplates)
         {
-            if (!ScriptTextTemplate.Matches(template, key))
+            if (!ScriptTextTemplate.TryMatch(template, key, out captures))
                 continue;
 
             chineseText = chinese;
+            parameterIndices = indices;
             return true;
         }
 
@@ -540,6 +580,9 @@ public sealed class TranslationStore
 
                     RegisterStyle(display, chineseSlots[i]);
 
+                    if (descriptor.IsNameSheet)
+                        _nameRowLookup.TryAdd((descriptor.Name, rowId), display);
+
                     if (rowSlots is not null && string.IsNullOrEmpty(rowSlots[i]))
                         rowSlots[i] = display;
 
@@ -557,6 +600,19 @@ public sealed class TranslationStore
                             && !descriptor.IsNameSheet)
                         {
                             _addonLookup.TryAdd(key, display);
+
+                            if (descriptor is IParameterizedTemplateDescriptor parameterized
+                                && parameterized.TryBuildTemplate(rowId, out var parameterTemplate)
+                                // "Enter ?" is only 7 literal characters and would match
+                                // unrelated prompts such as "Enter the estate hall?".
+                                && ScriptTextTemplate.LiteralLength(parameterTemplate.Template) >= 10
+                                && _addonTemplateKeys.Add(parameterTemplate.Template))
+                            {
+                                _addonTemplates.Add((
+                                    parameterTemplate.Template,
+                                    chineseSlots[i],
+                                    parameterTemplate.ParameterIndices));
+                            }
                         }
 
                         if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
@@ -566,7 +622,7 @@ public sealed class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(template) >= 4
                                 && _addonTemplateKeys.Add(template))
                             {
-                                _addonTemplates.Add((template, chineseSlots[i]));
+                                _addonTemplates.Add((template, chineseSlots[i], null));
                             }
 
                             var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
@@ -574,7 +630,7 @@ public sealed class TranslationStore
                                 && !string.Equals(loose, template, StringComparison.Ordinal)
                                 && _addonTemplateKeys.Add(loose))
                             {
-                                _addonTemplates.Add((loose, chineseSlots[i]));
+                                _addonTemplates.Add((loose, chineseSlots[i], null));
                             }
 
                             // A prompt with several lines can change which detail
@@ -589,8 +645,21 @@ public sealed class TranslationStore
                                 if (ScriptTextTemplate.LiteralLength(prefix) >= 4
                                     && _addonTemplateKeys.Add(prefix))
                                 {
-                                    _addonTemplates.Add((prefix, chineseSlots[i]));
+                                    _addonTemplates.Add((prefix, chineseSlots[i], null));
                                 }
+                            }
+                        }
+
+                        // Blank placeholders in the English Addon row become
+                        // double spaces. Treat each gap between words as dynamic.
+                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
+                            && variants[v].Contains("  ", StringComparison.Ordinal))
+                        {
+                            var wordTemplate = ScriptTextTemplate.BuildWordGapTemplate(variants[v]);
+                            if (ScriptTextTemplate.LiteralLength(wordTemplate) >= 4
+                                && _addonTemplateKeys.Add(wordTemplate))
+                            {
+                                _addonTemplates.Add((wordTemplate, chineseSlots[i], null));
                             }
                         }
                     }
@@ -648,6 +717,16 @@ public sealed class TranslationStore
 
             RegisterStyle(display, entry.Text);
 
+            // Some script dumps leave a double-space gap where a runtime value
+            // such as an item name is inserted. Keep a template for that case.
+            if (entry.English.Contains("  ", StringComparison.Ordinal))
+            {
+                var blankTemplate = ScriptTextTemplate.BuildBlankGapTemplate(
+                    MacroNormalizer.StripSpeakerPrefix(entry.English));
+                if (ScriptTextTemplate.LiteralLength(blankTemplate) >= 4)
+                    _scriptTemplates.Add((blankTemplate, display));
+            }
+
             // The dump key is the game's own id for this line. The game sometimes
             // exposes it through the event handler, so keep it separate from the
             // English key and let an id lookup win over duplicate text.
@@ -682,10 +761,38 @@ public sealed class TranslationStore
     /// resolved per lookup. Such lines are rare.
     /// </summary>
     private string PrepareDisplay(string rawText)
-        => NeedsLateResolution(rawText) ? rawText : _displayResolver(rawText);
+        => NeedsLateResolution(rawText) ? rawText : ResolveDisplayText(rawText);
 
     private string ResolveDisplay(string stored)
-        => NeedsLateResolution(stored) ? _displayResolver(stored) : stored;
+        => NeedsLateResolution(stored) ? ResolveDisplayText(stored) : stored;
+
+    private string ResolveDisplayText(string text)
+        => _displayResolver(ResolveSheetMacros(text));
+
+    private string ResolveSheetMacros(string text)
+    {
+        if (!text.Contains("<Sheet(", StringComparison.Ordinal))
+            return text;
+
+        return Regex.Replace(text, @"<Sheet\(([^,]+),(\d+),\d+\)\s*/>", match =>
+        {
+            if (!uint.TryParse(match.Groups[2].Value, out var rowId))
+                return match.Value;
+
+            var sheet = match.Groups[1].Value.Trim();
+            var lookupSheet = sheet switch
+            {
+                "EObj" => "EObjName",
+                "ENpc" => "ENpcResident",
+                "BNpc" => "BNpcName",
+                _ => sheet,
+            };
+
+            return _nameRowLookup.TryGetValue((lookupSheet, rowId), out var name)
+                ? name
+                : match.Value;
+        });
+    }
 
     /// <summary>
     /// Text whose display depends on the player, so it cannot be resolved at load.

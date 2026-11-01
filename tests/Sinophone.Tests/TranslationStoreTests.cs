@@ -459,6 +459,35 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonText_MatchesAddonRowWithBlankPlaceholders()
+    {
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [6413] = ["Prepare the bed with  and ?"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact("CN", ("Addon", "Text", 6413,
+                "确定要将<Sheet(Item,IntegerParameter(2),0)/>种植在<Sheet(Item,IntegerParameter(1),0)/>中吗？")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.Equal(1, store.AddonTemplateCount);
+        Assert.True(store.TryGetAddonText(
+            "Prepare the bed with a bag of grade 3 Thanalan topsoil and a bag of voidrake seeds?",
+            out var chinese));
+        Assert.Contains("Sheet(Item", chinese);
+    }
+
+    [Fact]
     public void TryGetAddonText_IgnoresTemplateWithNoLiteralText()
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
@@ -543,6 +572,34 @@ public class TranslationStoreTests
         Assert.NotNull(store);
         Assert.True(store.TryGetName("Distant Echo", out var name));
         Assert.Equal("不知從何處傳來的聲音", name);
+    }
+
+    [Fact]
+    public void Load_ResolvesSheetMacroFromNameRow()
+    {
+        var names = new FakeSheetDescriptor("EObjName", "Singular", true,
+            new Dictionary<uint, string[]> { [2012178] = ["保存食物的货箱"] });
+
+        var artifacts = Artifacts(
+            Artifact("CN",
+                Scripts(
+                    ("You open the storage unit and find a rainbow-colored assortment of carrots.",
+                     "<Sheet(EObj,2012178,0)/>中\r\n装有各种颜色的胡萝卜……")),
+                ("EObjName", "Singular", 2012178, "保存食物的货箱")),
+            null);
+
+        var store = TranslationStore.Load(
+            [names],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "You open the storage unit and find a rainbow-colored assortment of carrots.",
+            out var chinese));
+        Assert.Contains("保存食物的货箱", chinese);
     }
 
     [Fact]
