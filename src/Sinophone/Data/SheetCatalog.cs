@@ -76,7 +76,24 @@ public sealed class SheetDescriptor<T> : ISheetDescriptor where T : struct, IExc
         if (row is null)
             return false;
 
-        return AddonParameterTemplateFactory.TryBuild(_templateSource(row.Value).AsSpan(), out template);
+        var raw = _templateSource(row.Value);
+        if (rowId == 6420)
+        {
+            foreach (var payload in raw.AsSpan())
+            {
+                Plugin.Log.Debug("Raw Addon 6420 payload: {Type} {Macro} bytes {Length} expressions {Expressions}",
+                    payload.Type, payload.MacroCode, payload.Body.Length, payload.ExpressionCount);
+
+                foreach (var expression in payload)
+                {
+                    Plugin.Log.Debug("  Raw Addon 6420 expression type {Kind}: {Text}",
+                        expression.TryGetParameterExpression(out var kind, out var operand) ? kind : -1,
+                        operand.ToString());
+                }
+            }
+        }
+
+        return AddonParameterTemplateFactory.TryBuild(raw.AsSpan(), out template);
     }
 
     public bool TryExtract(uint rowId, out IReadOnlyList<IReadOnlyList<string>> texts)
