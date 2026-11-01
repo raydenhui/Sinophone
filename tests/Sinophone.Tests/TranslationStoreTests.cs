@@ -575,6 +575,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Load_ResolvesSheetMacroFromNameRow()
+    {
+        var names = new FakeSheetDescriptor("EObjName", "Singular", true,
+            new Dictionary<uint, string[]> { [2012178] = ["保存食物的货箱"] });
+
+        var artifacts = Artifacts(
+            Artifact("CN",
+                Scripts(
+                    ("You open the storage unit and find a rainbow-colored assortment of carrots.",
+                     "<Sheet(EObj,2012178,0)/>中\r\n装有各种颜色的胡萝卜……")),
+                ("EObjName", "Singular", 2012178, "保存食物的货箱")),
+            null);
+
+        var store = TranslationStore.Load(
+            [names],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "You open the storage unit and find a rainbow-colored assortment of carrots.",
+            out var chinese));
+        Assert.Contains("保存食物的货箱", chinese);
+    }
+
+    [Fact]
     public void Load_StripsSpeakerPrefixFromScriptEnglish()
     {
         var artifacts = Artifacts(

@@ -33,6 +33,7 @@ public sealed class TranslationStore
     /// </summary>
     private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Sheet, uint RowId), string> _nameRowLookup = new();
     private readonly List<(string Template, string Chinese, int[]? ParameterIndices)> _addonTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
@@ -559,6 +560,9 @@ public sealed class TranslationStore
 
                     RegisterStyle(display, chineseSlots[i]);
 
+                    if (descriptor.IsNameSheet)
+                        _nameRowLookup.TryAdd((descriptor.Name, rowId), display);
+
                     if (rowSlots is not null && string.IsNullOrEmpty(rowSlots[i]))
                         rowSlots[i] = display;
 
@@ -727,10 +731,38 @@ public sealed class TranslationStore
     /// resolved per lookup. Such lines are rare.
     /// </summary>
     private string PrepareDisplay(string rawText)
-        => NeedsLateResolution(rawText) ? rawText : _displayResolver(rawText);
+        => NeedsLateResolution(rawText) ? rawText : ResolveDisplayText(rawText);
 
     private string ResolveDisplay(string stored)
-        => NeedsLateResolution(stored) ? _displayResolver(stored) : stored;
+        => NeedsLateResolution(stored) ? ResolveDisplayText(stored) : stored;
+
+    private string ResolveDisplayText(string text)
+        => _displayResolver(ResolveSheetMacros(text));
+
+    private string ResolveSheetMacros(string text)
+    {
+        if (!text.Contains("<Sheet(", StringComparison.Ordinal))
+            return text;
+
+        return Regex.Replace(text, @"<Sheet\(([^,]+),(\d+),\d+\)\s*/>", match =>
+        {
+            if (!uint.TryParse(match.Groups[2].Value, out var rowId))
+                return match.Value;
+
+            var sheet = match.Groups[1].Value.Trim();
+            var lookupSheet = sheet switch
+            {
+                "EObj" => "EObjName",
+                "ENpc" => "ENpcResident",
+                "BNpc" => "BNpcName",
+                _ => sheet,
+            };
+
+            return _nameRowLookup.TryGetValue((lookupSheet, rowId), out var name)
+                ? name
+                : match.Value;
+        });
+    }
 
     /// <summary>
     /// Text whose display depends on the player, so it cannot be resolved at load.
