@@ -298,10 +298,29 @@ public sealed class TalkHandler : IDisposable
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
             store.TryGetName(englishName, out chineseName);
 
+        var speakerName = configuration.ShowSpeakerName
+            ? FormatSpeakerName(chineseName, englishName)
+            : string.Empty;
+
         var styledText = MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters);
         store.TryGetStyle(styledText, out var style);
 
-        return new OverlayContent(styledText, chineseName ?? string.Empty, style);
+        return new OverlayContent(styledText, speakerName, style);
+    }
+
+    /// <summary>Shows the Chinese name with the English name in parentheses.</summary>
+    internal static string FormatSpeakerName(string? chineseName, string? englishName)
+    {
+        var chinese = chineseName?.Trim() ?? string.Empty;
+        var english = englishName?.Trim() ?? string.Empty;
+
+        if (chinese.Length == 0)
+            return english;
+
+        if (english.Length == 0 || string.Equals(chinese, english, StringComparison.Ordinal))
+            return chinese;
+
+        return $"{chinese} ({english})";
     }
 
     internal readonly record struct OverlayContent(
