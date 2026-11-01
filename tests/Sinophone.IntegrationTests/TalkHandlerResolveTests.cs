@@ -73,7 +73,9 @@ public class TalkHandlerResolveTests
         var content = TalkHandler.Resolve(store, Defaults, english, row.English);
 
         Assert.NotNull(content);
-        Assert.Equal(MacroNormalizer.CleanForDisplay(row.Tc), content!.Value.ChineseName);
+        Assert.Equal(
+            $"{MacroNormalizer.CleanForDisplay(row.Tc)} ({row.English})",
+            content!.Value.ChineseName);
     }
 
     [Fact]
@@ -91,7 +93,7 @@ public class TalkHandlerResolveTests
     }
 
     [Fact]
-    public void Resolve_LeavesNameEmpty_WhenNameIsUnknown()
+    public void Resolve_ShowsEnglishName_WhenNameIsUnknown()
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);
         var (english, _) = FirstDialogue();
@@ -99,7 +101,7 @@ public class TalkHandlerResolveTests
         var content = TalkHandler.Resolve(store, Defaults, english, "Nobody in the sheets");
 
         Assert.NotNull(content);
-        Assert.Equal(string.Empty, content!.Value.ChineseName);
+        Assert.Equal("Nobody in the sheets", content!.Value.ChineseName);
     }
 
     [Fact]
