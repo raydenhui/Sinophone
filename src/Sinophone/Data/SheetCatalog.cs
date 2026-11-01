@@ -77,22 +77,6 @@ public sealed class SheetDescriptor<T> : ISheetDescriptor, IParameterizedTemplat
             return false;
 
         var raw = _templateSource(row.Value);
-        if (rowId == 6420)
-        {
-            foreach (var payload in raw.AsSpan())
-            {
-                Plugin.Log.Debug("Raw Addon 6420 payload: {Type} {Macro} bytes {Length} expressions {Expressions}",
-                    payload.Type, payload.MacroCode, payload.Body.Length, payload.ExpressionCount);
-
-                foreach (var expression in payload)
-                {
-                    Plugin.Log.Debug("  Raw Addon 6420 expression type {Kind}: {Text}",
-                        expression.TryGetParameterExpression(out var kind, out var operand) ? kind : -1,
-                        operand.ToString());
-                }
-            }
-        }
-
         return AddonParameterTemplateFactory.TryBuild(raw.AsSpan(), out template);
     }
 
