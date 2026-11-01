@@ -193,6 +193,8 @@ public static class SheetCatalog
             static row => ExtractSingle(row.Name));
         Add<Item>(dataManager, descriptors, "Item", "Name", true,
             static row => ExtractSingle(row.Name));
+        Add<EventItem>(dataManager, descriptors, "EventItem", "Singular", true,
+            static row => ExtractSingle(row.Singular));
 
         return descriptors;
     }

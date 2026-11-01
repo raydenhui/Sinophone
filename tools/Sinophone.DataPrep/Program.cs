@@ -146,6 +146,7 @@ internal static class Program
         new("EObjName", "Singular", ["Singular"]),
         new("SnipeTalkName", "Name", ["Name"]),
         new("Item", "Name", ["Name"]),
+        new("EventItem", "Singular", ["Singular"]),
     ];
 
     private static int Main(string[] args)

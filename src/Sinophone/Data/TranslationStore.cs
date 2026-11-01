@@ -35,6 +35,7 @@ public sealed class TranslationStore
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Sheet, uint RowId), string> _nameRowLookup = new();
     private readonly List<(string Template, string Chinese, int[]? ParameterIndices)> _addonTemplates = [];
+    private readonly List<(string Template, string Chinese)> _scriptTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -119,6 +120,9 @@ public sealed class TranslationStore
         if (TryLookupPlayerNamePlaceholder(key, out chineseText))
             return true;
 
+        if (TryLookupScriptTemplate(key, out chineseText))
+            return true;
+
         if (!TryLookupGenderNeutral(key, out var match))
             return false;
 
@@ -166,6 +170,22 @@ public sealed class TranslationStore
         return !ReferenceEquals(singlePlaceholder, key)
                && !string.Equals(singlePlaceholder, doublePlaceholder, StringComparison.Ordinal)
                && TryLookupWithGenderFallback(singlePlaceholder, out chineseText);
+    }
+
+    private bool TryLookupScriptTemplate(string key, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        foreach (var (template, chinese) in _scriptTemplates)
+        {
+            if (!ScriptTextTemplate.TryMatch(template, key, out _))
+                continue;
+
+            chineseText = chinese;
+            return true;
+        }
+
+        return false;
     }
 
     private bool TryLookupWithGenderFallback(string key, out string chineseText)
@@ -696,6 +716,16 @@ public sealed class TranslationStore
                 continue;
 
             RegisterStyle(display, entry.Text);
+
+            // Some script dumps leave a double-space gap where a runtime value
+            // such as an item name is inserted. Keep a template for that case.
+            if (entry.English.Contains("  ", StringComparison.Ordinal))
+            {
+                var blankTemplate = ScriptTextTemplate.BuildBlankGapTemplate(
+                    MacroNormalizer.StripSpeakerPrefix(entry.English));
+                if (ScriptTextTemplate.LiteralLength(blankTemplate) >= 4)
+                    _scriptTemplates.Add((blankTemplate, display));
+            }
 
             // The dump key is the game's own id for this line. The game sometimes
             // exposes it through the event handler, so keep it separate from the

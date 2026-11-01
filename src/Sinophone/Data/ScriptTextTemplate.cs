@@ -108,6 +108,17 @@ public static partial class ScriptTextTemplate
     }
 
     /// <summary>
+    /// Builds a template where runs of two or more spaces are wildcards. The
+    /// English script dump uses that gap where a runtime value such as an item
+    /// name is inserted.
+    /// </summary>
+    public static string BuildBlankGapTemplate(string text)
+    {
+        var withWildcards = Regex.Replace(text, @"\s{2,}", Wildcard.ToString());
+        return MacroNormalizer.NormalizeKey(withWildcards);
+    }
+
+    /// <summary>
     /// Number of non-wildcard characters in a template. A template with no literal
     /// text would match every string, so Addon indexing skips those.
     /// </summary>
