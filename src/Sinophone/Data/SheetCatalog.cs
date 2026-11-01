@@ -37,7 +37,7 @@ public sealed record AddonParameterTemplate(string Template, int[] ParameterIndi
 /// <summary>
 /// Typed implementation of <see cref="ISheetDescriptor"/> bound to one Lumina sheet.
 /// </summary>
-public sealed class SheetDescriptor<T> : ISheetDescriptor where T : struct, IExcelRow<T>
+public sealed class SheetDescriptor<T> : ISheetDescriptor, IParameterizedTemplateDescriptor where T : struct, IExcelRow<T>
 {
     private readonly ExcelSheet<T>? _sheet;
     private readonly Func<T, IReadOnlyList<IReadOnlyList<string>>> _extract;
