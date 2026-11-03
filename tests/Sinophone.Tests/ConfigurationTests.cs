@@ -10,7 +10,8 @@ public class ConfigurationTests
         Assert.True(config.Enabled);
         Assert.Equal(ChineseVariant.Traditional, config.Variant);
         Assert.Equal(ChineseConversion.None, config.Conversion);
-        Assert.True(config.UseFallbackVariant);
+        // Off by default: loading both variants doubles load time for a few lines.
+        Assert.False(config.UseFallbackVariant);
         Assert.True(config.DownloadBothVariants);
         Assert.True(config.ShowInTalk);
         Assert.True(config.ShowInTalkSubtitle);

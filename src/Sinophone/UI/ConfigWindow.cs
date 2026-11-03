@@ -163,7 +163,10 @@ public sealed class ConfigWindow : Window
         Checkbox("Use the other version when a line is missing", _configuration.UseFallbackVariant,
             v => _configuration.UseFallbackVariant = v);
         ImGui.Indent();
-        ImGui.TextDisabled("May mix Traditional and Simplified characters for missing rows.");
+        ImGui.TextDisabled(
+            "May mix Traditional and Simplified characters for missing rows. " +
+            "Off by default: it loads both data files and doubles the load time " +
+            "for a few extra lines.");
         ImGui.Unindent();
 
         ImGui.Spacing();
