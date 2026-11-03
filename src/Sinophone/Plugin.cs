@@ -429,13 +429,24 @@ public sealed class Plugin : IDalamudPlugin
             return false;
         }
 
-        var store = TranslationStore.Build(
-            parsed,
-            _configuration,
-            DataManager,
-            Log,
-            ResolveDisplayText,
-            () => PlayerState.CharacterName);
+        TranslationStore? store;
+        try
+        {
+            store = TranslationStore.Build(
+                parsed,
+                _configuration,
+                DataManager,
+                Log,
+                ResolveDisplayText,
+                () => PlayerState.CharacterName);
+        }
+        catch (Exception ex)
+        {
+            // Building reads live sheets. An exception here would escape into the
+            // draw loop, so keep whatever store was already loaded.
+            Log.Error(ex, "Failed to build the translation store.");
+            return false;
+        }
 
         if (store is null)
             return false;
