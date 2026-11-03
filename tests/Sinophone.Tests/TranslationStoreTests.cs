@@ -181,6 +181,59 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void ParseThenBuild_MatchesLoad_WhenBuiltFromTheSameArtifacts()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(
+            Artifact("CN", (SheetName, FieldName, 1, "你好。")),
+            Artifact("TC", (SheetName, FieldName, 1, "妳好。")));
+        var configuration = new Configuration { Variant = ChineseVariant.Traditional };
+
+        var parsed = TranslationStore.Parse(configuration, new FakePluginLog(), artifacts);
+
+        Assert.NotNull(parsed);
+        var store = TranslationStore.Build(parsed!, [descriptor], ChineseVariant.Traditional, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello there.", out var chinese));
+        Assert.Equal("妳好。", chinese);
+    }
+
+    [Fact]
+    public void Parse_ReturnsNull_WhenNoArtifactsExist()
+    {
+        var configuration = new Configuration { Variant = ChineseVariant.Traditional };
+
+        Assert.Null(TranslationStore.Parse(configuration, new FakePluginLog(), Artifacts(null, null)));
+    }
+
+    [Fact]
+    public void Parse_DoesNotReadTheOtherVariant_WhenFallbackIsOff()
+    {
+        // The fallback artifact is broken on purpose. With the fallback off it must
+        // never be opened, so parsing still succeeds.
+        var configuration = new Configuration
+        {
+            Variant = ChineseVariant.Traditional,
+            UseFallbackVariant = false,
+        };
+
+        var opened = new List<ChineseVariant>();
+        var artifacts = (ChineseVariant variant) =>
+        {
+            opened.Add(variant);
+            return variant == ChineseVariant.Traditional
+                ? ToGzipStream(Artifact("TC", (SheetName, FieldName, 1, "妳好。")))
+                : ToGzipStream("not json");
+        };
+
+        var parsed = TranslationStore.Parse(configuration, new FakePluginLog(), artifacts);
+
+        Assert.NotNull(parsed);
+        Assert.Equal([ChineseVariant.Traditional], opened);
+    }
+
+    [Fact]
     public void Load_ReturnsFalse_ForUnknownText()
     {
         var descriptor = TalkSheet((1, "Hello there."));

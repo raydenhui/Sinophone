@@ -37,7 +37,13 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>
     /// When the primary variant has no row for a line, fall back to the other variant.
     /// </summary>
-    public bool UseFallbackVariant { get; set; } = true;
+    /// <remarks>
+    /// Off by default. Loading both artifacts doubles load time and memory, and the
+    /// other variant only fills a handful of lines. Measured on the 2026-11-01 data,
+    /// Traditional from Simplified adds 6 lines the Traditional dump lacks. Turn it
+    /// on to see Simplified text where the Traditional dump has no row.
+    /// </remarks>
+    public bool UseFallbackVariant { get; set; }
 
     /// <summary>
     /// Download both language variants. Off downloads only <see cref="Variant"/>,

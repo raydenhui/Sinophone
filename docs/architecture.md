@@ -166,11 +166,22 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
   data to read. `HasSimplifiedData` and `HasTraditionalData` say which files match
   `LastDataVersion`, and `OpenData` ignores a file without the matching flag, so a file left over
   from an older version is never mixed with current data.
+- Loading the second variant is opt-in (`UseFallbackVariant`, off by default). Indexing both roughly
+  doubles load time and memory, and the other variant only fills a few lines: with Traditional
+  selected, the Simplified artifact adds 6 script lines the Traditional dump lacks. Keep the default
+  off and let users trade startup time for those lines.
 - `manifest.json` has an optional checksum per artifact. Downloads go to a `.download` temp file and
   are only moved into place after the gzip, artifact format version, and sheet count are validated.
   Keep that order: a partial file must never replace working data.
 - A completed download only raises a flag. `Plugin.OnTick` rebuilds the store on the game thread.
   Do not touch windows, fonts, or Lumina sheets from the updater's worker task.
+- A load is split in two. `TranslationStore.Parse` reads and deserializes the artifacts and is safe
+  on a worker task, so `Plugin` runs it through `Task.Run`. `TranslationStore.Build` reads the live
+  Lumina sheets and indexes, so it runs on the game thread from `Plugin.OnTick`. Measured on
+  2026-11-01 data: parse is about 1.1 s, build about 1.8 s with one variant. Do not move the sheet
+  reads into the worker task; that breaks the rule above.
+- Only one parse may be in flight. A settings change or a new data file replaces the pending task,
+  so an older result is dropped before it is built. `Dispose` drops it too.
 - If a downloaded file cannot be parsed, `TranslationStore` retries with the embedded copy instead
   of running with no translations. The fallback opener is passed in by `Plugin`.
 - Bump `formatVersion` only together with a change to `TranslationArtifact`, and keep the updater

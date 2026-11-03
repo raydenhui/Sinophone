@@ -38,6 +38,14 @@ public sealed class Plugin : IDalamudPlugin
 
     private TranslationStore? _store;
 
+    /// <summary>
+    /// A load started on a worker task. The plugin owns parsing; the game thread
+    /// finishes it. Only one may be in flight so a settings change never races an
+    /// older load into the swap.
+    /// </summary>
+    private Task<ParsedArtifacts?>? _pendingParse;
+    private bool _disposed;
+
     private ChineseVariant _lastVariant;
     private ChineseConversion _lastConversion;
     private bool _lastFallback;
@@ -138,14 +146,9 @@ public sealed class Plugin : IDalamudPlugin
             _itemNameWindow,
             Log);
 
-        _store = TranslationStore.Load(
-            _configuration,
-            DataManager,
-            Log,
-            _dataUpdater.OpenData,
-            TranslationStore.OpenEmbeddedResource,
-            ResolveDisplayText,
-            () => PlayerState.CharacterName);
+        // Parsing the artifacts is the slow half and touches no game state, so it
+        // runs on a worker task. OnTick finishes the load on the game thread.
+        StartStoreLoad();
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -164,8 +167,10 @@ public sealed class Plugin : IDalamudPlugin
             Log.Warning("The conversion table for {Conversion} is missing; text will not be converted.",
                 _configuration.Conversion);
 
-        Log.Info("Loaded. Variant: {Variant}, conversion: {Conversion}, entries: {Entries:N0}.",
-            _configuration.Variant, _configuration.Conversion, _store?.TextEntryCount ?? 0);
+        // Translation data loads in the background, so the entry counts are logged
+        // by TranslationStore when the store is built.
+        Log.Info("Loaded. Variant: {Variant}, conversion: {Conversion}. Loading translation data...",
+            _configuration.Variant, _configuration.Conversion);
     }
 
     public string Name => "Sinophone";
@@ -364,27 +369,93 @@ public sealed class Plugin : IDalamudPlugin
 
     /// <summary>
     /// Applies a finished download on the game thread: the updater runs in the
-    /// background and only raises a flag.
+    /// background and only raises a flag. A parsed artifact is also finished here,
+    /// because reading the live sheets has to happen on the game thread.
     /// </summary>
     private void OnTick()
     {
+        FinishStoreLoad();
         AnnounceUpdateResult();
 
         if (!_dataUpdater.ConsumeReloadRequest())
             return;
 
         SaveConfiguration();
-        _store = TranslationStore.Load(
-            _configuration,
-            DataManager,
-            Log,
-            _dataUpdater.OpenData,
-            TranslationStore.OpenEmbeddedResource,
-            ResolveDisplayText,
-            () => PlayerState.CharacterName);
+        StartStoreLoad();
+    }
+
+    /// <summary>
+    /// Starts parsing the artifacts on a worker task. Replaces any load still in
+    /// flight, so a settings change is never overwritten by an older result.
+    /// </summary>
+    private void StartStoreLoad()
+    {
+        var configuration = _configuration;
+        var log = Log;
+        var openResource = _dataUpdater.OpenData;
+
+        _pendingParse = Task.Run<ParsedArtifacts?>(() => TranslationStore.Parse(
+            configuration,
+            log,
+            openResource,
+            TranslationStore.OpenEmbeddedResource));
+    }
+
+    /// <summary>
+    /// Finishes a load started by <see cref="StartStoreLoad"/>. Returns true when a
+    /// store was swapped in, so the caller can refresh the surfaces that read it.
+    /// </summary>
+    private bool FinishStoreLoad()
+    {
+        if (_disposed)
+            return false;
+
+        var pending = _pendingParse;
+        if (pending is null || !pending.IsCompleted)
+            return false;
+
+        _pendingParse = null;
+
+        if (pending.IsFaulted)
+        {
+            Log.Error(pending.Exception, "Failed to parse the translation artifacts.");
+            return false;
+        }
+
+        var parsed = pending.Result;
+        if (parsed is null)
+        {
+            Log.Warning("No translation artifacts are available. Talk text will not be translated.");
+            return false;
+        }
+
+        TranslationStore? store;
+        try
+        {
+            store = TranslationStore.Build(
+                parsed,
+                _configuration,
+                DataManager,
+                Log,
+                ResolveDisplayText,
+                () => PlayerState.CharacterName);
+        }
+        catch (Exception ex)
+        {
+            // Building reads live sheets. An exception here would escape into the
+            // draw loop, so keep whatever store was already loaded.
+            Log.Error(ex, "Failed to build the translation store.");
+            return false;
+        }
+
+        if (store is null)
+            return false;
+
+        _store = store;
         _overlay.Hide();
         _targetNameHandler.Refresh();
         _itemNameHandler.Refresh();
+        return true;
     }
 
     private void SaveConfiguration()
@@ -436,14 +507,9 @@ public sealed class Plugin : IDalamudPlugin
 
         if (needsStoreReload)
         {
-            _store = TranslationStore.Load(
-                _configuration,
-                DataManager,
-                Log,
-                _dataUpdater.OpenData,
-                TranslationStore.OpenEmbeddedResource,
-                ResolveDisplayText,
-                () => PlayerState.CharacterName);
+            // Settings changed while a load may be running. Start over on the new
+            // variant; the older task's result is dropped before it is built.
+            StartStoreLoad();
 
             // The user now needs a variant that is not on disk.
             if (!string.IsNullOrEmpty(_configuration.LastDataVersion) && _dataUpdater.IsMissingRequiredFile())
@@ -472,6 +538,10 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        // Drop a load in flight so it is never built into a disposed plugin.
+        _disposed = true;
+        _pendingParse = null;
+
         PluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         PluginInterface.UiBuilder.Draw -= OnTick;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;

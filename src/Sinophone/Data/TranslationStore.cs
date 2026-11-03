@@ -449,6 +449,58 @@ public sealed class TranslationStore
             playerName);
 
     /// <summary>
+    /// Reads and parses the artifacts for the configured variant without touching
+    /// any Lumina sheet.
+    /// </summary>
+    /// <remarks>
+    /// Parsing is the expensive half that is safe to run on a worker task. Reading
+    /// rows from the live game sheets is not: Dalamud forbids that off the game
+    /// thread. <see cref="Build"/> takes the result and finishes the load on the
+    /// game thread.
+    /// </remarks>
+    public static ParsedArtifacts? Parse(
+        Configuration configuration,
+        IPluginLog log,
+        Func<ChineseVariant, Stream?> openResource,
+        Func<ChineseVariant, Stream?>? fallbackResource = null)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var parsed = ParseArtifacts(
+            configuration.Variant,
+            configuration.UseFallbackVariant,
+            openResource,
+            log,
+            fallbackResource);
+
+        if (parsed is not null)
+        {
+            log.Debug("Parsed {Variant} artifacts in {Elapsed} ms.",
+                configuration.Variant, stopwatch.ElapsedMilliseconds);
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    /// Finishes a load from artifacts that came from <see cref="Parse"/>. Does the
+    /// sheet reads and the indexing, so it must run on the game thread.
+    /// </summary>
+    public static TranslationStore? Build(
+        ParsedArtifacts parsed,
+        Configuration configuration,
+        IDataManager dataManager,
+        IPluginLog log,
+        Func<string, string>? displayResolver = null,
+        Func<string?>? playerName = null)
+        => Build(
+            parsed,
+            SheetCatalog.Create(dataManager),
+            configuration.Variant,
+            log,
+            displayResolver,
+            playerName);
+
+    /// <summary>
     /// Builds a store from explicit inputs. Tests use this to supply their own
     /// sheet descriptors and artifact streams instead of the embedded ones.
     /// </summary>
@@ -471,23 +523,32 @@ public sealed class TranslationStore
         Func<string, string>? displayResolver = null,
         Func<string?>? playerName = null)
     {
+        var parsed = ParseArtifacts(variant, useFallback, openResource, log, fallbackResource);
+        if (parsed is null)
+            return null;
+
+        return Build(parsed, descriptors, variant, log, displayResolver, playerName);
+    }
+
+    /// <summary>
+    /// Builds a store from already parsed artifacts. Kept separate so the caller can
+    /// parse on a worker task and run only this part on the game thread.
+    /// </summary>
+    internal static TranslationStore? Build(
+        ParsedArtifacts parsed,
+        IReadOnlyList<ISheetDescriptor> descriptors,
+        ChineseVariant variant,
+        IPluginLog log,
+        Func<string, string>? displayResolver = null,
+        Func<string?>? playerName = null)
+    {
         var stopwatch = Stopwatch.StartNew();
 
-        var primary = LoadArtifact(variant, openResource, fallbackResource, log);
-        if (primary is null)
-        {
-            log.Warning("Primary artifact for {Variant} was not available.", variant);
-        }
-
-        var fallback = useFallback
-            ? LoadArtifact(Other(variant), openResource, fallbackResource, log)
-            : null;
+        var primary = parsed.Primary;
+        var fallback = parsed.Fallback;
 
         if (primary is null && fallback is null)
-        {
-            log.Error("No translation artifacts are available. Talk text will not be translated.");
             return null;
-        }
 
         var store = new TranslationStore(
             variant,
@@ -526,6 +587,36 @@ public sealed class TranslationStore
 
     private static ChineseVariant Other(ChineseVariant variant)
         => variant == ChineseVariant.Traditional ? ChineseVariant.Simplified : ChineseVariant.Traditional;
+
+    /// <summary>
+    /// Reads and parses the artifacts. Returns null when neither variant is
+    /// available. Touches no game state, so a caller may run this on a worker task.
+    /// </summary>
+    private static ParsedArtifacts? ParseArtifacts(
+        ChineseVariant variant,
+        bool useFallback,
+        Func<ChineseVariant, Stream?> openResource,
+        IPluginLog log,
+        Func<ChineseVariant, Stream?>? fallbackResource)
+    {
+        var primary = LoadArtifact(variant, openResource, fallbackResource, log);
+        if (primary is null)
+        {
+            log.Warning("Primary artifact for {Variant} was not available.", variant);
+        }
+
+        var fallback = useFallback
+            ? LoadArtifact(Other(variant), openResource, fallbackResource, log)
+            : null;
+
+        if (primary is null && fallback is null)
+        {
+            log.Error("No translation artifacts are available. Talk text will not be translated.");
+            return null;
+        }
+
+        return new ParsedArtifacts(variant, primary, fallback);
+    }
 
     private void Index(TranslationArtifact artifact, IReadOnlyList<ISheetDescriptor> descriptors, IPluginLog log)
     {
@@ -850,4 +941,27 @@ public sealed class TranslationStore
 
         return name is null ? null : assembly.GetManifestResourceStream(name);
     }
+}
+
+/// <summary>
+/// Artifacts that have been read and deserialized but not indexed yet. Holds no
+/// game objects, so it is safe to hand between a worker task and the game thread.
+/// </summary>
+public sealed class ParsedArtifacts
+{
+    internal ParsedArtifacts(
+        ChineseVariant variant,
+        TranslationArtifact? primary,
+        TranslationArtifact? fallback)
+    {
+        Variant = variant;
+        Primary = primary;
+        Fallback = fallback;
+    }
+
+    public ChineseVariant Variant { get; }
+
+    internal TranslationArtifact? Primary { get; }
+
+    internal TranslationArtifact? Fallback { get; }
 }
