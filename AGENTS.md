@@ -252,6 +252,10 @@ premature interface.
   comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
   mode shows the missing-glyph character and the plugin cannot tell. See
   [README](README.md#font-setup).
+- **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
+  `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
+  at once. The target and item name windows can show the English name under the Chinese name.
+  Selection dialogs have their own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 
 ## References
