@@ -67,7 +67,7 @@ public sealed class ConfigWindow : Window
         _dataSourceText = dataSourceText;
         _aboutText = aboutText;
 
-        Size = new Vector2(500f, 640f);
+        Size = new Vector2(540f, 680f);
         SizeCondition = ImGuiCond.FirstUseEver;
         AllowPinning = false;
         ShowCloseButton = true;
@@ -85,15 +85,9 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Appearance"))
+        if (ImGui.BeginTabItem("Components"))
         {
-            DrawAppearanceTab();
-            ImGui.EndTabItem();
-        }
-
-        if (ImGui.BeginTabItem("Position"))
-        {
-            DrawPositionTab();
+            DrawComponentsTab();
             ImGui.EndTabItem();
         }
 
@@ -130,16 +124,14 @@ public sealed class ConfigWindow : Window
     {
         Checkbox("Enable translations", _configuration.Enabled, v => _configuration.Enabled = v);
 
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Chinese text source");
-        ImGui.Separator();
+        Section("Chinese text source");
         ImGui.TextWrapped(
             "Choose which official game version supplies the translation. " +
             "TC is the Traditional Chinese release for Taiwan and Hong Kong. " +
             "CN is the Simplified Chinese release for mainland China.");
-        ImGui.Spacing();
 
-        if (ImGui.RadioButton("Traditional Chinese (TC)", _configuration.Variant == ChineseVariant.Traditional))
+        if (ImGui.RadioButton("Traditional Chinese (TC)",
+                _configuration.Variant == ChineseVariant.Traditional))
         {
             _configuration.Variant = ChineseVariant.Traditional;
             _applySettings();
@@ -149,7 +141,8 @@ public sealed class ConfigWindow : Window
         ImGui.TextDisabled("Taiwan / Hong Kong game version");
         ImGui.Unindent();
 
-        if (ImGui.RadioButton("Simplified Chinese (CN)", _configuration.Variant == ChineseVariant.Simplified))
+        if (ImGui.RadioButton("Simplified Chinese (CN)",
+                _configuration.Variant == ChineseVariant.Simplified))
         {
             _configuration.Variant = ChineseVariant.Simplified;
             _applySettings();
@@ -158,7 +151,6 @@ public sealed class ConfigWindow : Window
         ImGui.Indent();
         ImGui.TextDisabled("Mainland China game version");
         ImGui.Unindent();
-        ImGui.Spacing();
 
         Checkbox("Use the other version when a line is missing", _configuration.UseFallbackVariant,
             v => _configuration.UseFallbackVariant = v);
@@ -169,14 +161,10 @@ public sealed class ConfigWindow : Window
             "for a few extra lines.");
         ImGui.Unindent();
 
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Convert displayed text");
-        ImGui.Separator();
+        Section("Convert displayed text");
         ImGui.TextWrapped(
             "Optional. Changes the characters after lookup without changing which " +
-            "game version supplies the translation. Use the text source above to " +
-            "choose CN or TC data.");
-        ImGui.Spacing();
+            "game version supplies the translation.");
 
         if (ImGui.RadioButton("No conversion (keep official text)",
                 _configuration.Conversion == ChineseConversion.None))
@@ -185,20 +173,12 @@ public sealed class ConfigWindow : Window
             _applySettings();
         }
 
-        ImGui.Indent();
-        ImGui.TextDisabled("Keep the wording exactly as the selected source provides it.");
-        ImGui.Unindent();
-
         if (ImGui.RadioButton("Simplified to Traditional (CN to TC)",
                 _configuration.Conversion == ChineseConversion.SimplifiedToTraditional))
         {
             _configuration.Conversion = ChineseConversion.SimplifiedToTraditional;
             _applySettings();
         }
-
-        ImGui.Indent();
-        ImGui.TextDisabled("Useful when the selected text source is Simplified Chinese.");
-        ImGui.Unindent();
 
         if (ImGui.RadioButton("Traditional to Simplified (TC to CN)",
                 _configuration.Conversion == ChineseConversion.TraditionalToSimplified))
@@ -207,62 +187,10 @@ public sealed class ConfigWindow : Window
             _applySettings();
         }
 
-        ImGui.Indent();
-        ImGui.TextDisabled("Useful when the selected text source is Traditional Chinese.");
-        ImGui.Unindent();
-
-        ImGui.Spacing();
-        Checkbox("Show in Talk dialog", _configuration.ShowInTalk, v => _configuration.ShowInTalk = v);
-        Checkbox("Show in Talk subtitles", _configuration.ShowInTalkSubtitle,
-            v => _configuration.ShowInTalkSubtitle = v);
-
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Alpha: In-game text");
-        ImGui.Separator();
-
-        Checkbox("Write the translation into the game's dialogue box", _configuration.NativeTextMode,
-            v => _configuration.NativeTextMode = v);
-        ImGui.TextDisabled("Alpha. The overlay is the default; this replaces it for the Talk dialog only.");
-
-        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-        ImGui.TextWrapped(
-            "The game's font has no Chinese glyphs. Install a font mod first, " +
-            "or every line shows the missing-glyph character instead of Chinese.");
-        ImGui.PopStyleColor();
-
-        if (ImGui.Selectable("Open the font setup guide"))
-            Util.OpenLink(FontSetupUrl);
-
-        ImGui.TextDisabled(FontSetupUrl);
-
-        ImGui.Spacing();
-        if (ImGui.Button("Reset all settings"))
-            ResetAll();
-    }
-
-    private void DrawAppearanceTab()
-    {
-        Checkbox("Show speaker name", _configuration.ShowSpeakerName, v => _configuration.ShowSpeakerName = v);
-        Checkbox("Also show original English text", _configuration.ShowOriginal,
-            v => _configuration.ShowOriginal = v);
-        Checkbox("Hide when no translation is found", _configuration.HideWhenNoTranslation,
-            v => _configuration.HideWhenNoTranslation = v);
-
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Colors");
-        ImGui.Separator();
-
-        ColorEdit("NPC name", _configuration.SpeakerNameColor, v => _configuration.SpeakerNameColor = v);
-        ColorEdit("Translated text", _configuration.TranslatedTextColor, v => _configuration.TranslatedTextColor = v);
-        ColorEdit("Original text", _configuration.OriginalTextColor, v => _configuration.OriginalTextColor = v);
-
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Font");
-        ImGui.Separator();
-
+        Section("Font and overlay");
         SliderFloat("Font size", _configuration.FontSize, 12f, 42f, "%.0f px",
             v => _configuration.FontSize = v);
-        SliderFloat("Background opacity", _configuration.OverlayOpacity, 0f, 1f, "%.2f",
+        SliderFloat("Background opacity (default)", _configuration.OverlayOpacity, 0f, 1f, "%.2f",
             v => _configuration.OverlayOpacity = v);
 
         ImGui.TextUnformatted("Custom font path (optional, .ttf/.ttc/.otf)");
@@ -274,56 +202,271 @@ public sealed class ConfigWindow : Window
             _applySettings();
         }
 
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Name overlays");
-        ImGui.Separator();
+        Section("Colors (defaults)");
+        ColorEdit("NPC name", _configuration.SpeakerNameColor, v => _configuration.SpeakerNameColor = v);
+        ColorEdit("Translated text", _configuration.TranslatedTextColor, v => _configuration.TranslatedTextColor = v);
+        ColorEdit("Original text", _configuration.OriginalTextColor, v => _configuration.OriginalTextColor = v);
 
-        Checkbox("Show the Chinese name of the target", _configuration.ShowTargetName,
-            v => _configuration.ShowTargetName = v);
-        Checkbox("Show the Chinese name of the hovered item", _configuration.ShowItemName,
-            v => _configuration.ShowItemName = v);
+        Checkbox("Also show the English name in target and item overlays",
+            _configuration.ShowOriginal, v => _configuration.ShowOriginal = v);
+        ImGui.TextDisabled("The Talk overlay always shows the Chinese name with the English name in parentheses.");
+
+        Section("Shared actions");
+        if (ImGui.Button("Use the default colors for every component"))
+            UseGlobalAppearanceForAll();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Reset all settings"))
+            ResetAll();
     }
 
-    private void DrawPositionTab()
+    private void DrawComponentsTab()
     {
-        Checkbox("Lock overlay position", _configuration.LockOverlay, v => _configuration.LockOverlay = v);
-        Checkbox("Click-through", _configuration.Clickthrough, v => _configuration.Clickthrough = v);
+        if (!ImGui.BeginTabBar("SinophoneComponentTabs"))
+            return;
 
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Dialogue overlay");
-        ImGui.Separator();
+        if (ImGui.BeginTabItem("Talk"))
+        {
+            DrawTalkComponentTab();
+            ImGui.EndTabItem();
+        }
 
-        SliderFloat("Horizontal offset (0 = center)###overlayOffsetX", _configuration.OverlayOffsetX, -1000f, 1000f, "%.0f px",
-            v => _configuration.OverlayOffsetX = v);
-        SliderFloat("Distance from screen bottom", _configuration.OffsetFromBottom, 20f, 520f, "%.0f",
-            v => _configuration.OffsetFromBottom = v);
+        if (ImGui.BeginTabItem("Subtitles"))
+        {
+            DrawSubtitleComponentTab();
+            ImGui.EndTabItem();
+        }
+
+        if (ImGui.BeginTabItem("Selection"))
+        {
+            DrawSelectionComponentTab();
+            ImGui.EndTabItem();
+        }
+
+        if (ImGui.BeginTabItem("Target name"))
+        {
+            DrawTargetNameComponentTab();
+            ImGui.EndTabItem();
+        }
+
+        if (ImGui.BeginTabItem("Item name"))
+        {
+            DrawItemNameComponentTab();
+            ImGui.EndTabItem();
+        }
+
+        ImGui.EndTabBar();
+    }
+
+    private void DrawTalkComponentTab()
+    {
+        Checkbox("Enable translation in the Talk dialogue", _configuration.ShowInTalk,
+            v => _configuration.ShowInTalk = v);
+
+        Section("Mode");
+        if (ImGui.RadioButton("Overlay###talkOverlay", !_configuration.NativeTextMode))
+        {
+            _configuration.NativeTextMode = false;
+            _applySettings();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Native (game dialogue box)###talkNative", _configuration.NativeTextMode))
+        {
+            _configuration.NativeTextMode = true;
+            _applySettings();
+        }
+
+        if (_configuration.NativeTextMode)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+            ImGui.TextWrapped(
+                "Native mode writes Chinese into the game's own dialogue box. " +
+                "The game's font has no Chinese glyphs, so install a font mod first.");
+            ImGui.PopStyleColor();
+
+            if (ImGui.Selectable("Open the font setup guide"))
+                Util.OpenLink(FontSetupUrl);
+
+            ImGui.TextDisabled(FontSetupUrl);
+        }
+
+        Section("Display");
+        Checkbox("Show speaker name", _configuration.ShowSpeakerName,
+            v => _configuration.ShowSpeakerName = v);
+        ImGui.TextDisabled("The Chinese name is shown with the English name in parentheses.");
+
+        Checkbox("Hide when no translation is found", _configuration.HideWhenNoTranslation,
+            v => _configuration.HideWhenNoTranslation = v);
+        ImGui.TextDisabled(
+            "When off, an untranslated line falls back to the English text. " +
+            "The overlay never shows both languages at once.");
+
+        Section("Overlay position");
+        ImGui.BeginDisabled(_configuration.NativeTextMode);
+        Checkbox("Lock overlay position", _configuration.LockOverlay,
+            v => _configuration.LockOverlay = v);
+        Checkbox("Click-through", _configuration.Clickthrough,
+            v => _configuration.Clickthrough = v);
+        SliderFloat("Width###talkWidth", _configuration.OverlayWidth, 280f, 1200f, "%.0f",
+            v => _configuration.OverlayWidth = v);
+        SliderFloat("Horizontal offset (0 = center)###overlayOffsetX", _configuration.OverlayOffsetX,
+            -1000f, 1000f, "%.0f px", v => _configuration.OverlayOffsetX = v);
+        SliderFloat("Distance from screen bottom###offsetFromBottom", _configuration.OffsetFromBottom,
+            20f, 520f, "%.0f", v => _configuration.OffsetFromBottom = v);
         Checkbox("Keep the bottom line fixed when text grows", _configuration.AnchorOverlayBottom,
             v => _configuration.AnchorOverlayBottom = v);
-        ImGui.TextDisabled("Only matters while the overlay is unlocked and can be dragged.");
-
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Target name overlay");
-        ImGui.Separator();
-
-        SliderFloat("Horizontal offset (0 = center)###targetNameOffsetX", _configuration.TargetNameOffsetX, -1000f, 1000f, "%.0f px",
-            v => _configuration.TargetNameOffsetX = v);
-        SliderFloat("Distance from screen top", _configuration.TargetNameOffsetY, 20f, 520f, "%.0f",
-            v => _configuration.TargetNameOffsetY = v);
-
-        ImGui.Spacing();
-        ImGui.TextColored(SectionColor, "Size");
-        ImGui.Separator();
-
-        SliderFloat("Width", _configuration.OverlayWidth, 280f, 1200f, "%.0f",
-            v => _configuration.OverlayWidth = v);
+        ImGui.EndDisabled();
 
         ImGui.Spacing();
         if (ImGui.Button("Preview overlay"))
             _showPreview();
 
         ImGui.SameLine();
-        if (ImGui.Button("Reset layout"))
-            ResetLayout();
+        if (ImGui.Button("Reset Talk layout"))
+            ResetTalkLayout();
+
+        Section("Appearance");
+        Checkbox("Use the default colors and opacity", _configuration.TalkUseGlobalAppearance,
+            v => _configuration.TalkUseGlobalAppearance = v);
+
+        if (_configuration.TalkUseGlobalAppearance)
+        {
+            ImGui.TextDisabled("Following the defaults on the General tab.");
+        }
+        else
+        {
+            ColorEdit("Speaker name###talkSpeakerColor", _configuration.TalkSpeakerNameColor,
+                v => _configuration.TalkSpeakerNameColor = v);
+            ColorEdit("Translated text###talkTranslatedColor", _configuration.TalkTranslatedTextColor,
+                v => _configuration.TalkTranslatedTextColor = v);
+            ColorEdit("Untranslated fallback###talkOriginalColor", _configuration.TalkOriginalTextColor,
+                v => _configuration.TalkOriginalTextColor = v);
+            SliderFloat("Background opacity###talkOpacity", _configuration.TalkOverlayOpacity,
+                0f, 1f, "%.2f", v => _configuration.TalkOverlayOpacity = v);
+        }
+    }
+
+    private void DrawSubtitleComponentTab()
+    {
+        Checkbox("Enable translation in Talk subtitles", _configuration.ShowInTalkSubtitle,
+            v => _configuration.ShowInTalkSubtitle = v);
+
+        ImGui.TextDisabled("Subtitles use the Talk overlay's position and appearance.");
+        ImGui.TextDisabled("Native text is not supported for subtitles yet.");
+    }
+
+    private void DrawSelectionComponentTab()
+    {
+        Checkbox("Enable translation in selection dialogs", _configuration.ShowInSelectionDialogs,
+            v => _configuration.ShowInSelectionDialogs = v);
+
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "Selection dialogs are translated in place, with no overlay. " +
+            "This needs a CJK font mod, or the Chinese text shows the missing-glyph character.");
+        ImGui.PopStyleColor();
+
+        if (ImGui.Selectable("Open the font setup guide"))
+            Util.OpenLink(FontSetupUrl);
+
+        ImGui.TextDisabled(FontSetupUrl);
+
+        ImGui.Spacing();
+        ImGui.TextDisabled("Prompts and option labels are replaced in the game's own dialog.");
+
+        if (ImGui.CollapsingHeader("Advanced: choose dialog types"))
+        {
+            ImGui.BeginDisabled(!_configuration.ShowInSelectionDialogs);
+            Checkbox("Yes / No prompt", _configuration.SelectionYesNo,
+                v => _configuration.SelectionYesNo = v);
+            Checkbox("List of text options", _configuration.SelectionString,
+                v => _configuration.SelectionString = v);
+            Checkbox("List of icon options", _configuration.SelectionIconString,
+                v => _configuration.SelectionIconString = v);
+            Checkbox("Single OK prompt", _configuration.SelectionOk,
+                v => _configuration.SelectionOk = v);
+            Checkbox("Cutscene choice", _configuration.SelectionCutScene,
+                v => _configuration.SelectionCutScene = v);
+            ImGui.EndDisabled();
+        }
+    }
+
+    private void DrawTargetNameComponentTab()
+    {
+        Checkbox("Show the Chinese name of the current target", _configuration.ShowTargetName,
+            v => _configuration.ShowTargetName = v);
+
+        ImGui.TextDisabled("Player character names are not translated.");
+
+        Section("Mode");
+        ImGui.RadioButton("Overlay###targetOverlay", true);
+        ImGui.SameLine();
+        ImGui.BeginDisabled();
+        ImGui.RadioButton("Native name above the head (planned)###targetNative", false);
+        ImGui.EndDisabled();
+        ImGui.TextDisabled("Native head names are planned. See the tracking issue.");
+
+        Section("Position");
+        SliderFloat("Horizontal offset (0 = center)###targetNameOffsetX", _configuration.TargetNameOffsetX,
+            -1000f, 1000f, "%.0f px", v => _configuration.TargetNameOffsetX = v);
+        SliderFloat("Distance from screen top###targetNameOffsetY", _configuration.TargetNameOffsetY,
+            20f, 520f, "%.0f", v => _configuration.TargetNameOffsetY = v);
+
+        if (ImGui.Button("Reset target position"))
+            ResetTargetLayout();
+
+        Section("Appearance");
+        Checkbox("Use the default colors and opacity", _configuration.TargetNameUseGlobalAppearance,
+            v => _configuration.TargetNameUseGlobalAppearance = v);
+
+        if (_configuration.TargetNameUseGlobalAppearance)
+        {
+            ImGui.TextDisabled("Following the defaults on the General tab.");
+        }
+        else
+        {
+            ColorEdit("Translated name###targetNameColor", _configuration.TargetNameColor,
+                v => _configuration.TargetNameColor = v);
+            ColorEdit("English name###targetNameOriginalColor", _configuration.TargetNameOriginalColor,
+                v => _configuration.TargetNameOriginalColor = v);
+            SliderFloat("Background opacity###targetNameOpacity", _configuration.TargetNameOpacity,
+                0f, 1f, "%.2f", v => _configuration.TargetNameOpacity = v);
+        }
+    }
+
+    private void DrawItemNameComponentTab()
+    {
+        Checkbox("Show the Chinese name of the hovered item", _configuration.ShowItemName,
+            v => _configuration.ShowItemName = v);
+
+        ImGui.TextDisabled("The name follows the mouse, above the item tooltip.");
+
+        Section("Mode");
+        ImGui.RadioButton("Overlay###itemOverlay", true);
+        ImGui.SameLine();
+        ImGui.BeginDisabled();
+        ImGui.RadioButton("Native item tooltip (planned)###itemNative", false);
+        ImGui.EndDisabled();
+        ImGui.TextDisabled("Native item names are planned. See the tracking issue.");
+
+        Section("Appearance");
+        Checkbox("Use the default colors and opacity", _configuration.ItemNameUseGlobalAppearance,
+            v => _configuration.ItemNameUseGlobalAppearance = v);
+
+        if (_configuration.ItemNameUseGlobalAppearance)
+        {
+            ImGui.TextDisabled("Following the defaults on the General tab.");
+        }
+        else
+        {
+            ColorEdit("Translated name###itemNameColor", _configuration.ItemNameColor,
+                v => _configuration.ItemNameColor = v);
+            ColorEdit("English name###itemNameOriginalColor", _configuration.ItemNameOriginalColor,
+                v => _configuration.ItemNameOriginalColor = v);
+            SliderFloat("Background opacity###itemNameOpacity", _configuration.ItemNameOpacity,
+                0f, 1f, "%.2f", v => _configuration.ItemNameOpacity = v);
+        }
     }
 
     private void DrawDataTab()
@@ -530,6 +673,13 @@ public sealed class ConfigWindow : Window
         return flat.Length <= 48 ? flat : string.Concat(flat.AsSpan(0, 48), "...");
     }
 
+    private static void Section(string label)
+    {
+        ImGui.Spacing();
+        ImGui.TextColored(SectionColor, label);
+        ImGui.Separator();
+    }
+
     private void Checkbox(string label, bool current, Action<bool> setter)
     {
         var value = current;
@@ -560,7 +710,15 @@ public sealed class ConfigWindow : Window
         }
     }
 
-    private void ResetLayout()
+    private void UseGlobalAppearanceForAll()
+    {
+        _configuration.TalkUseGlobalAppearance = true;
+        _configuration.TargetNameUseGlobalAppearance = true;
+        _configuration.ItemNameUseGlobalAppearance = true;
+        _applySettings();
+    }
+
+    private void ResetTalkLayout()
     {
         var defaults = new Configuration();
         _configuration.OverlayWidth = defaults.OverlayWidth;
@@ -568,6 +726,12 @@ public sealed class ConfigWindow : Window
         _configuration.OffsetFromBottom = defaults.OffsetFromBottom;
         _configuration.LockOverlay = defaults.LockOverlay;
         _configuration.AnchorOverlayBottom = defaults.AnchorOverlayBottom;
+        _applySettings();
+    }
+
+    private void ResetTargetLayout()
+    {
+        var defaults = new Configuration();
         _configuration.TargetNameOffsetX = defaults.TargetNameOffsetX;
         _configuration.TargetNameOffsetY = defaults.TargetNameOffsetY;
         _applySettings();
@@ -592,11 +756,30 @@ public sealed class ConfigWindow : Window
         _configuration.TargetNameOffsetX = defaults.TargetNameOffsetX;
         _configuration.TargetNameOffsetY = defaults.TargetNameOffsetY;
         _configuration.ShowItemName = defaults.ShowItemName;
+        _configuration.ShowInSelectionDialogs = defaults.ShowInSelectionDialogs;
+        _configuration.SelectionYesNo = defaults.SelectionYesNo;
+        _configuration.SelectionString = defaults.SelectionString;
+        _configuration.SelectionIconString = defaults.SelectionIconString;
+        _configuration.SelectionOk = defaults.SelectionOk;
+        _configuration.SelectionCutScene = defaults.SelectionCutScene;
         _configuration.ShowOriginal = defaults.ShowOriginal;
         _configuration.HideWhenNoTranslation = defaults.HideWhenNoTranslation;
         _configuration.LockOverlay = defaults.LockOverlay;
         _configuration.Clickthrough = defaults.Clickthrough;
         _configuration.OverlayOpacity = defaults.OverlayOpacity;
+        _configuration.TalkUseGlobalAppearance = defaults.TalkUseGlobalAppearance;
+        _configuration.TalkSpeakerNameColor = defaults.TalkSpeakerNameColor;
+        _configuration.TalkTranslatedTextColor = defaults.TalkTranslatedTextColor;
+        _configuration.TalkOriginalTextColor = defaults.TalkOriginalTextColor;
+        _configuration.TalkOverlayOpacity = defaults.TalkOverlayOpacity;
+        _configuration.TargetNameUseGlobalAppearance = defaults.TargetNameUseGlobalAppearance;
+        _configuration.TargetNameColor = defaults.TargetNameColor;
+        _configuration.TargetNameOriginalColor = defaults.TargetNameOriginalColor;
+        _configuration.TargetNameOpacity = defaults.TargetNameOpacity;
+        _configuration.ItemNameUseGlobalAppearance = defaults.ItemNameUseGlobalAppearance;
+        _configuration.ItemNameColor = defaults.ItemNameColor;
+        _configuration.ItemNameOriginalColor = defaults.ItemNameOriginalColor;
+        _configuration.ItemNameOpacity = defaults.ItemNameOpacity;
         _configuration.FontSize = defaults.FontSize;
         _configuration.OverlayWidth = defaults.OverlayWidth;
         _configuration.OverlayOffsetX = defaults.OverlayOffsetX;

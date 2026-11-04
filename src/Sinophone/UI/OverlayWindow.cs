@@ -29,7 +29,7 @@ public sealed class OverlayWindow : Window
         DisableWindowSounds = true;
         AllowClickthrough = configuration.Clickthrough;
         IsClickthrough = configuration.Clickthrough;
-        BgAlpha = configuration.OverlayOpacity;
+        BgAlpha = configuration.GetTalkOpacity();
     }
 
     public bool IsShowing => _hasContent;
@@ -38,34 +38,21 @@ public sealed class OverlayWindow : Window
         string chineseText,
         string originalText,
         string chineseName,
-        string originalName,
         bool isSubtitle)
     {
         _blocks.Clear();
 
-        var hasTranslation = !string.IsNullOrWhiteSpace(chineseText);
+        if (_configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(chineseName))
+            _blocks.Add(new TextBlock(chineseName.Trim(), TextKind.SpeakerName));
 
-        if (_configuration.ShowSpeakerName)
-        {
-            var name = !string.IsNullOrWhiteSpace(chineseName)
-                ? chineseName
-                : _configuration.ShowOriginal
-                    ? originalName
-                    : string.Empty;
-
-            if (!string.IsNullOrWhiteSpace(name))
-                _blocks.Add(new TextBlock(name.Trim(), TextKind.SpeakerName));
-        }
-
-        if (hasTranslation)
+        if (!string.IsNullOrWhiteSpace(chineseText))
         {
             _blocks.Add(new TextBlock(chineseText, TextKind.Translation));
-
-            if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(originalText))
-                _blocks.Add(new TextBlock(originalText, TextKind.Original));
         }
         else if (!string.IsNullOrWhiteSpace(originalText))
         {
+            // No translation: show the English line only when the user asked to
+            // keep untranslated lines visible.
             _blocks.Add(new TextBlock(originalText, TextKind.Original));
         }
 
@@ -111,7 +98,7 @@ public sealed class OverlayWindow : Window
         Flags = flags;
         AllowClickthrough = _configuration.Clickthrough;
         IsClickthrough = _configuration.Clickthrough;
-        BgAlpha = _configuration.OverlayOpacity;
+        BgAlpha = _configuration.GetTalkOpacity();
 
         var scale = ImGuiHelpers.GlobalScale;
         var width = MathF.Max(240f * scale, _configuration.OverlayWidth * scale);
@@ -182,9 +169,9 @@ public sealed class OverlayWindow : Window
     private Vector4 ColorFor(TextKind kind)
         => kind switch
         {
-            TextKind.SpeakerName => _configuration.SpeakerNameColor,
-            TextKind.Original => _configuration.OriginalTextColor,
-            _ => _configuration.TranslatedTextColor,
+            TextKind.SpeakerName => _configuration.GetTalkSpeakerNameColor(),
+            TextKind.Original => _configuration.GetTalkOriginalTextColor(),
+            _ => _configuration.GetTalkTranslatedTextColor(),
         };
 
     private float MeasureHeight(float width)

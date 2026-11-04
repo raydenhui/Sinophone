@@ -209,8 +209,7 @@ public sealed class TalkHandler : IDisposable
             ForgetNativeText(addonName);
         }
 
-        _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName,
-            englishName ?? string.Empty, isSubtitle);
+        _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName, isSubtitle);
         _log.Debug("Overlay shown for {Addon}: {ChineseLength} Chinese chars.",
             addonName, content.Value.ChineseText.Length);
     }
