@@ -868,6 +868,13 @@ public sealed class TranslationStore
                 added++;
                 _scriptEntryCount++;
             }
+            else
+            {
+                // The configured variant already owns this line. Its collapsed key is
+                // built, and the other variant's Chinese only conflicts with it, so
+                // the whole index would look ambiguous.
+                continue;
+            }
 
             // The English dump holds one branch's wording, so keep a key with the
             // branch words collapsed for the others. A line that already matches
