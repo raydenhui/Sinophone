@@ -222,7 +222,9 @@ premature interface.
   case. Dialogue lookup stays case-sensitive. The English script dumps mark italics with one
   asterisk and bold with two; the game draws that emphasis with a SeString macro, so
   `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
-  from the text node before lookup.
+  from the text node before lookup. The dumps write client macros the datamining tool cannot
+  name as `<Unknown60>0262</Unknown60>`. The payload is binary data, not text, so
+  `CleanForDisplay` drops the whole pair instead of leaving `0262` in the line.
 - **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
   branch. `TranslationStore` keeps a second script index with the branch words collapsed:

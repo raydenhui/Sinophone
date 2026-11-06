@@ -15,9 +15,14 @@ public static partial class MacroNormalizer
     [GeneratedRegex(@"<[^<>]*>", RegexOptions.CultureInvariant)]
     private static partial Regex MacroPattern();
 
-    [GeneratedRegex(@"<(?:UIForeground|UIGlow|Unknown2D)>.*?</(?:UIForeground|UIGlow|Unknown2D)>",
+    /// <summary>
+    /// Macros whose payload is binary data, not text: the UI colors, and the macros the
+    /// dumps could not name. The whole pair must go, or characters such as 0262 show in
+    /// the line.
+    /// </summary>
+    [GeneratedRegex(@"<(?:UIForeground|UIGlow|Unknown[0-9A-Fa-f]{2})>.*?</(?:UIForeground|UIGlow|Unknown[0-9A-Fa-f]{2})>",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline)]
-    private static partial Regex UiMarkupPattern();
+    private static partial Regex TaggedPayloadPattern();
 
     [GeneratedRegex(@"ObjectParameter\((\d+)\)", RegexOptions.CultureInvariant)]
     private static partial Regex ObjectParameterPattern();
@@ -228,9 +233,9 @@ public static partial class MacroNormalizer
         // leaves the parameter text between them sitting in the sentence.
         cleaned = ResolveObjectParameters(cleaned, playerName);
 
-        // UI color tags carry payload text such as F20223 or 01 between the tags.
-        // Remove the whole pair, not just the tags.
-        cleaned = UiMarkupPattern().Replace(cleaned, string.Empty);
+        // UI color tags and unnamed macros carry a payload such as F20223 or 0262
+        // between the tags. Remove the whole pair, not just the tags.
+        cleaned = TaggedPayloadPattern().Replace(cleaned, string.Empty);
         cleaned = MacroPattern().Replace(cleaned, string.Empty);
 
         var lines = cleaned.Split('\n');

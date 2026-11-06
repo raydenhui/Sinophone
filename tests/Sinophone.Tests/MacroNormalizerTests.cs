@@ -218,6 +218,13 @@ public class MacroNormalizerTests
         Assert.Equal("我，我是……", MacroNormalizer.CleanForDisplay(text));
     }
 
+    [Theory]
+    [InlineData("謝謝！<Unknown60>0262</Unknown60>", "謝謝！")]
+    [InlineData("看來<Unknown0A>E802</Unknown0A>幸運地釣到了啊！", "看來幸運地釣到了啊！")]
+    [InlineData("<Unknown14>FEFFB1BACD</Unknown14>選擇大國防聯軍", "選擇大國防聯軍")]
+    public void CleanForDisplay_RemovesUnnamedMacroPayloads(string text, string expected)
+        => Assert.Equal(expected, MacroNormalizer.CleanForDisplay(text));
+
     [Fact]
     public void CleanForDisplay_DropsOtherObjectParameters()
     {
