@@ -4,7 +4,8 @@ namespace Sinophone.Handlers;
 
 /// <summary>
 /// Watches the <c>TargetInfo</c> addon and feeds the Chinese name of the targeted
-/// NPC or object to the target name window.
+/// NPC or object to the target name window. In native mode it turns on the nameplate
+/// writer, which translates every visible NPC name instead.
 /// </summary>
 /// <remarks>
 /// Addon events are used instead of a per-frame poll. Reading
@@ -20,8 +21,9 @@ public sealed class TargetNameHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly TargetNameWindow _window;
+    private readonly NamePlateNameWriter _namePlate;
 
-    private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
+    private readonly IAddonLifecycle.AddonEventDelegate _onTargetInfoEvent;
     private bool _disposed;
 
     public TargetNameHandler(
@@ -29,25 +31,47 @@ public sealed class TargetNameHandler : IDisposable
         ITargetManager targetManager,
         Configuration configuration,
         Func<TranslationStore?> getStore,
-        TargetNameWindow window)
+        TargetNameWindow window,
+        NamePlateNameWriter namePlate)
     {
         _addonLifecycle = addonLifecycle;
         _targetManager = targetManager;
         _configuration = configuration;
         _getStore = getStore;
         _window = window;
-        _onAddonEvent = OnAddonEvent;
+        _namePlate = namePlate;
+        _onTargetInfoEvent = OnTargetInfoEvent;
 
-        _addonLifecycle.RegisterListener(AddonEvent.PostSetup, TargetInfoAddonName, _onAddonEvent);
-        _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, TargetInfoAddonName, _onAddonEvent);
-        _addonLifecycle.RegisterListener(AddonEvent.PostClose, TargetInfoAddonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostSetup, TargetInfoAddonName, _onTargetInfoEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, TargetInfoAddonName, _onTargetInfoEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostClose, TargetInfoAddonName, _onTargetInfoEvent);
     }
 
-    /// <summary>Re-reads the current target. Call after a settings or store change.</summary>
-    public void Refresh()
+    /// <summary>
+    /// Re-reads the current target and the settings. Pass <paramref name="namesChanged"/>
+    /// when the translation data changed: the plates then need a new lookup.
+    /// </summary>
+    public void Refresh(bool namesChanged = false)
     {
         if (_disposed)
             return;
+
+        if (namesChanged)
+            _namePlate.Reset();
+
+        if (_configuration.Enabled
+            && _configuration.ShowTargetName
+            && _configuration.TargetNameDisplay == TargetNameDisplayMode.NativeNamePlate)
+        {
+            // The overlay stays hidden, because the game draws these names itself.
+            _window.Hide();
+            _namePlate.Enable();
+            return;
+        }
+
+        // Every other state uses the overlay, or nothing. Restore the plates first,
+        // so switching modes does not leave Chinese above the NPCs' heads.
+        _namePlate.Disable();
 
         if (!_configuration.Enabled || !_configuration.ShowTargetName)
         {
@@ -64,7 +88,7 @@ public sealed class TargetNameHandler : IDisposable
             _window.SetName(content.Value.ChineseName, content.Value.EnglishName);
     }
 
-    private void OnAddonEvent(AddonEvent eventType, AddonArgs args)
+    private void OnTargetInfoEvent(AddonEvent eventType, AddonArgs args)
     {
         if (_disposed)
             return;
@@ -113,10 +137,11 @@ public sealed class TargetNameHandler : IDisposable
 
         _disposed = true;
 
-        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, TargetInfoAddonName, _onAddonEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, TargetInfoAddonName, _onAddonEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostClose, TargetInfoAddonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, TargetInfoAddonName, _onTargetInfoEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, TargetInfoAddonName, _onTargetInfoEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostClose, TargetInfoAddonName, _onTargetInfoEvent);
 
         _window.Hide();
+        _namePlate.Disable();
     }
 }

@@ -55,6 +55,25 @@ public class TargetNameHandlerTests
         Assert.Null(TargetNameHandler.Resolve(CreateStore(), ObjectKind.EventNpc, "Someone Else"));
     }
 
+    [Fact]
+    public void FormatNamePlateText_UsesOneLine_WhenEnglishIsOff()
+    {
+        Assert.Equal("雅·修特拉", NamePlateNameWriter.FormatNamePlateText("雅·修特拉", "Y'shtola", false));
+    }
+
+    [Fact]
+    public void FormatNamePlateText_PutsEnglishInBracketsOnTheSameLine()
+    {
+        Assert.Equal("雅·修特拉 (Y'shtola)", NamePlateNameWriter.FormatNamePlateText(
+            "雅·修特拉", "Y'shtola", true));
+    }
+
+    [Fact]
+    public void FormatNamePlateText_UsesChineseOnly_WhenEnglishNameIsEmpty()
+    {
+        Assert.Equal("雅·修特拉", NamePlateNameWriter.FormatNamePlateText("雅·修特拉", string.Empty, true));
+    }
+
     private static TranslationStore CreateStore()
     {
         var descriptor = new FakeSheetDescriptor(SheetName, FieldName, true,

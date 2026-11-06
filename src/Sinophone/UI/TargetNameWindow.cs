@@ -88,7 +88,7 @@ public sealed class TargetNameWindow : Window
         ImGui.TextUnformatted(_chineseName);
         ImGui.PopStyleColor();
 
-        if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName))
+        if (_configuration.TargetNameShowEnglish && !string.IsNullOrWhiteSpace(_englishName))
         {
             ImGui.PushStyleColor(ImGuiCol.Text, _configuration.GetTargetNameOriginalColor());
             ImGui.TextUnformatted(_englishName);
@@ -102,7 +102,7 @@ public sealed class TargetNameWindow : Window
         using var font = fontHandle?.Push();
 
         var style = ImGui.GetStyle();
-        var showOriginal = _configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName);
+        var showOriginal = _configuration.TargetNameShowEnglish && !string.IsNullOrWhiteSpace(_englishName);
 
         var textSize = ImGui.CalcTextSize(_chineseName, false, -1f);
         var width = textSize.X;

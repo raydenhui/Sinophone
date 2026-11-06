@@ -19,6 +19,21 @@ public enum ChineseConversion
     TraditionalToSimplified = 2,
 }
 
+/// <summary>
+/// Where the Chinese NPC names are drawn.
+/// </summary>
+public enum TargetNameDisplayMode
+{
+    /// <summary>The current target only, in a small plugin window near the target info.</summary>
+    Overlay = 0,
+
+    /// <summary>
+    /// Every visible NPC, in the game's own nameplate above its head. Needs a font mod,
+    /// because the game font has no CJK glyphs.
+    /// </summary>
+    NativeNamePlate = 1,
+}
+
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
@@ -74,10 +89,19 @@ public sealed class Configuration : IPluginConfiguration
     public Vector4 OriginalTextColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
 
     /// <summary>
-    /// Show the Chinese name of the current target in a small overlay.
-    /// Off by default until the surface has been checked in game.
+    /// Show the Chinese name of the current target, in the overlay or in the
+    /// game's own nameplate. Off by default until the surface has been checked in game.
     /// </summary>
     public bool ShowTargetName { get; set; }
+
+    /// <summary>Where the target's Chinese name is drawn. Overlay by default.</summary>
+    public TargetNameDisplayMode TargetNameDisplay { get; set; } = TargetNameDisplayMode.Overlay;
+
+    /// <summary>
+    /// Show the English name with the translated name. In native mode it follows the
+    /// Chinese name in brackets on the same line, for every NPC plate.
+    /// </summary>
+    public bool TargetNameShowEnglish { get; set; } = true;
 
     /// <summary>Distance in pixels from the top of the screen to the target name overlay.</summary>
     public float TargetNameOffsetY { get; set; } = 170f;
@@ -114,8 +138,9 @@ public sealed class Configuration : IPluginConfiguration
     public bool SelectionCutScene { get; set; } = true;
 
     /// <summary>
-    /// Show the English name under the translated name in the target and item
-    /// windows. The Talk overlay always shows both names on one line.
+    /// Show the English name under the translated name in the item name window.
+    /// The target name has its own switch, <see cref="TargetNameShowEnglish"/>.
+    /// The Talk overlay always shows both names on one line.
     /// </summary>
     public bool ShowOriginal { get; set; } = true;
 

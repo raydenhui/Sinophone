@@ -207,9 +207,10 @@ public sealed class ConfigWindow : Window
         ColorEdit("Translated text", _configuration.TranslatedTextColor, v => _configuration.TranslatedTextColor = v);
         ColorEdit("Original text", _configuration.OriginalTextColor, v => _configuration.OriginalTextColor = v);
 
-        Checkbox("Also show the English name in target and item overlays",
+        Checkbox("Also show the English name in the item name overlay",
             _configuration.ShowOriginal, v => _configuration.ShowOriginal = v);
-        ImGui.TextDisabled("The Talk overlay always shows the Chinese name with the English name in parentheses.");
+        ImGui.TextDisabled("The target name has its own switch on its tab. " +
+                           "The Talk overlay always shows both names.");
 
         Section("Shared actions");
         if (ImGui.Button("Use the default colors for every component"))
@@ -243,7 +244,7 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Target name"))
+        if (ImGui.BeginTabItem("NPC names"))
         {
             DrawTargetNameComponentTab();
             ImGui.EndTabItem();
@@ -394,20 +395,56 @@ public sealed class ConfigWindow : Window
 
     private void DrawTargetNameComponentTab()
     {
-        Checkbox("Show the Chinese name of the current target", _configuration.ShowTargetName,
-            v => _configuration.ShowTargetName = v);
-
-        ImGui.TextDisabled("Player character names are not translated.");
-
         Section("Mode");
-        ImGui.RadioButton("Overlay###targetOverlay", true);
+        if (ImGui.RadioButton("Overlay###targetOverlay",
+                _configuration.TargetNameDisplay == TargetNameDisplayMode.Overlay))
+        {
+            _configuration.TargetNameDisplay = TargetNameDisplayMode.Overlay;
+            _applySettings();
+        }
+
         ImGui.SameLine();
-        ImGui.BeginDisabled();
-        ImGui.RadioButton("Native name above the head (planned)###targetNative", false);
-        ImGui.EndDisabled();
-        ImGui.TextDisabled("Native head names are planned. See the tracking issue.");
+        if (ImGui.RadioButton("Native name above the head###targetNative",
+                _configuration.TargetNameDisplay == TargetNameDisplayMode.NativeNamePlate))
+        {
+            _configuration.TargetNameDisplay = TargetNameDisplayMode.NativeNamePlate;
+            _applySettings();
+        }
+
+        var nativeNamePlate = _configuration.TargetNameDisplay == TargetNameDisplayMode.NativeNamePlate;
+        if (nativeNamePlate)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+            ImGui.TextWrapped(
+                "Native mode writes the name into the game's nameplate above every visible NPC. " +
+                "It needs a font mod, or the name shows the missing-glyph character. " +
+                "NPC nameplates must be visible in the game settings.");
+            ImGui.PopStyleColor();
+
+            if (ImGui.Selectable("Open the font setup guide"))
+                Util.OpenLink(FontSetupUrl);
+
+            ImGui.TextDisabled(FontSetupUrl);
+        }
+
+        Checkbox(nativeNamePlate
+                ? "Show the Chinese name above NPCs' heads"
+                : "Show the Chinese name of the current target",
+            _configuration.ShowTargetName, v => _configuration.ShowTargetName = v);
+
+        ImGui.TextDisabled(nativeNamePlate
+            ? "Every visible NPC nameplate is translated, not only the target. Player names are not translated."
+            : "Player character names are not translated.");
+
+        Checkbox("Show the English name too", _configuration.TargetNameShowEnglish,
+            v => _configuration.TargetNameShowEnglish = v);
+        if (nativeNamePlate)
+            ImGui.TextDisabled("In native mode the English name follows the Chinese name in brackets, on the same line.");
+        else
+            ImGui.TextDisabled("The English name is shown under the Chinese name.");
 
         Section("Position");
+        ImGui.BeginDisabled(nativeNamePlate);
         SliderFloat("Horizontal offset (0 = center)###targetNameOffsetX", _configuration.TargetNameOffsetX,
             -1000f, 1000f, "%.0f px", v => _configuration.TargetNameOffsetX = v);
         SliderFloat("Distance from screen top###targetNameOffsetY", _configuration.TargetNameOffsetY,
@@ -433,6 +470,8 @@ public sealed class ConfigWindow : Window
             SliderFloat("Background opacity###targetNameOpacity", _configuration.TargetNameOpacity,
                 0f, 1f, "%.2f", v => _configuration.TargetNameOpacity = v);
         }
+
+        ImGui.EndDisabled();
     }
 
     private void DrawItemNameComponentTab()
