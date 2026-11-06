@@ -19,17 +19,21 @@ public sealed class TalkContextProbe : IDisposable
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly ITargetManager _targetManager;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly TalkEventReader _reader = null!;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private bool _disposed;
 
-    public TalkContextProbe(IAddonLifecycle addonLifecycle, ITargetManager targetManager, IPluginLog log)
+    public TalkContextProbe(
+        IAddonLifecycle addonLifecycle,
+        ITargetManager targetManager,
+        Configuration configuration,
+        IPluginLog log)
     {
         _addonLifecycle = addonLifecycle;
         _targetManager = targetManager;
-        _log = log;
-        _reader = new TalkEventReader(log);
+        _log = new PluginLog(log, configuration, LogCategory.Diagnostics);
+        _reader = new TalkEventReader(log, configuration, LogCategory.Diagnostics);
         _onAddonEvent = OnAddonEvent;
 
         foreach (var addon in Addons)

@@ -27,7 +27,7 @@ public sealed class NamePlateNameWriter
     private readonly INamePlateGui _namePlateGui;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly INamePlateGui.OnPlateUpdateDelegate _onPlateUpdate;
 
     private bool _enabled;
@@ -41,7 +41,7 @@ public sealed class NamePlateNameWriter
         _namePlateGui = namePlateGui;
         _configuration = configuration;
         _getStore = getStore;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.NamePlates);
         _onPlateUpdate = OnPlateUpdate;
     }
 

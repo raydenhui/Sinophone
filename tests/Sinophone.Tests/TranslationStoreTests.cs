@@ -52,6 +52,44 @@ public class TranslationStoreTests
         Assert.Equal("下載", chinese);
     }
 
+    [Fact]
+    public void Lookup_Logs_WhenTheDialogueGroupIsOn()
+    {
+        var (store, log) = LoadWithLog(new Configuration());
+
+        Assert.True(store!.TryGetDialogue("Hello there.", Context(), out _));
+        Assert.Contains(log.Entries, e => e.Message.Contains("Dialogue matched", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Lookup_DoesNotLog_WhenTheDialogueGroupIsOff()
+    {
+        var (store, log) = LoadWithLog(new Configuration { LogDialogue = false });
+
+        Assert.True(store!.TryGetDialogue("Hello there.", Context(), out _));
+        Assert.DoesNotContain(log.Entries, e => e.Message.Contains("Dialogue matched", StringComparison.Ordinal));
+    }
+
+    private static DialogueContext Context()
+        => new(new DialogueRowId(SheetName, 1, FieldName));
+
+    private static (TranslationStore? Store, FakePluginLog Log) LoadWithLog(Configuration configuration)
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifact = Artifact("TC", (SheetName, FieldName, 1, "你好。"));
+        var log = new FakePluginLog();
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(artifact),
+            log,
+            configuration: configuration);
+
+        return (store, log);
+    }
+
     private static FakeSheetDescriptor TalkSheet(params (uint RowId, string Text)[] rows)
         => new(SheetName, FieldName, false,
             rows.ToDictionary(r => r.RowId, r => new[] { r.Text }));

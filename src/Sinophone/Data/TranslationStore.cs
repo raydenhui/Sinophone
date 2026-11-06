@@ -59,7 +59,7 @@ public sealed class TranslationStore
 
     private readonly Func<string, string> _displayResolver;
     private readonly Func<string?>? _playerName;
-    private readonly IPluginLog? _log;
+    private readonly PluginLog _log;
 
     private int _scriptEntryCount;
 
@@ -69,7 +69,7 @@ public sealed class TranslationStore
         IReadOnlyList<ISheetDescriptor> descriptors,
         Func<string, string> displayResolver,
         Func<string?>? playerName,
-        IPluginLog? log)
+        PluginLog log)
     {
         PrimaryVariant = primaryVariant;
         UsedFallback = usedFallback;
@@ -227,7 +227,7 @@ public sealed class TranslationStore
                     continue;
 
                 chineseText = ResolveDisplay(script);
-                _log?.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
+                _log.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
                 return true;
             }
         }
@@ -244,7 +244,7 @@ public sealed class TranslationStore
                 return false;
 
             chineseText = ResolveDisplay(slots[row.Slot]);
-            _log?.Debug("Dialogue matched by {Sheet} row {RowId} slot {Slot}.",
+            _log.Debug("Dialogue matched by {Sheet} row {RowId} slot {Slot}.",
                 row.Sheet, row.RowId, row.Slot);
             return true;
         }
@@ -252,7 +252,7 @@ public sealed class TranslationStore
         if (TrySelectRowSlot(row, englishText, slots, out var selected, out var compared))
         {
             chineseText = ResolveDisplay(slots[selected]);
-            _log?.Debug("Dialogue matched by {Sheet} row {RowId} after selecting slot {Slot}.",
+            _log.Debug("Dialogue matched by {Sheet} row {RowId} after selecting slot {Slot}.",
                 row.Sheet, row.RowId, selected);
             return true;
         }
@@ -262,7 +262,7 @@ public sealed class TranslationStore
         // slot here showed one page's Chinese on the next page as well.
         if (compared)
         {
-            _log?.Debug("Dialogue did not match any slot of {Sheet} row {RowId}; using the text fallback.",
+            _log.Debug("Dialogue did not match any slot of {Sheet} row {RowId}; using the text fallback.",
                 row.Sheet, row.RowId);
             return false;
         }
@@ -284,7 +284,7 @@ public sealed class TranslationStore
             return false;
 
         chineseText = ResolveDisplay(slots[onlySlot]);
-        _log?.Debug("Dialogue matched by {Sheet} row {RowId}, the only translated slot.",
+        _log.Debug("Dialogue matched by {Sheet} row {RowId}, the only translated slot.",
             row.Sheet, row.RowId);
         return true;
     }
@@ -359,7 +359,7 @@ public sealed class TranslationStore
             return false;
         }
 
-        _log?.Debug("Script line matched after collapsing the branch words.");
+        _log.Debug("Script line matched after collapsing the branch words.");
         stored = match;
         return true;
     }
@@ -485,7 +485,8 @@ public sealed class TranslationStore
             log,
             fallbackResource,
             displayResolver,
-            playerName);
+            playerName,
+            configuration);
 
     /// <summary>
     /// Reads and parses the artifacts for the configured variant without touching
@@ -513,7 +514,8 @@ public sealed class TranslationStore
 
         if (parsed is not null)
         {
-            log.Debug("Parsed {Variant} artifacts in {Elapsed} ms.",
+            new PluginLog(log, configuration, LogCategory.Data).Debug(
+                "Parsed {Variant} artifacts in {Elapsed} ms.",
                 configuration.Variant, stopwatch.ElapsedMilliseconds);
         }
 
@@ -537,7 +539,8 @@ public sealed class TranslationStore
             configuration.Variant,
             log,
             displayResolver,
-            playerName);
+            playerName,
+            configuration);
 
     /// <summary>
     /// Builds a store from explicit inputs. Tests use this to supply their own
@@ -560,13 +563,14 @@ public sealed class TranslationStore
         IPluginLog log,
         Func<ChineseVariant, Stream?>? fallbackResource = null,
         Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null)
+        Func<string?>? playerName = null,
+        Configuration? configuration = null)
     {
         var parsed = ParseArtifacts(variant, useFallback, openResource, log, fallbackResource);
         if (parsed is null)
             return null;
 
-        return Build(parsed, descriptors, variant, log, displayResolver, playerName);
+        return Build(parsed, descriptors, variant, log, displayResolver, playerName, configuration);
     }
 
     /// <summary>
@@ -579,7 +583,8 @@ public sealed class TranslationStore
         ChineseVariant variant,
         IPluginLog log,
         Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null)
+        Func<string?>? playerName = null,
+        Configuration? configuration = null)
     {
         var stopwatch = Stopwatch.StartNew();
 
@@ -589,26 +594,35 @@ public sealed class TranslationStore
         if (primary is null && fallback is null)
             return null;
 
+        // Without settings there is nothing to filter by, which is what the test
+        // seams use.
+        var dataLog = configuration is null
+            ? new PluginLog(log)
+            : new PluginLog(log, configuration, LogCategory.Data);
+        var dialogueLog = configuration is null
+            ? new PluginLog(log)
+            : new PluginLog(log, configuration, LogCategory.Dialogue);
+
         var store = new TranslationStore(
             variant,
             fallback is not null,
             descriptors,
             displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)),
             playerName,
-            log);
+            dialogueLog);
 
         if (primary is not null)
-            store.Index(primary, descriptors, log);
+            store.Index(primary, descriptors, dataLog);
 
         var primaryTextCount = store._textLookup.Count;
         var primaryNameCount = store._nameLookup.Count;
         var primaryScriptCount = store._scriptEntryCount;
 
         if (fallback is not null)
-            store.Index(fallback, descriptors, log);
+            store.Index(fallback, descriptors, dataLog);
 
         stopwatch.Stop();
-        log.Info(
+        dataLog.Info(
             "Loaded {Variant}{Fallback} translations: {Text:N0} dialogue, {Name:N0} names and {Script:N0} script lines " +
             "in {Elapsed} ms (fallback added {AddedText:N0} dialogue / {AddedName:N0} names / {AddedScript:N0} script lines).",
             store.PrimaryVariant,
@@ -657,7 +671,7 @@ public sealed class TranslationStore
         return new ParsedArtifacts(variant, primary, fallback);
     }
 
-    private void Index(TranslationArtifact artifact, IReadOnlyList<ISheetDescriptor> descriptors, IPluginLog log)
+    private void Index(TranslationArtifact artifact, IReadOnlyList<ISheetDescriptor> descriptors, PluginLog log)
     {
         var indexedRows = 0;
         var indexedSlots = 0;
@@ -799,7 +813,7 @@ public sealed class TranslationStore
             }
         }
 
-        var indexedScripts = IndexScripts(artifact);
+        var indexedScripts = IndexScripts(artifact, log);
 
         log.Debug("Indexed {Rows:N0} rows, {Slots:N0} text slots and {Scripts:N0} script lines from the {Language} artifact.",
             indexedRows, indexedSlots, indexedScripts, artifact.Language);
@@ -809,7 +823,7 @@ public sealed class TranslationStore
     /// Indexes dialogue that has no Lumina row. The artifact carries both the English
     /// key and the translated text, because there is no sheet to read the English from.
     /// </summary>
-    private int IndexScripts(TranslationArtifact artifact)
+    private int IndexScripts(TranslationArtifact artifact, PluginLog log)
     {
         var added = 0;
 
@@ -837,7 +851,7 @@ public sealed class TranslationStore
             var key = MacroNormalizer.NormalizeKey(MacroNormalizer.StripSpeakerPrefix(entry.English));
             if (key.Length == 0 || string.Equals(key, "UNKNOWN", StringComparison.OrdinalIgnoreCase))
             {
-                _log?.Debug("Skipping script entry with placeholder English: {ScriptKey}", scriptKey);
+                log.Debug("Skipping script entry with placeholder English: {ScriptKey}", scriptKey);
                 continue;
             }
 
@@ -892,12 +906,12 @@ public sealed class TranslationStore
 
         if (_branchNeutralLookup.Count > 0)
         {
-            _log?.Debug("Indexed {Count:N0} collapsed script keys.", _branchNeutralLookup.Count);
+            log.Debug("Indexed {Count:N0} collapsed script keys.", _branchNeutralLookup.Count);
         }
 
         if (_ambiguousBranchKeys.Count > 0)
         {
-            _log?.Debug(
+            log.Debug(
                 "{Count:N0} collapsed script keys map to more than one line and are not used.",
                 _ambiguousBranchKeys.Count);
         }

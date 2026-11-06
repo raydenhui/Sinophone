@@ -20,6 +20,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
+    private readonly PluginLog _log;
     private readonly WindowSystem _windowSystem = new("Sinophone");
     private readonly FontManager _fontManager;
     private readonly OverlayWindow _overlay;
@@ -70,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         _configuration.CustomFontPath ??= string.Empty;
+        _log = new PluginLog(Log, _configuration, LogCategory.Plugin);
 
         if (_configuration.Version < 2)
         {
@@ -78,7 +80,7 @@ public sealed class Plugin : IDalamudPlugin
             _configuration.ShowInSelectionDialogs = _configuration.NativeTextMode;
             _configuration.Version = 2;
             PluginInterface.SavePluginConfig(_configuration);
-            Log.Debug("Migrated configuration to version 2; selection dialogs: {Enabled}.",
+            _log.Debug("Migrated configuration to version 2; selection dialogs: {Enabled}.",
                 _configuration.ShowInSelectionDialogs);
         }
 
@@ -110,12 +112,12 @@ public sealed class Plugin : IDalamudPlugin
 
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
-        _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
+        _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, _configuration, Log);
         _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
-        _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, Log);
-        _talkContextProbe = new TalkContextProbe(AddonLifecycle, TargetManager, Log);
+        _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, _configuration, Log);
+        _talkContextProbe = new TalkContextProbe(AddonLifecycle, TargetManager, _configuration, Log);
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -182,12 +184,12 @@ public sealed class Plugin : IDalamudPlugin
             _dataUpdater.StartCheck();
 
         if (!ChineseConverter.IsAvailable(_configuration.Conversion))
-            Log.Warning("The conversion table for {Conversion} is missing; text will not be converted.",
+            _log.Warning("The conversion table for {Conversion} is missing; text will not be converted.",
                 _configuration.Conversion);
 
         // Translation data loads in the background, so the entry counts are logged
         // by TranslationStore when the store is built.
-        Log.Info("Loaded. Variant: {Variant}, conversion: {Conversion}. Loading translation data...",
+        _log.Info("Loaded. Variant: {Variant}, conversion: {Conversion}. Loading translation data...",
             _configuration.Variant, _configuration.Conversion);
     }
 
@@ -301,7 +303,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ShowPreview()
     {
-        Log.Info("Preview requested. Font handle: {HasFont}, font: {Font}, plugin enabled: {Enabled}.",
+        _log.Info("Preview requested. Font handle: {HasFont}, font: {Font}, plugin enabled: {Enabled}.",
             _fontManager.Handle is not null, _fontManager.ActiveFontPath ?? "(none)", _configuration.Enabled);
 
         _overlay.SetContent(
@@ -435,14 +437,14 @@ public sealed class Plugin : IDalamudPlugin
 
         if (pending.IsFaulted)
         {
-            Log.Error(pending.Exception, "Failed to parse the translation artifacts.");
+            _log.Error(pending.Exception, "Failed to parse the translation artifacts.");
             return false;
         }
 
         var parsed = pending.Result;
         if (parsed is null)
         {
-            Log.Warning("No translation artifacts are available. Talk text will not be translated.");
+            _log.Warning("No translation artifacts are available. Talk text will not be translated.");
             return false;
         }
 
@@ -461,7 +463,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             // Building reads live sheets. An exception here would escape into the
             // draw loop, so keep whatever store was already loaded.
-            Log.Error(ex, "Failed to build the translation store.");
+            _log.Error(ex, "Failed to build the translation store.");
             return false;
         }
 
@@ -557,7 +559,7 @@ public sealed class Plugin : IDalamudPlugin
             // Put the game's own prompt back now; the handler re-translates on the
             // next dialog event when the setting is on.
             _selectionDialogHandler.RestoreAll();
-            Log.Debug("Selection dialog settings changed; restored the game's text.");
+            _log.Debug("Selection dialog settings changed; restored the game's text.");
         }
 
         if (needsStoreReload)

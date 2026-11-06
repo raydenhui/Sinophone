@@ -4,6 +4,8 @@
 src/Sinophone/
   Plugin.cs               Entry point. Services, windows, /sinophone command, config wiring.
   Configuration.cs        Saved settings. Changing a field changes the config schema.
+  PluginLog.cs            Log output filtered by the group switches in the settings window.
+  LogCategory.cs          The log groups the settings window can turn on or off.
   Data/
     TranslationArtifact.cs  Artifact shape: Sheets[sheet][rowId][field] = string[]
     DialogueContext.cs      Optional runtime ids: sheet row + slot, or script text key.

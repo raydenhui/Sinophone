@@ -40,7 +40,7 @@ public sealed class TranslationDataUpdater : IDisposable
 
     private readonly Configuration _configuration;
     private readonly string _dataDirectory;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly object _gate = new();
 
     private DataUpdateState _state = new(false, "Not checked yet.", 0f, false, null);
@@ -52,7 +52,7 @@ public sealed class TranslationDataUpdater : IDisposable
     {
         _configuration = configuration;
         _dataDirectory = dataDirectory;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.Data);
     }
 
     public DataUpdateState State => Volatile.Read(ref _state);

@@ -11,9 +11,10 @@ namespace Sinophone.Handlers;
 /// </summary>
 internal sealed class TalkEventReader
 {
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
 
-    public TalkEventReader(IPluginLog log) => _log = log;
+    public TalkEventReader(IPluginLog log, Configuration configuration, LogCategory category)
+        => _log = new PluginLog(log, configuration, category);
 
     /// <summary>
     /// Builds the id context for one line. The row id is added only when exactly one

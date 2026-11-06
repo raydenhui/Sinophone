@@ -46,7 +46,7 @@ public sealed unsafe class NativeTextProbe : IDisposable
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private readonly List<(uint Id, string Text)> _scanned = [];
 
@@ -56,11 +56,11 @@ public sealed unsafe class NativeTextProbe : IDisposable
     private string _savedText = string.Empty;
     private bool _hasSaved;
 
-    public NativeTextProbe(IAddonLifecycle addonLifecycle, IGameGui gameGui, IPluginLog log)
+    public NativeTextProbe(IAddonLifecycle addonLifecycle, IGameGui gameGui, Configuration configuration, IPluginLog log)
     {
         _addonLifecycle = addonLifecycle;
         _gameGui = gameGui;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.Diagnostics);
         _onAddonEvent = OnAddonEvent;
 
         AddonName = "Talk";

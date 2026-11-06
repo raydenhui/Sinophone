@@ -32,15 +32,15 @@ public sealed unsafe class NativeTextWriter
 
     private readonly IGameGui _gameGui;
     private readonly IDataManager _dataManager;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly Dictionary<(string Addon, uint NodeId), SavedText> _saved = [];
     private readonly Dictionary<(string Addon, nint Address), SavedText> _savedAt = [];
 
-    public NativeTextWriter(IGameGui gameGui, IDataManager dataManager, IPluginLog log)
+    public NativeTextWriter(IGameGui gameGui, IDataManager dataManager, Configuration configuration, IPluginLog log)
     {
         _gameGui = gameGui;
         _dataManager = dataManager;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.NativeText);
     }
 
     /// <summary>Number of nodes currently holding text this writer put there.</summary>

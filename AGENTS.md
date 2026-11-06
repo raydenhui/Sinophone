@@ -160,6 +160,10 @@ in-game checklist format. Native text changes also need
 Use structured logs at the right level, and never log inside `Draw` or `PreDraw`. Keep
 per-frame paths allocation-free and do not re-index game sheets per frame.
 
+Write through the component's `PluginLog`, not `IPluginLog`. It filters `Debug` and `Info`
+by the group the user picks in the settings **Logs** tab. Warnings and errors always show. A
+new group needs an entry in `LogCategory`, `Configuration`, and the tab.
+
 Read [docs/logging-and-performance.md](docs/logging-and-performance.md) for the rules.
 
 ## Writing
