@@ -244,7 +244,7 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Target name"))
+        if (ImGui.BeginTabItem("NPC names"))
         {
             DrawTargetNameComponentTab();
             ImGui.EndTabItem();
@@ -395,11 +395,6 @@ public sealed class ConfigWindow : Window
 
     private void DrawTargetNameComponentTab()
     {
-        Checkbox("Show the Chinese name of the current target", _configuration.ShowTargetName,
-            v => _configuration.ShowTargetName = v);
-
-        ImGui.TextDisabled("Player character names are not translated.");
-
         Section("Mode");
         if (ImGui.RadioButton("Overlay###targetOverlay",
                 _configuration.TargetNameDisplay == TargetNameDisplayMode.Overlay))
@@ -421,7 +416,7 @@ public sealed class ConfigWindow : Window
         {
             ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
             ImGui.TextWrapped(
-                "Native mode writes the name into the game's nameplate above the target. " +
+                "Native mode writes the name into the game's nameplate above every visible NPC. " +
                 "It needs a font mod, or the name shows the missing-glyph character. " +
                 "NPC nameplates must be visible in the game settings.");
             ImGui.PopStyleColor();
@@ -431,6 +426,15 @@ public sealed class ConfigWindow : Window
 
             ImGui.TextDisabled(FontSetupUrl);
         }
+
+        Checkbox(nativeNamePlate
+                ? "Show the Chinese name above NPCs' heads"
+                : "Show the Chinese name of the current target",
+            _configuration.ShowTargetName, v => _configuration.ShowTargetName = v);
+
+        ImGui.TextDisabled(nativeNamePlate
+            ? "Every visible NPC nameplate is translated, not only the target. Player names are not translated."
+            : "Player character names are not translated.");
 
         Checkbox("Show the English name too", _configuration.TargetNameShowEnglish,
             v => _configuration.TargetNameShowEnglish = v);

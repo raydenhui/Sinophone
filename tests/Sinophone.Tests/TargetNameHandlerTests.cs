@@ -58,20 +58,20 @@ public class TargetNameHandlerTests
     [Fact]
     public void FormatNamePlateText_UsesOneLine_WhenEnglishIsOff()
     {
-        Assert.Equal("雅·修特拉", TargetNameHandler.FormatNamePlateText("雅·修特拉", "Y'shtola", false));
+        Assert.Equal("雅·修特拉", NamePlateNameWriter.FormatNamePlateText("雅·修特拉", "Y'shtola", false));
     }
 
     [Fact]
     public void FormatNamePlateText_PutsEnglishOnASecondLineInBrackets()
     {
-        Assert.Equal("雅·修特拉\n(Y'shtola)", TargetNameHandler.FormatNamePlateText(
+        Assert.Equal("雅·修特拉\n(Y'shtola)", NamePlateNameWriter.FormatNamePlateText(
             "雅·修特拉", "Y'shtola", true));
     }
 
     [Fact]
     public void FormatNamePlateText_UsesChineseOnly_WhenEnglishNameIsEmpty()
     {
-        Assert.Equal("雅·修特拉", TargetNameHandler.FormatNamePlateText("雅·修特拉", string.Empty, true));
+        Assert.Equal("雅·修特拉", NamePlateNameWriter.FormatNamePlateText("雅·修特拉", string.Empty, true));
     }
 
     private static TranslationStore CreateStore()

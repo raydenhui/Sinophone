@@ -114,7 +114,7 @@ public sealed class Plugin : IDalamudPlugin
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
-        _namePlateNameWriter = new NamePlateNameWriter(GameGui, Log);
+        _namePlateNameWriter = new NamePlateNameWriter(GameGui, _configuration, () => _store, Log);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
@@ -482,7 +482,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _store = store;
         _overlay.Hide();
-        _targetNameHandler.Refresh();
+        _targetNameHandler.Refresh(namesChanged: true);
         _itemNameHandler.Refresh();
         return true;
     }
@@ -502,11 +502,12 @@ public sealed class Plugin : IDalamudPlugin
                                || Math.Abs(_configuration.FontSize - _lastFontSize) > 0.01f
                                || !string.Equals(_configuration.CustomFontPath, _lastFontPath, StringComparison.OrdinalIgnoreCase);
 
+        var targetNameEnglishChanged = _configuration.TargetNameShowEnglish != _lastTargetNameShowEnglish;
         var needsTargetRefresh = needsStoreReload
                                  || _configuration.Enabled != _lastEnabled
                                  || _configuration.ShowTargetName != _lastShowTargetName
                                  || _configuration.TargetNameDisplay != _lastTargetNameDisplay
-                                 || _configuration.TargetNameShowEnglish != _lastTargetNameShowEnglish;
+                                 || targetNameEnglishChanged;
 
         var needsItemRefresh = needsStoreReload
                                || _configuration.Enabled != _lastEnabled
@@ -581,7 +582,7 @@ public sealed class Plugin : IDalamudPlugin
             _fontManager.Rebuild();
 
         if (needsTargetRefresh)
-            _targetNameHandler.Refresh();
+            _targetNameHandler.Refresh(needsStoreReload || targetNameEnglishChanged);
 
         if (needsItemRefresh)
             _itemNameHandler.Refresh();

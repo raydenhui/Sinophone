@@ -3,21 +3,24 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 namespace Sinophone.Handlers;
 
 /// <summary>
-/// Writes the translated name of the current target into the game's own nameplate,
-/// so the game draws it above the NPC's head with its own font and scaling.
+/// Writes the Chinese name of every visible NPC into the game's own nameplate, so the
+/// game draws it above the NPC's head with its own font and scaling.
 /// </summary>
 /// <remarks>
 /// The nameplate addon bakes each plate's name into a texture. A new text only reaches
 /// the screen after the plate is marked <c>NeedsToBeBaked</c>, so every write sets it.
+/// The bake is sized from <c>NamePlateObject.TextW</c> and <c>TextH</c>. Those hold the
+/// size of the English name, which is one line, so a two-line name sets them from the
+/// new text and restores them when the plate goes back to English.
 /// <para>
 /// The game owns the name text and puts the English name back when it updates the plate.
-/// This class remembers what it wrote and restores it on the next addon update. It stops
-/// touching a slot once the game gives that slot to another object.
+/// This class remembers what it wrote for each of the 50 slots and restores it after the
+/// addon update. It forgets a slot once the game gives that slot to another object.
 /// </para>
 /// <para>
-/// The 50 plate slots are reused by whichever objects are nearby, and a slot has no
-/// object id. The only way to find the target's plate is to match its name text, so a
-/// visible NPC with the same name also gets the Chinese name.
+/// A visible NPC with the same name as another gets the same translated name, because a
+/// plate slot has no object id. Player characters are left alone, as their names are
+/// chosen by the player.
 /// </para>
 /// </remarks>
 public sealed unsafe class NamePlateNameWriter
@@ -25,194 +28,270 @@ public sealed unsafe class NamePlateNameWriter
     private const string AddonName = "NamePlate";
 
     private readonly IGameGui _gameGui;
+    private readonly Configuration _configuration;
+    private readonly Func<TranslationStore?> _getStore;
     private readonly IPluginLog _log;
-    private readonly List<ChangedPlate> _changed = [];
+    private readonly SlotState?[] _slots = new SlotState?[AddonNamePlate.NumNamePlateObjects];
 
-    private string _englishName = string.Empty;
-    private byte[] _englishUtf8 = [];
-    private string _written = string.Empty;
-    private byte[] _writtenUtf8 = [];
-    private bool _loggedOverwrite;
+    private bool _enabled;
+    private bool _loggedSizeReset;
 
-    public NamePlateNameWriter(IGameGui gameGui, IPluginLog log)
+    public NamePlateNameWriter(
+        IGameGui gameGui,
+        Configuration configuration,
+        Func<TranslationStore?> getStore,
+        IPluginLog log)
     {
         _gameGui = gameGui;
+        _configuration = configuration;
+        _getStore = getStore;
         _log = log;
     }
 
     /// <summary>Slots currently holding text this writer put there.</summary>
-    public int ChangedPlateCount => _changed.Count;
+    public int ChangedPlateCount => _slots.Count(state => state is { Written: not null });
 
     /// <summary>
-    /// Sets the name to keep on the target's plate. Passing an empty translated name
-    /// clears the target. Does nothing when the target and the text are unchanged.
+    /// Starts translating plates. Nothing is written until the next addon update, so
+    /// the nameplate text is always read after the game set it.
     /// </summary>
-    public void SetTarget(string englishName, string? translatedText)
+    public void Enable() => _enabled = true;
+
+    /// <summary>Stops translating and puts the game's English names back.</summary>
+    public void Disable()
     {
-        if (string.IsNullOrWhiteSpace(translatedText))
-        {
-            Clear();
-            return;
-        }
-
-        if (string.Equals(_englishName, englishName, StringComparison.Ordinal)
-            && string.Equals(_written, translatedText, StringComparison.Ordinal))
-        {
-            // Same target: keep whatever is on the plate and let Maintain fix it.
-            return;
-        }
-
-        Clear();
-
-        _englishName = englishName;
-        _englishUtf8 = Encoding.UTF8.GetBytes(englishName);
-        _written = translatedText;
-        _writtenUtf8 = Encoding.UTF8.GetBytes(translatedText);
-
-        if (!Apply())
-            _log.Debug("Native name: no visible nameplate slot shows {English} yet; will retry on update.",
-                englishName);
+        _enabled = false;
+        RestoreAll();
     }
 
     /// <summary>
-    /// Puts the game's English name back and stops tracking the plate. Safe to call
-    /// when nothing was written.
+    /// Puts the English names back and looks every plate up again. Call after the
+    /// translation data changes, because the Chinese text may belong to another variant.
     /// </summary>
-    public void Clear()
-    {
-        Restore();
-        _englishName = string.Empty;
-        _englishUtf8 = [];
-        _written = string.Empty;
-        _writtenUtf8 = [];
-        _loggedOverwrite = false;
-    }
+    public void Reset() => RestoreAll();
 
     /// <summary>
-    /// Runs after the game updates the nameplate addon. Puts the Chinese name back when
-    /// the game has replaced it, and keeps the plate marked for a re-bake.
+    /// Runs after the game updates the nameplate addon. Reads each visible plate, writes
+    /// the Chinese name when it has one, and puts the Chinese back when the game has
+    /// replaced it.
     /// </summary>
     /// <remarks>
-    /// Called once per addon update, so this path compares UTF-8 bytes and allocates
-    /// nothing. A full slot scan only runs while the target's plate has not been found.
+    /// Called once per addon update. A slot the writer already knows costs two span
+    /// compares and no allocation. A lookup only runs when a plate shows a new name.
     /// </remarks>
-    public void Maintain()
+    public void Update()
     {
-        if (_englishName.Length == 0)
+        if (!_enabled)
             return;
 
         var addon = GetAddon();
         if (addon is null)
-            return;
-
-        if (_changed.Count == 0)
         {
-            // The target's plate was not on screen when the target changed. It may be
-            // back now, after the addon update.
-            Apply();
+            // The addon is gone, so its nodes went with it. The game rebuilds the plates
+            // from its own state, and there is nothing to put back.
+            Array.Clear(_slots);
             return;
         }
 
-        for (var i = _changed.Count - 1; i >= 0; i--)
+        for (var slot = 0; slot < _slots.Length; slot++)
         {
-            var entry = _changed[i];
-            var plate = addon->NamePlateObjectArray + entry.Slot;
+            var plate = addon->NamePlateObjectArray + slot;
             var node = plate->NameText;
-
-            if (node is null)
-            {
-                _changed.RemoveAt(i);
+            if (plate->RootComponentNode is null || node is null || !plate->IsVisible)
                 continue;
-            }
 
             var current = node->NodeText.AsSpan();
-            if (current.SequenceEqual(_writtenUtf8))
-                continue;
+            var state = _slots[slot];
 
-            if (current.SequenceEqual(entry.OriginalUtf8))
+            if (state is not null)
             {
-                // The game wrote the English name again. Put the Chinese back.
-                node->SetText(_written);
-                plate->NeedsToBeBaked = true;
-
-                if (!_loggedOverwrite)
+                if (state.Written is not null && current.SequenceEqual(state.WrittenUtf8))
                 {
-                    // Once per target: a log per update would bury everything else.
-                    _loggedOverwrite = true;
-                    _log.Debug("Native name: the game rewrote nameplate slot {Slot}; keeping the Chinese name.",
-                        entry.Slot);
+                    KeepSize(plate, state);
+                    continue;
                 }
 
-                continue;
+                if (current.SequenceEqual(state.EnglishUtf8))
+                {
+                    // The game wrote the English name again. Put the Chinese back.
+                    if (state.Written is not null)
+                        Write(plate, state, replacedByGame: true);
+
+                    continue;
+                }
+
+                // Another object owns the slot now, so the saved name is stale.
+                _slots[slot] = null;
             }
 
-            // Another object owns the slot now, so the saved English name is stale.
-            _changed.RemoveAt(i);
+            Resolve(plate, slot);
         }
     }
 
     /// <summary>
-    /// Finds every visible plate that shows the English name and writes the Chinese.
-    /// Returns true when at least one plate was changed.
+    /// Builds the text written into the nameplate. The Chinese name stays on the first
+    /// line; the English name goes on a second line in brackets when it is shown.
     /// </summary>
-    private bool Apply()
+    internal static string FormatNamePlateText(string chineseName, string englishName, bool showEnglish)
     {
-        var addon = GetAddon();
-        if (addon is null)
-            return false;
+        if (!showEnglish || string.IsNullOrWhiteSpace(englishName))
+            return chineseName;
 
-        var found = false;
-        for (var slot = 0; slot < AddonNamePlate.NumNamePlateObjects; slot++)
-        {
-            var plate = addon->NamePlateObjectArray + slot;
-            if (plate->RootComponentNode is null || plate->NameText is null || !plate->IsVisible)
-                continue;
-
-            if (!plate->NameText->NodeText.AsSpan().SequenceEqual(_englishUtf8))
-                continue;
-
-            var original = plate->NameText->NodeText.ToString();
-            var originalUtf8 = Encoding.UTF8.GetBytes(original);
-
-            plate->NameText->SetText(_written);
-            plate->NeedsToBeBaked = true;
-            _changed.Add(new ChangedPlate(slot, original, originalUtf8, _writtenUtf8));
-
-            _log.Debug("Native name: wrote {Written} into nameplate slot {Slot} for {English}.",
-                _written, slot, _englishName);
-            found = true;
-        }
-
-        return found;
+        return $"{chineseName}\n({englishName})";
     }
 
-    private void Restore()
+    private void Resolve(AddonNamePlate.NamePlateObject* plate, int slot)
     {
-        if (_changed.Count == 0)
+        var node = plate->NameText;
+
+        // Player names are chosen by the player and are never translated.
+        if (plate->IsPlayerCharacter)
+        {
+            var playerName = node->NodeText.ToString();
+            _slots[slot] = SlotState.Skipped(playerName, Encoding.UTF8.GetBytes(playerName));
+            return;
+        }
+
+        var englishName = node->NodeText.ToString();
+        if (englishName.Length == 0)
+        {
+            _slots[slot] = SlotState.Skipped(englishName, Encoding.UTF8.GetBytes(englishName));
+            return;
+        }
+
+        var chineseName = Translate(englishName);
+        if (chineseName is null)
+        {
+            // Remember the miss, so this slot is not looked up on every update.
+            _slots[slot] = SlotState.Skipped(englishName, Encoding.UTF8.GetBytes(englishName));
+            return;
+        }
+
+        var written = FormatNamePlateText(chineseName, englishName, _configuration.TargetNameShowEnglish);
+        var state = new SlotState(
+            englishName,
+            Encoding.UTF8.GetBytes(englishName),
+            written,
+            Encoding.UTF8.GetBytes(written),
+            plate->TextW,
+            plate->TextH);
+
+        _slots[slot] = state;
+        Write(plate, state, replacedByGame: false);
+
+        _log.Debug("Native name: wrote {Written} into nameplate slot {Slot} for {English}.",
+            written, slot, englishName);
+    }
+
+    private string? Translate(string englishName)
+    {
+        var store = _getStore();
+        return store is not null && store.TryGetName(englishName, out var chineseName)
+            ? chineseName
+            : null;
+    }
+
+    private void Write(AddonNamePlate.NamePlateObject* plate, SlotState state, bool replacedByGame)
+    {
+        if (state.Written is not { } written)
             return;
 
+        var node = plate->NameText;
+
+        node->SetText(written);
+        state.SizeChanged = ApplySize(plate, written);
+        state.WrittenTextW = plate->TextW;
+        state.WrittenTextH = plate->TextH;
+        plate->NeedsToBeBaked = true;
+
+        if (replacedByGame && !state.LoggedReplace)
+        {
+            // Once per slot: the game that rewrites on every update would bury the log.
+            state.LoggedReplace = true;
+            _log.Debug("Native name: the game rewrote a nameplate; keeping the Chinese name for {English}.",
+                state.English);
+        }
+    }
+
+    /// <summary>
+    /// Sizes the bake for a two-line name. The bake texture is allocated from
+    /// <c>TextW</c> and <c>TextH</c>, and the game sized them for one line of English
+    /// text, which cuts off the top line. A single-line name keeps the game's size.
+    /// </summary>
+    private bool ApplySize(AddonNamePlate.NamePlateObject* plate, string text)
+    {
+        if (!text.Contains('\n'))
+            return false;
+
+        var node = plate->NameText;
+        node->ResizeNodeForCurrentText();
+
+        plate->TextW = (short)Math.Min(node->Width, short.MaxValue);
+        plate->TextH = (short)Math.Min(node->Height, short.MaxValue);
+        return true;
+    }
+
+    /// <summary>
+    /// Puts the two-line size back when the game has reset it. The size is what decides
+    /// how much of the name the bake holds, so a reset shows the clipped text again.
+    /// </summary>
+    private void KeepSize(AddonNamePlate.NamePlateObject* plate, SlotState state)
+    {
+        if (!state.SizeChanged
+            || (plate->TextW == state.WrittenTextW && plate->TextH == state.WrittenTextH))
+        {
+            return;
+        }
+
+        plate->TextW = state.WrittenTextW;
+        plate->TextH = state.WrittenTextH;
+        plate->NeedsToBeBaked = true;
+
+        if (!_loggedSizeReset)
+        {
+            _loggedSizeReset = true;
+            _log.Debug("Native name: the game reset a nameplate size; keeping the two-line size.");
+        }
+    }
+
+    private void RestoreAll()
+    {
         var addon = GetAddon();
-        if (addon is null)
+
+        if (addon is not null)
         {
-            // The addon is gone, and its nodes went with it. The game rebuilds the
-            // plates from its own state, so there is nothing to put back.
-            _changed.Clear();
-            return;
+            for (var slot = 0; slot < _slots.Length; slot++)
+            {
+                var state = _slots[slot];
+                if (state?.Written is null)
+                {
+                    _slots[slot] = null;
+                    continue;
+                }
+
+                var plate = addon->NamePlateObjectArray + slot;
+                var node = plate->NameText;
+                if (node is null || !node->NodeText.AsSpan().SequenceEqual(state.WrittenUtf8))
+                {
+                    // The game already put its own text back, so there is nothing to undo.
+                    _slots[slot] = null;
+                    continue;
+                }
+
+                node->SetText(state.English);
+                if (state.SizeChanged)
+                {
+                    plate->TextW = state.OriginalTextW;
+                    plate->TextH = state.OriginalTextH;
+                }
+
+                plate->NeedsToBeBaked = true;
+                _slots[slot] = null;
+            }
         }
 
-        foreach (var entry in _changed)
-        {
-            var plate = addon->NamePlateObjectArray + entry.Slot;
-            var node = plate->NameText;
-            if (node is null || !node->NodeText.AsSpan().SequenceEqual(entry.WrittenUtf8))
-                continue;
-
-            node->SetText(entry.Original);
-            plate->NeedsToBeBaked = true;
-        }
-
-        _log.Debug("Native name: restored {Count} nameplate slot(s).", _changed.Count);
-        _changed.Clear();
+        Array.Clear(_slots);
+        _loggedSizeReset = false;
     }
 
     private AddonNamePlate* GetAddon()
@@ -221,5 +300,40 @@ public sealed unsafe class NamePlateNameWriter
         return addon is null ? null : (AddonNamePlate*)addon;
     }
 
-    private readonly record struct ChangedPlate(int Slot, string Original, byte[] OriginalUtf8, byte[] WrittenUtf8);
+    private sealed class SlotState(
+        string english,
+        byte[] englishUtf8,
+        string? written,
+        byte[] writtenUtf8,
+        short originalTextW,
+        short originalTextH)
+    {
+        /// <summary>The game's text for this slot when the writer first saw it.</summary>
+        public string English { get; } = english;
+
+        public byte[] EnglishUtf8 { get; } = englishUtf8;
+
+        /// <summary>What the writer wrote, or null when the name has no translation.</summary>
+        public string? Written { get; } = written;
+
+        public byte[] WrittenUtf8 { get; } = writtenUtf8;
+
+        public short OriginalTextW { get; } = originalTextW;
+
+        public short OriginalTextH { get; } = originalTextH;
+
+        /// <summary>True when the writer enlarged the bake for a two-line name.</summary>
+        public bool SizeChanged { get; set; }
+
+        /// <summary>The bake size the writer set, used to put it back after a reset.</summary>
+        public short WrittenTextW { get; set; }
+
+        public short WrittenTextH { get; set; }
+
+        /// <summary>Set after the first time the game replaced this slot's text.</summary>
+        public bool LoggedReplace { get; set; }
+
+        public static SlotState Skipped(string english, byte[] englishUtf8)
+            => new(english, englishUtf8, null, [], 0, 0);
+    }
 }

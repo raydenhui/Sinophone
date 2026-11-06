@@ -20,15 +20,15 @@ public enum ChineseConversion
 }
 
 /// <summary>
-/// Where the Chinese name of the current target is drawn.
+/// Where the Chinese NPC names are drawn.
 /// </summary>
 public enum TargetNameDisplayMode
 {
-    /// <summary>A small plugin window near the game's target info.</summary>
+    /// <summary>The current target only, in a small plugin window near the target info.</summary>
     Overlay = 0,
 
     /// <summary>
-    /// The game's own nameplate above the target's head. Needs a font mod,
+    /// Every visible NPC, in the game's own nameplate above its head. Needs a font mod,
     /// because the game font has no CJK glyphs.
     /// </summary>
     NativeNamePlate = 1,
@@ -98,8 +98,8 @@ public sealed class Configuration : IPluginConfiguration
     public TargetNameDisplayMode TargetNameDisplay { get; set; } = TargetNameDisplayMode.Overlay;
 
     /// <summary>
-    /// Show the English name with the Chinese name of the target. In native mode
-    /// it goes on a second line, in brackets.
+    /// Show the English name with the translated name. In native mode it goes on a
+    /// second line, in brackets, for every NPC plate.
     /// </summary>
     public bool TargetNameShowEnglish { get; set; } = true;
 

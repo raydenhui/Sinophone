@@ -4,8 +4,8 @@ namespace Sinophone.Handlers;
 
 /// <summary>
 /// Watches the <c>TargetInfo</c> addon and feeds the Chinese name of the targeted
-/// NPC or object to the target name surface: either the plugin window or the game's
-/// own nameplate above the target's head.
+/// NPC or object to the target name window. In native mode it turns on the nameplate
+/// writer, which translates every visible NPC name instead.
 /// </summary>
 /// <remarks>
 /// Addon events are used instead of a per-frame poll. Reading
@@ -51,23 +51,31 @@ public sealed class TargetNameHandler : IDisposable
         _addonLifecycle.RegisterListener(AddonEvent.PostUpdate, NamePlateAddonName, _onNamePlateUpdate);
     }
 
-    /// <summary>Re-reads the current target. Call after a settings or store change.</summary>
-    public void Refresh()
+    /// <summary>
+    /// Re-reads the current target and the settings. Pass <paramref name="namesChanged"/>
+    /// when the translation data changed: the plates then need a new lookup.
+    /// </summary>
+    public void Refresh(bool namesChanged = false)
     {
         if (_disposed)
             return;
+
+        if (namesChanged)
+            _namePlate.Reset();
 
         if (_configuration.Enabled
             && _configuration.ShowTargetName
             && _configuration.TargetNameDisplay == TargetNameDisplayMode.NativeNamePlate)
         {
-            RefreshNative();
+            // The overlay stays hidden, because the game draws these names itself.
+            _window.Hide();
+            _namePlate.Enable();
             return;
         }
 
-        // Every other state uses the overlay, or nothing. Clear the nameplate first,
-        // so switching modes does not leave Chinese above the last target's head.
-        _namePlate.Clear();
+        // Every other state uses the overlay, or nothing. Restore the plates first,
+        // so switching modes does not leave Chinese above the NPCs' heads.
+        _namePlate.Disable();
 
         if (!_configuration.Enabled || !_configuration.ShowTargetName)
         {
@@ -84,26 +92,6 @@ public sealed class TargetNameHandler : IDisposable
             _window.SetName(content.Value.ChineseName, content.Value.EnglishName);
     }
 
-    /// <summary>
-    /// Resolves the target and writes it into the game's nameplate. The overlay stays
-    /// hidden, because the game draws this name itself.
-    /// </summary>
-    private void RefreshNative()
-    {
-        _window.Hide();
-
-        var target = _targetManager.Target;
-        var content = Resolve(_getStore(), target?.ObjectKind, target?.Name.TextValue);
-
-        if (content is null)
-            _namePlate.Clear();
-        else
-            _namePlate.SetTarget(content.Value.EnglishName, FormatNamePlateText(
-                content.Value.ChineseName,
-                content.Value.EnglishName,
-                _configuration.TargetNameShowEnglish));
-    }
-
     private void OnTargetInfoEvent(AddonEvent eventType, AddonArgs args)
     {
         if (_disposed)
@@ -112,7 +100,6 @@ public sealed class TargetNameHandler : IDisposable
         if (eventType == AddonEvent.PostClose)
         {
             _window.Hide();
-            _namePlate.Clear();
             return;
         }
 
@@ -121,26 +108,14 @@ public sealed class TargetNameHandler : IDisposable
 
     /// <summary>
     /// Runs after the game updated the nameplate addon, which is when the game may have
-    /// put the English name back. The writer only reads its own slots here.
+    /// put an English name back. The writer only reads its own slots here.
     /// </summary>
     private void OnNamePlateUpdate(AddonEvent eventType, AddonArgs args)
     {
         if (_disposed)
             return;
 
-        _namePlate.Maintain();
-    }
-
-    /// <summary>
-    /// Builds the text written into the nameplate. The Chinese name stays on the first
-    /// line; the English name goes on a second line in brackets when it is shown.
-    /// </summary>
-    internal static string FormatNamePlateText(string chineseName, string englishName, bool showEnglish)
-    {
-        if (!showEnglish || string.IsNullOrWhiteSpace(englishName))
-            return chineseName;
-
-        return $"{chineseName}\n({englishName})";
+        _namePlate.Update();
     }
 
     /// <summary>
@@ -184,6 +159,6 @@ public sealed class TargetNameHandler : IDisposable
         _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, NamePlateAddonName, _onNamePlateUpdate);
 
         _window.Hide();
-        _namePlate.Clear();
+        _namePlate.Disable();
     }
 }
