@@ -395,83 +395,27 @@ public sealed class ConfigWindow : Window
 
     private void DrawTargetNameComponentTab()
     {
-        Section("Mode");
-        if (ImGui.RadioButton("Overlay###targetOverlay",
-                _configuration.TargetNameDisplay == TargetNameDisplayMode.Overlay))
-        {
-            _configuration.TargetNameDisplay = TargetNameDisplayMode.Overlay;
-            _applySettings();
-        }
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "The Chinese name is written into the game's nameplate above every visible NPC. " +
+            "It needs a font mod, or the name shows the missing-glyph character. " +
+            "NPC nameplates must be visible in the game settings.");
+        ImGui.PopStyleColor();
 
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Native name above the head###targetNative",
-                _configuration.TargetNameDisplay == TargetNameDisplayMode.NativeNamePlate))
-        {
-            _configuration.TargetNameDisplay = TargetNameDisplayMode.NativeNamePlate;
-            _applySettings();
-        }
+        if (ImGui.Selectable("Open the font setup guide"))
+            Util.OpenLink(FontSetupUrl);
 
-        var nativeNamePlate = _configuration.TargetNameDisplay == TargetNameDisplayMode.NativeNamePlate;
-        if (nativeNamePlate)
-        {
-            ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-            ImGui.TextWrapped(
-                "Native mode writes the name into the game's nameplate above every visible NPC. " +
-                "It needs a font mod, or the name shows the missing-glyph character. " +
-                "NPC nameplates must be visible in the game settings.");
-            ImGui.PopStyleColor();
+        ImGui.TextDisabled(FontSetupUrl);
 
-            if (ImGui.Selectable("Open the font setup guide"))
-                Util.OpenLink(FontSetupUrl);
+        Checkbox("Show the Chinese name above NPCs' heads", _configuration.ShowTargetName,
+            v => _configuration.ShowTargetName = v);
 
-            ImGui.TextDisabled(FontSetupUrl);
-        }
-
-        Checkbox(nativeNamePlate
-                ? "Show the Chinese name above NPCs' heads"
-                : "Show the Chinese name of the current target",
-            _configuration.ShowTargetName, v => _configuration.ShowTargetName = v);
-
-        ImGui.TextDisabled(nativeNamePlate
-            ? "Every visible NPC nameplate is translated, not only the target. Player names are not translated."
-            : "Player character names are not translated.");
+        ImGui.TextDisabled("Every visible NPC nameplate is translated, not only the target. " +
+            "Player names are not translated.");
 
         Checkbox("Show the English name too", _configuration.TargetNameShowEnglish,
             v => _configuration.TargetNameShowEnglish = v);
-        if (nativeNamePlate)
-            ImGui.TextDisabled("In native mode the English name follows the Chinese name in brackets, on the same line.");
-        else
-            ImGui.TextDisabled("The English name is shown under the Chinese name.");
-
-        Section("Position");
-        ImGui.BeginDisabled(nativeNamePlate);
-        SliderFloat("Horizontal offset (0 = center)###targetNameOffsetX", _configuration.TargetNameOffsetX,
-            -1000f, 1000f, "%.0f px", v => _configuration.TargetNameOffsetX = v);
-        SliderFloat("Distance from screen top###targetNameOffsetY", _configuration.TargetNameOffsetY,
-            20f, 520f, "%.0f", v => _configuration.TargetNameOffsetY = v);
-
-        if (ImGui.Button("Reset target position"))
-            ResetTargetLayout();
-
-        Section("Appearance");
-        Checkbox("Use the default colors and opacity", _configuration.TargetNameUseGlobalAppearance,
-            v => _configuration.TargetNameUseGlobalAppearance = v);
-
-        if (_configuration.TargetNameUseGlobalAppearance)
-        {
-            ImGui.TextDisabled("Following the defaults on the General tab.");
-        }
-        else
-        {
-            ColorEdit("Translated name###targetNameColor", _configuration.TargetNameColor,
-                v => _configuration.TargetNameColor = v);
-            ColorEdit("English name###targetNameOriginalColor", _configuration.TargetNameOriginalColor,
-                v => _configuration.TargetNameOriginalColor = v);
-            SliderFloat("Background opacity###targetNameOpacity", _configuration.TargetNameOpacity,
-                0f, 1f, "%.2f", v => _configuration.TargetNameOpacity = v);
-        }
-
-        ImGui.EndDisabled();
+        ImGui.TextDisabled("The English name follows the Chinese name in brackets, on the same line.");
     }
 
     private void DrawItemNameComponentTab()
@@ -752,7 +696,6 @@ public sealed class ConfigWindow : Window
     private void UseGlobalAppearanceForAll()
     {
         _configuration.TalkUseGlobalAppearance = true;
-        _configuration.TargetNameUseGlobalAppearance = true;
         _configuration.ItemNameUseGlobalAppearance = true;
         _applySettings();
     }
@@ -765,14 +708,6 @@ public sealed class ConfigWindow : Window
         _configuration.OffsetFromBottom = defaults.OffsetFromBottom;
         _configuration.LockOverlay = defaults.LockOverlay;
         _configuration.AnchorOverlayBottom = defaults.AnchorOverlayBottom;
-        _applySettings();
-    }
-
-    private void ResetTargetLayout()
-    {
-        var defaults = new Configuration();
-        _configuration.TargetNameOffsetX = defaults.TargetNameOffsetX;
-        _configuration.TargetNameOffsetY = defaults.TargetNameOffsetY;
         _applySettings();
     }
 
@@ -792,8 +727,7 @@ public sealed class ConfigWindow : Window
         _configuration.TranslatedTextColor = defaults.TranslatedTextColor;
         _configuration.OriginalTextColor = defaults.OriginalTextColor;
         _configuration.ShowTargetName = defaults.ShowTargetName;
-        _configuration.TargetNameOffsetX = defaults.TargetNameOffsetX;
-        _configuration.TargetNameOffsetY = defaults.TargetNameOffsetY;
+        _configuration.TargetNameShowEnglish = defaults.TargetNameShowEnglish;
         _configuration.ShowItemName = defaults.ShowItemName;
         _configuration.ShowInSelectionDialogs = defaults.ShowInSelectionDialogs;
         _configuration.SelectionYesNo = defaults.SelectionYesNo;
@@ -811,10 +745,6 @@ public sealed class ConfigWindow : Window
         _configuration.TalkTranslatedTextColor = defaults.TalkTranslatedTextColor;
         _configuration.TalkOriginalTextColor = defaults.TalkOriginalTextColor;
         _configuration.TalkOverlayOpacity = defaults.TalkOverlayOpacity;
-        _configuration.TargetNameUseGlobalAppearance = defaults.TargetNameUseGlobalAppearance;
-        _configuration.TargetNameColor = defaults.TargetNameColor;
-        _configuration.TargetNameOriginalColor = defaults.TargetNameOriginalColor;
-        _configuration.TargetNameOpacity = defaults.TargetNameOpacity;
         _configuration.ItemNameUseGlobalAppearance = defaults.ItemNameUseGlobalAppearance;
         _configuration.ItemNameColor = defaults.ItemNameColor;
         _configuration.ItemNameOriginalColor = defaults.ItemNameOriginalColor;

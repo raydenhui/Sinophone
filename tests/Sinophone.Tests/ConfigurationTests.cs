@@ -21,8 +21,7 @@ public class ConfigurationTests
         Assert.Equal(new System.Numerics.Vector4(1f, 1f, 1f, 1f), config.TranslatedTextColor);
         Assert.Equal(new System.Numerics.Vector4(0.72f, 0.76f, 0.82f, 1f), config.OriginalTextColor);
         Assert.False(config.ShowTargetName);
-        Assert.Equal(170f, config.TargetNameOffsetY);
-        Assert.Equal(0f, config.TargetNameOffsetX);
+        Assert.True(config.TargetNameShowEnglish);
         Assert.False(config.ShowItemName);
         Assert.False(config.ShowInSelectionDialogs);
         Assert.True(config.SelectionYesNo);
@@ -31,7 +30,6 @@ public class ConfigurationTests
         Assert.True(config.SelectionOk);
         Assert.True(config.SelectionCutScene);
         Assert.True(config.TalkUseGlobalAppearance);
-        Assert.True(config.TargetNameUseGlobalAppearance);
         Assert.True(config.ItemNameUseGlobalAppearance);
         Assert.True(config.ShowOriginal);
         Assert.True(config.HideWhenNoTranslation);
@@ -94,17 +92,14 @@ public class ConfigurationTests
     }
 
     [Fact]
-    public void TargetAndItemAppearance_UseTheirOwnOverrides()
+    public void ItemAppearance_UsesItsOwnOverride()
     {
         var config = new Configuration
         {
-            TargetNameUseGlobalAppearance = false,
-            TargetNameColor = new System.Numerics.Vector4(0.4f, 0.5f, 0.6f, 1f),
             ItemNameUseGlobalAppearance = false,
             ItemNameColor = new System.Numerics.Vector4(0.7f, 0.8f, 0.9f, 1f),
         };
 
-        Assert.Equal(config.TargetNameColor, config.GetTargetNameColor());
         Assert.Equal(config.ItemNameColor, config.GetItemNameColor());
     }
 

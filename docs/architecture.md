@@ -20,12 +20,10 @@ src/Sinophone/
     TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
-    TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name surface.
-    NamePlateNameWriter.cs Writes Chinese names into the game's NPC nameplates.
+    NamePlateNameWriter.cs Translates the game's NPC nameplates through Dalamud's nameplate API.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
   UI/
     OverlayWindow.cs      The translation overlay.
-    TargetNameWindow.cs   Small window under the target info with the target's Chinese name.
     ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.
     ConfigWindow.cs       Settings window.
     FontManager.cs        CJK font loading and font atlas rebuilds.
@@ -156,10 +154,10 @@ game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 
 ### Native NPC names
 
-`Configuration.TargetNameDisplay` switches the target name from the overlay window to the game's
-own nameplates. Native mode translates every visible NPC plate, not only the target.
-`NamePlateNameWriter` replaces each plate's name through Dalamud's nameplate API
-(`INamePlateGui.OnNamePlateUpdate`).
+`Configuration.ShowTargetName` turns on NPC name translation in the game's own nameplates. Every
+visible NPC plate is translated, not only the target. `NamePlateNameWriter` replaces each plate's
+name through Dalamud's nameplate API (`INamePlateGui.OnNamePlateUpdate`). It is the only surface
+for NPC names: there is no overlay window for them.
 
 - The event fires inside the nameplate addon's update, before the game sets the plate's text.
   The game then measures our text and bakes the plate at that size, so a wider Chinese name is

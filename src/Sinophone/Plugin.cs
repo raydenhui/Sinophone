@@ -25,12 +25,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly OverlayWindow _overlay;
     private readonly NativeTextWriter _nativeTextWriter;
     private readonly NamePlateNameWriter _namePlateNameWriter;
-    private readonly TargetNameWindow _targetNameWindow;
     private readonly ItemNameWindow _itemNameWindow;
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
     private readonly SelectionDialogHandler _selectionDialogHandler;
-    private readonly TargetNameHandler _targetNameHandler;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
 #if DEBUG
@@ -54,7 +52,6 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastDownloadBoth;
     private bool _lastEnabled;
     private bool _lastShowTargetName;
-    private TargetNameDisplayMode _lastTargetNameDisplay;
     private bool _lastTargetNameShowEnglish;
     private bool _lastShowItemName;
     private bool _lastNativeTextMode;
@@ -94,7 +91,6 @@ public sealed class Plugin : IDalamudPlugin
         _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
-        _lastTargetNameDisplay = _configuration.TargetNameDisplay;
         _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
         _lastShowItemName = _configuration.ShowItemName;
         _lastNativeTextMode = _configuration.NativeTextMode;
@@ -116,7 +112,6 @@ public sealed class Plugin : IDalamudPlugin
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
         _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
-        _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
         _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, Log);
@@ -143,7 +138,6 @@ public sealed class Plugin : IDalamudPlugin
 #endif
 
         _windowSystem.AddWindow(_overlay);
-        _windowSystem.AddWindow(_targetNameWindow);
         _windowSystem.AddWindow(_itemNameWindow);
         _windowSystem.AddWindow(_configWindow);
 
@@ -162,13 +156,6 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _nativeTextWriter);
-        _targetNameHandler = new TargetNameHandler(
-            AddonLifecycle,
-            TargetManager,
-            _configuration,
-            () => _store,
-            _targetNameWindow,
-            _namePlateNameWriter);
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
@@ -483,9 +470,24 @@ public sealed class Plugin : IDalamudPlugin
 
         _store = store;
         _overlay.Hide();
-        _targetNameHandler.Refresh(namesChanged: true);
+        RefreshNamePlates(namesChanged: true);
         _itemNameHandler.Refresh();
         return true;
+    }
+
+    /// <summary>
+    /// Turns nameplate translation on or off for the current settings. A new store or a
+    /// changed English-name setting needs a fresh lookup, so every plate is laid out again.
+    /// </summary>
+    private void RefreshNamePlates(bool namesChanged = false)
+    {
+        if (namesChanged)
+            _namePlateNameWriter.Reset();
+
+        if (_configuration.Enabled && _configuration.ShowTargetName)
+            _namePlateNameWriter.Enable();
+        else
+            _namePlateNameWriter.Disable();
     }
 
     private void SaveConfiguration()
@@ -507,7 +509,6 @@ public sealed class Plugin : IDalamudPlugin
         var needsTargetRefresh = needsStoreReload
                                  || _configuration.Enabled != _lastEnabled
                                  || _configuration.ShowTargetName != _lastShowTargetName
-                                 || _configuration.TargetNameDisplay != _lastTargetNameDisplay
                                  || targetNameEnglishChanged;
 
         var needsItemRefresh = needsStoreReload
@@ -529,7 +530,6 @@ public sealed class Plugin : IDalamudPlugin
         _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
-        _lastTargetNameDisplay = _configuration.TargetNameDisplay;
         _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
         _lastShowItemName = _configuration.ShowItemName;
         _lastNativeTextMode = _configuration.NativeTextMode;
@@ -583,7 +583,7 @@ public sealed class Plugin : IDalamudPlugin
             _fontManager.Rebuild();
 
         if (needsTargetRefresh)
-            _targetNameHandler.Refresh(needsStoreReload || targetNameEnglishChanged);
+            RefreshNamePlates(needsStoreReload || targetNameEnglishChanged);
 
         if (needsItemRefresh)
             _itemNameHandler.Refresh();
@@ -610,7 +610,7 @@ public sealed class Plugin : IDalamudPlugin
 #endif
         _selectionDialogHandler.Dispose();
         _talkHandler.Dispose();
-        _targetNameHandler.Dispose();
+        _namePlateNameWriter.Disable();
         _itemNameHandler.Dispose();
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();
