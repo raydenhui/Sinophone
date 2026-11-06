@@ -898,6 +898,20 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_MatchesOtherTimeOfDay_WhenDumpUsesTheOtherWording()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("Greetin's, lass. What can I do for ye this fine evenin'?", "喲，這裡是後桅旅店接待處。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Greetin's, lad. What can I do for ye this fine day?", out var chinese));
+        Assert.Equal("喲，這裡是後桅旅店接待處。", chinese);
+    }
+
+    [Fact]
     public void TryGetDialogue_DoesNotUseACollapsedKey_WhenItMatchesTwoLines()
     {
         var artifacts = Artifacts(null, Artifact("TC", Scripts(

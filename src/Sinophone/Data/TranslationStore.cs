@@ -22,17 +22,17 @@ public sealed class TranslationStore
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Script lines under a key with the gendered pronouns and nouns of address
-    /// collapsed. Only tried after an exact miss, because the English dump stores
-    /// one gender branch.
+    /// Script lines under a key with the branch words collapsed: pronouns, nouns of
+    /// address, and the time of day. Only tried after an exact miss, because the
+    /// English dump stores one branch.
     /// </summary>
-    private readonly Dictionary<string, string> _genderNeutralLookup = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _branchNeutralLookup = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Collapsed keys that two script lines share with different Chinese. The
     /// collapsed key cannot tell the lines apart, so it is not used at all.
     /// </summary>
-    private readonly HashSet<string> _ambiguousGenderKeys = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _ambiguousBranchKeys = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Addon-sheet prompts with UNKNOWN placeholders, matched as templates. The
@@ -130,7 +130,7 @@ public sealed class TranslationStore
         if (TryLookupScriptTemplate(key, out chineseText))
             return true;
 
-        if (!TryLookupGenderNeutral(key, out var match))
+        if (!TryLookupBranchNeutral(key, out var match))
             return false;
 
         chineseText = ResolveDisplay(match);
@@ -205,7 +205,7 @@ public sealed class TranslationStore
             return true;
         }
 
-        if (!TryLookupGenderNeutral(key, out var match))
+        if (!TryLookupBranchNeutral(key, out var match))
             return false;
 
         chineseText = ResolveDisplay(match);
@@ -339,29 +339,36 @@ public sealed class TranslationStore
     }
 
     /// <summary>
-    /// Matches a script line that the English dump wrote for the other gender.
+    /// Matches a script line that the English dump wrote for another branch of a
+    /// gender or time conditional.
     /// </summary>
-    private bool TryLookupGenderNeutral(string key, out string stored)
+    private bool TryLookupBranchNeutral(string key, out string stored)
     {
         stored = string.Empty;
 
-        if (_genderNeutralLookup.Count == 0)
+        if (_branchNeutralLookup.Count == 0)
             return false;
 
-        var neutral = GenderedNouns.Neutralize(GenderedPronouns.Neutralize(key));
+        var neutral = CollapseBranchWords(key);
         if (ReferenceEquals(neutral, key))
             return false;
 
-        if (_ambiguousGenderKeys.Contains(neutral)
-            || !_genderNeutralLookup.TryGetValue(neutral, out var match))
+        if (_ambiguousBranchKeys.Contains(neutral)
+            || !_branchNeutralLookup.TryGetValue(neutral, out var match))
         {
             return false;
         }
 
-        _log?.Debug("Script line matched after collapsing the gendered words.");
+        _log?.Debug("Script line matched after collapsing the branch words.");
         stored = match;
         return true;
     }
+
+    /// <summary>
+    /// Collapses every word the English dump may have resolved to another branch.
+    /// </summary>
+    private static string CollapseBranchWords(string key)
+        => TimeOfDayWords.Neutralize(GenderedNouns.Neutralize(GenderedPronouns.Neutralize(key)));
 
     /// <summary>
     /// Looks up a short Addon-sheet label such as "Yes.", "No.", or "Skip cutscene?".
@@ -862,30 +869,30 @@ public sealed class TranslationStore
                 _scriptEntryCount++;
             }
 
-            // The English dump holds one gender's wording, so keep a key with the
-            // gendered words collapsed for the other one. A line that already
-            // matches exactly keeps priority, because the exact lookup runs first.
-            var neutral = GenderedNouns.Neutralize(GenderedPronouns.Neutralize(key));
+            // The English dump holds one branch's wording, so keep a key with the
+            // branch words collapsed for the others. A line that already matches
+            // exactly keeps priority, because the exact lookup runs first.
+            var neutral = CollapseBranchWords(key);
             if (!ReferenceEquals(neutral, key) && !_textLookup.ContainsKey(neutral)
-                && !_genderNeutralLookup.TryAdd(neutral, display)
-                && !string.Equals(_genderNeutralLookup[neutral], display, StringComparison.Ordinal))
+                && !_branchNeutralLookup.TryAdd(neutral, display)
+                && !string.Equals(_branchNeutralLookup[neutral], display, StringComparison.Ordinal))
             {
                 // Two lines collapse to the same key with different Chinese. The
                 // key cannot tell them apart, so it must not answer either one.
-                _ambiguousGenderKeys.Add(neutral);
+                _ambiguousBranchKeys.Add(neutral);
             }
         }
 
-        if (_genderNeutralLookup.Count > 0)
+        if (_branchNeutralLookup.Count > 0)
         {
-            _log?.Debug("Indexed {Count:N0} gender-neutral script keys.", _genderNeutralLookup.Count);
+            _log?.Debug("Indexed {Count:N0} collapsed script keys.", _branchNeutralLookup.Count);
         }
 
-        if (_ambiguousGenderKeys.Count > 0)
+        if (_ambiguousBranchKeys.Count > 0)
         {
             _log?.Debug(
-                "{Count:N0} gender-neutral script keys map to more than one line and are not used.",
-                _ambiguousGenderKeys.Count);
+                "{Count:N0} collapsed script keys map to more than one line and are not used.",
+                _ambiguousBranchKeys.Count);
         }
 
         return added;
