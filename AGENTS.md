@@ -227,8 +227,9 @@ premature interface.
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
   branch. `TranslationStore` keeps a second script index with the gendered pronouns collapsed
   (`GenderedPronouns`), so a line written for the other gender still matches. Exact keys win, and
-  the collapsed key is only tried after a miss. Gendered nouns such as `sir` / `madam` are not
-  collapsed, because they are common in normal prose; a script line built that way can still miss.
+  the collapsed key is only tried after a miss. Gendered nouns such as `sir` / `madam` and words
+  that change with the time of day (`mornin'` / `evenin'`) are not collapsed, because they are
+  common in normal prose; a script line that varies that way can still miss.
   For display, `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition
   shows the first branch.
 - **Player name.** The dumps write `Player Player` where a line names the player, and the game
