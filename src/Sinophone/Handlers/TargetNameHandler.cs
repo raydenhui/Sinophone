@@ -15,7 +15,6 @@ namespace Sinophone.Handlers;
 public sealed class TargetNameHandler : IDisposable
 {
     private const string TargetInfoAddonName = "TargetInfo";
-    private const string NamePlateAddonName = "NamePlate";
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly ITargetManager _targetManager;
@@ -25,7 +24,6 @@ public sealed class TargetNameHandler : IDisposable
     private readonly NamePlateNameWriter _namePlate;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onTargetInfoEvent;
-    private readonly IAddonLifecycle.AddonEventDelegate _onNamePlateUpdate;
     private bool _disposed;
 
     public TargetNameHandler(
@@ -43,12 +41,10 @@ public sealed class TargetNameHandler : IDisposable
         _window = window;
         _namePlate = namePlate;
         _onTargetInfoEvent = OnTargetInfoEvent;
-        _onNamePlateUpdate = OnNamePlateUpdate;
 
         _addonLifecycle.RegisterListener(AddonEvent.PostSetup, TargetInfoAddonName, _onTargetInfoEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, TargetInfoAddonName, _onTargetInfoEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostClose, TargetInfoAddonName, _onTargetInfoEvent);
-        _addonLifecycle.RegisterListener(AddonEvent.PostUpdate, NamePlateAddonName, _onNamePlateUpdate);
     }
 
     /// <summary>
@@ -107,18 +103,6 @@ public sealed class TargetNameHandler : IDisposable
     }
 
     /// <summary>
-    /// Runs after the game updated the nameplate addon, which is when the game may have
-    /// put an English name back. The writer only reads its own slots here.
-    /// </summary>
-    private void OnNamePlateUpdate(AddonEvent eventType, AddonArgs args)
-    {
-        if (_disposed)
-            return;
-
-        _namePlate.Update();
-    }
-
-    /// <summary>
     /// Decides what to show for one target. Pure apart from the store lookup, so
     /// tests can call it without a game object. Returns null when nothing should
     /// be shown.
@@ -156,7 +140,6 @@ public sealed class TargetNameHandler : IDisposable
         _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, TargetInfoAddonName, _onTargetInfoEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, TargetInfoAddonName, _onTargetInfoEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostClose, TargetInfoAddonName, _onTargetInfoEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, NamePlateAddonName, _onNamePlateUpdate);
 
         _window.Hide();
         _namePlate.Disable();

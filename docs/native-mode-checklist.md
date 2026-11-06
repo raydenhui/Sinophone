@@ -44,6 +44,7 @@ Two runs are needed:
 | An NPC whose nameplate is hidden | Nothing changes; the English name stays |
 | Two nearby NPCs with the same name | Note whether both plates show the Chinese name |
 | An NPC with a long name | The whole name fits on one line, not clipped, with the Chinese name readable |
+| Names seen from different camera angles | The same full name at every angle; the left and right sides never get cut off |
 
 ## Done when
 

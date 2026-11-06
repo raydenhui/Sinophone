@@ -158,25 +158,26 @@ game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 
 `Configuration.TargetNameDisplay` switches the target name from the overlay window to the game's
 own nameplates. Native mode translates every visible NPC plate, not only the target.
-`NamePlateNameWriter` writes the Chinese name into each plate's text node and sets
-`NamePlateObject.NeedsToBeBaked`, because the addon draws each plate from a baked texture.
+`NamePlateNameWriter` replaces each plate's name through Dalamud's nameplate API
+(`INamePlateGui.OnNamePlateUpdate`).
 
-- The 50 plate slots are shared by whatever objects are nearby, and a slot has no object id.
-  The writer reads the slot's name text and looks it up. A visible NPC with the same name as
-  another gets the same Chinese name.
-- The writer keeps one state per slot: the English text, the text it wrote, and whether the name
-  had a translation at all. A slot costs two UTF-8 span compares per addon update and no
-  allocation. A lookup only runs when a plate shows a new name; a miss is remembered, so the
-  same name is not looked up again.
-- A slot is forgotten once its text is neither our text nor the saved English name, because
-  another object owns that slot now.
-- The game puts the English name back when it updates the plate. `TargetNameHandler` registers
-  `PostUpdate` for `NamePlate` and calls `Update`, which puts the Chinese back.
+- The event fires inside the nameplate addon's update, before the game sets the plate's text.
+  The game then measures our text and bakes the plate at that size, so a wider Chinese name is
+  not clipped.
+- Do not write the text node after the addon update and mark the plate `NeedsToBeBaked`. The
+  bake keeps the size the game gave the English name, so the sides of a longer name are cut off.
+  Do not change `NamePlateObject.TextW` or `TextH` to fit: the game resets them while it
+  measures, and the plates share one bake atlas, so the fight corrupts names on other plates,
+  including the player's.
 - A plate draws one line, so the English name follows the Chinese name in brackets when it is
-  shown. The bake texture is allocated from `NamePlateObject.TextW` and `TextH`, which the game
-  sizes for the English name. Do not change those fields to fit a longer string: the game resets
-  them while it measures, and the plates share one bake atlas, so the fight corrupts names on
-  other plates, including the player's.
+  shown.
+- The event only passes plates with a new or changed name, so this is not a per-frame path. The
+  name is looked up in the store each time.
+- A plate slot carries no object id, so the translation follows the name text. Two visible NPCs
+  with the same name get the same Chinese name.
+- `Enable` and `Disable` subscribe and unsubscribe, then call `RequestRedraw`, which makes the
+  game lay out every visible plate again. That shows the Chinese names at once, and puts the
+  English names back when the mode is turned off.
 - Player characters are skipped. NPC nameplates must be visible in the game settings; a hidden
   plate is left alone.
 

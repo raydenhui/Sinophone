@@ -15,6 +15,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] public static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
+    [PluginService] public static INamePlateGui NamePlateGui { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
@@ -114,7 +115,7 @@ public sealed class Plugin : IDalamudPlugin
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
-        _namePlateNameWriter = new NamePlateNameWriter(GameGui, _configuration, () => _store, Log);
+        _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
