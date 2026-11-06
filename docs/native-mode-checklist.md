@@ -36,14 +36,14 @@ Two runs are needed:
 | Cutscene string selection | Prompt and every option are Chinese; no overlay |
 | Selection dialog with an untranslated option | That option stays English; other options still translate |
 | Close and reopen a selection dialog | No stale text from the previous dialog |
-| Target an NPC with the native target name on | Its plate shows the Chinese name, with no overlay on screen |
-| Turn "Show the English name too" off | The plate shows Chinese only |
-| Target a player character | The player's name is unchanged |
-| Switch target | The old plate returns to English; the new plate is Chinese |
-| Turn the native target name off | Every changed plate returns to English |
-| Target an NPC whose nameplate is hidden | Nothing changes; the English name stays |
+| Stand near several NPCs with the native name mode on | Every visible NPC plate shows the Chinese name, not only the target |
+| Turn "Show the English name too" off | Every plate shows Chinese only |
+| Look at a player character | The player's name is unchanged |
+| Walk away and come back | The plates translate again; no stale names stay on a recycled plate |
+| Turn the native name mode off | Every changed plate returns to English |
+| An NPC whose nameplate is hidden | Nothing changes; the English name stays |
 | Two nearby NPCs with the same name | Note whether both plates show the Chinese name |
-| Target an NPC with a long name | Note whether the second line is clipped |
+| An NPC with a long name | The two lines are both visible, not clipped |
 
 ## Done when
 

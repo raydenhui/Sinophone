@@ -257,11 +257,12 @@ premature interface.
   at once. The target name window follows `TargetNameShowEnglish` and the item name window follows
   `ShowOriginal`; both put the English name under the Chinese name. Selection dialogs have their
   own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
-- **Native target name.** `TargetNameDisplay` can write the target's Chinese name into the game's
-  own nameplate above its head. It needs a font mod and NPC nameplates visible in the game
-  settings. A plate slot carries no object id, so the writer matches the target by name text; a
-  visible NPC with the same name also gets the Chinese name. The plate texture is sized for the
-  English name, so the second line (English in brackets) may be clipped.
+- **Native NPC names.** `TargetNameDisplay` can write Chinese names into the game's own nameplates
+  above every visible NPC, not only the target. It needs a font mod and NPC nameplates visible in
+  the game settings. A plate slot carries no object id, so the writer translates the text on each
+  plate; two visible NPCs with the same name both get the Chinese name. The bake is sized for one
+  line of English text, so a two-line name sets `TextW`/`TextH` from the measured node and puts
+  them back if the game resets them. Player characters are skipped.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 
 ## References

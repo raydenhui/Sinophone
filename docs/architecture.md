@@ -21,7 +21,7 @@ src/Sinophone/
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     TargetNameHandler.cs  Watches the TargetInfo addon. Feeds the target name surface.
-    NamePlateNameWriter.cs Writes the target's Chinese name into the game's nameplate.
+    NamePlateNameWriter.cs Writes Chinese names into the game's NPC nameplates.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
   UI/
     OverlayWindow.cs      The translation overlay.
@@ -154,25 +154,29 @@ game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 - Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
   are checked in game. A failed write falls back to the overlay.
 
-### Native target name
+### Native NPC names
 
 `Configuration.TargetNameDisplay` switches the target name from the overlay window to the game's
-own plate above the target's head. `TargetNameHandler` resolves the name as usual, then
-`NamePlateNameWriter` writes it into the plate's text node and sets
+own nameplates. Native mode translates every visible NPC plate, not only the target.
+`NamePlateNameWriter` writes the Chinese name into each plate's text node and sets
 `NamePlateObject.NeedsToBeBaked`, because the addon draws each plate from a baked texture.
 
 - The 50 plate slots are shared by whatever objects are nearby, and a slot has no object id.
-  The only way to find the target's plate is to match its name text, so a visible NPC with the
-  same name also gets the Chinese name.
+  The writer reads the slot's name text and looks it up. A visible NPC with the same name as
+  another gets the same Chinese name.
+- The writer keeps one state per slot: the English text, the text it wrote, and whether the name
+  had a translation at all. A slot costs two UTF-8 span compares per addon update and no
+  allocation. A lookup only runs when a plate shows a new name; a miss is remembered, so the
+  same name is not looked up again.
+- A slot is forgotten once its text is neither our text nor the saved English name, because
+  another object owns that slot now.
 - The game puts the English name back when it updates the plate. `TargetNameHandler` registers
-  `PostUpdate` for `NamePlate` and calls `Maintain`, which compares the node's UTF-8 bytes with
-  the text it wrote and puts the Chinese back. This path allocates nothing.
-- A slot is dropped from tracking once its text is neither our text nor the saved English name,
-  because another object owns that slot now.
-- NPC nameplates must be visible in the game settings. When the target has no visible plate,
-  nothing is written and the English name stays.
-- The plate texture is sized for the English name. The second line (the English name in brackets)
-  may be clipped; check it in game before relying on it.
+  `PostUpdate` for `NamePlate` and calls `Update`, which puts the Chinese back.
+- The bake texture is allocated from `NamePlateObject.TextW` and `TextH`, which the game sized
+  for one line of English text. A two-line name sets them from the measured node, and
+  `KeepSize` puts them back if the game resets them. A single-line name keeps the game's size.
+- Player characters are skipped. NPC nameplates must be visible in the game settings; a hidden
+  plate is left alone.
 
 ### Runtime data updates
 
