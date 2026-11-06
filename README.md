@@ -55,10 +55,9 @@ Chinese.
 
 ## Status
 
-**Not usable yet.** Some NPC dialogue is still not detected, so the overlay misses lines during
-normal play. Settings and the translation data format may change without notice.
-
-The first usable release is planned for **0.2.0**. Until then, expect gaps and changes.
+**0.2.0 is the first usable release.** Expect gaps. The CN and TC dumps trail the live game, so
+new or rewritten lines can have no translation. The settings and the translation data format may
+still change between releases.
 
 ## Thanks
 
