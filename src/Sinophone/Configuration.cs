@@ -19,21 +19,6 @@ public enum ChineseConversion
     TraditionalToSimplified = 2,
 }
 
-/// <summary>
-/// Where the Chinese NPC names are drawn.
-/// </summary>
-public enum TargetNameDisplayMode
-{
-    /// <summary>The current target only, in a small plugin window near the target info.</summary>
-    Overlay = 0,
-
-    /// <summary>
-    /// Every visible NPC, in the game's own nameplate above its head. Needs a font mod,
-    /// because the game font has no CJK glyphs.
-    /// </summary>
-    NativeNamePlate = 1,
-}
-
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
@@ -89,25 +74,16 @@ public sealed class Configuration : IPluginConfiguration
     public Vector4 OriginalTextColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
 
     /// <summary>
-    /// Show the Chinese name of the current target, in the overlay or in the
-    /// game's own nameplate. Off by default until the surface has been checked in game.
+    /// Show the Chinese name of every visible NPC in the game's own nameplate above its
+    /// head. Needs a font mod, because the game font has no CJK glyphs. Off by default.
     /// </summary>
     public bool ShowTargetName { get; set; }
 
-    /// <summary>Where the target's Chinese name is drawn. Overlay by default.</summary>
-    public TargetNameDisplayMode TargetNameDisplay { get; set; } = TargetNameDisplayMode.Overlay;
-
     /// <summary>
-    /// Show the English name with the translated name. In native mode it follows the
+    /// Show the English name with the Chinese name in the nameplate. It follows the
     /// Chinese name in brackets on the same line, for every NPC plate.
     /// </summary>
     public bool TargetNameShowEnglish { get; set; } = true;
-
-    /// <summary>Distance in pixels from the top of the screen to the target name overlay.</summary>
-    public float TargetNameOffsetY { get; set; } = 170f;
-
-    /// <summary>Horizontal offset from the screen center for the target name overlay.</summary>
-    public float TargetNameOffsetX { get; set; }
 
     /// <summary>
     /// Show the Chinese name of the item under the mouse in a small overlay.
@@ -170,15 +146,6 @@ public sealed class Configuration : IPluginConfiguration
     public Vector4 TalkOriginalTextColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
 
     public float TalkOverlayOpacity { get; set; } = 0.72f;
-
-    /// <summary>Use the global colors and opacity for the target name window.</summary>
-    public bool TargetNameUseGlobalAppearance { get; set; } = true;
-
-    public Vector4 TargetNameColor { get; set; } = new(1f, 0.84f, 0.35f, 1f);
-
-    public Vector4 TargetNameOriginalColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
-
-    public float TargetNameOpacity { get; set; } = 0.72f;
 
     /// <summary>Use the global colors and opacity for the item name window.</summary>
     public bool ItemNameUseGlobalAppearance { get; set; } = true;
@@ -256,15 +223,6 @@ public sealed class Configuration : IPluginConfiguration
 
     public float GetTalkOpacity()
         => TalkUseGlobalAppearance ? OverlayOpacity : TalkOverlayOpacity;
-
-    public Vector4 GetTargetNameColor()
-        => TargetNameUseGlobalAppearance ? SpeakerNameColor : TargetNameColor;
-
-    public Vector4 GetTargetNameOriginalColor()
-        => TargetNameUseGlobalAppearance ? OriginalTextColor : TargetNameOriginalColor;
-
-    public float GetTargetNameOpacity()
-        => TargetNameUseGlobalAppearance ? OverlayOpacity : TargetNameOpacity;
 
     public Vector4 GetItemNameColor()
         => ItemNameUseGlobalAppearance ? TranslatedTextColor : ItemNameColor;

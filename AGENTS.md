@@ -254,12 +254,12 @@ premature interface.
   [README](README.md#font-setup).
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
-  at once. The target name window follows `TargetNameShowEnglish` and the item name window follows
-  `ShowOriginal`; both put the English name under the Chinese name. Selection dialogs have their
+  at once. NPC nameplates follow `TargetNameShowEnglish` and the item name window follows
+  `ShowOriginal`; both put the English name with the Chinese name. Selection dialogs have their
   own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
-- **Native NPC names.** `TargetNameDisplay` can put Chinese names into the game's own nameplates
-  above every visible NPC, not only the target. It needs a font mod and NPC nameplates visible in
-  the game settings. The names change through Dalamud's nameplate API
+- **Native NPC names.** `ShowTargetName` puts Chinese names into the game's own nameplates above
+  every visible NPC, not only the target. It needs a font mod and NPC nameplates visible in the
+  game settings. The names change through Dalamud's nameplate API
   (`INamePlateGui.OnNamePlateUpdate`), which runs before the game lays the plate out, so the game
   measures and bakes the Chinese text itself. Do not write the text node after the addon update,
   and do not change `NamePlateObject.TextW` or `TextH`: both cut the sides off a wider name and
