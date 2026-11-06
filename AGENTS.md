@@ -254,8 +254,14 @@ premature interface.
   [README](README.md#font-setup).
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
-  at once. The target and item name windows can show the English name under the Chinese name.
-  Selection dialogs have their own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
+  at once. The target name window follows `TargetNameShowEnglish` and the item name window follows
+  `ShowOriginal`; both put the English name under the Chinese name. Selection dialogs have their
+  own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
+- **Native target name.** `TargetNameDisplay` can write the target's Chinese name into the game's
+  own nameplate above its head. It needs a font mod and NPC nameplates visible in the game
+  settings. A plate slot carries no object id, so the writer matches the target by name text; a
+  visible NPC with the same name also gets the Chinese name. The plate texture is sized for the
+  English name, so the second line (English in brackets) may be clipped.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 
 ## References
