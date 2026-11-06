@@ -14,6 +14,7 @@ src/Sinophone/
     ConditionalText.cs      Picks a branch when the CN/TC text carries <If> tags.
     SeStringVariants.cs     Splits a conditional SeString into one string per branch.
     GenderedPronouns.cs     Collapses gendered pronouns so a script line matches either branch.
+    GenderedNouns.cs        Collapses nouns of address (lad/lass, sir/madam) for the same reason.
     ChineseConverter.cs     Optional simplified/traditional conversion, built from OpenCC.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.

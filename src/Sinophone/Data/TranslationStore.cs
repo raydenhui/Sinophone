@@ -22,10 +22,17 @@ public sealed class TranslationStore
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Script lines under a key with the gendered pronouns collapsed. Only tried
-    /// after an exact miss, because the English dump stores one gender branch.
+    /// Script lines under a key with the gendered pronouns and nouns of address
+    /// collapsed. Only tried after an exact miss, because the English dump stores
+    /// one gender branch.
     /// </summary>
     private readonly Dictionary<string, string> _genderNeutralLookup = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Collapsed keys that two script lines share with different Chinese. The
+    /// collapsed key cannot tell the lines apart, so it is not used at all.
+    /// </summary>
+    private readonly HashSet<string> _ambiguousGenderKeys = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Addon-sheet prompts with UNKNOWN placeholders, matched as templates. The
@@ -341,14 +348,17 @@ public sealed class TranslationStore
         if (_genderNeutralLookup.Count == 0)
             return false;
 
-        var neutral = GenderedPronouns.Neutralize(key);
+        var neutral = GenderedNouns.Neutralize(GenderedPronouns.Neutralize(key));
         if (ReferenceEquals(neutral, key))
             return false;
 
-        if (!_genderNeutralLookup.TryGetValue(neutral, out var match))
+        if (_ambiguousGenderKeys.Contains(neutral)
+            || !_genderNeutralLookup.TryGetValue(neutral, out var match))
+        {
             return false;
+        }
 
-        _log?.Debug("Script line matched after collapsing the gendered pronouns.");
+        _log?.Debug("Script line matched after collapsing the gendered words.");
         stored = match;
         return true;
     }
@@ -853,16 +863,29 @@ public sealed class TranslationStore
             }
 
             // The English dump holds one gender's wording, so keep a key with the
-            // pronouns collapsed for the other one. A line that already matches
-            // exactly keeps priority, because the exact lookup runs first.
-            var neutral = GenderedPronouns.Neutralize(key);
-            if (!ReferenceEquals(neutral, key) && !_textLookup.ContainsKey(neutral))
-                _genderNeutralLookup.TryAdd(neutral, display);
+            // gendered words collapsed for the other one. A line that already
+            // matches exactly keeps priority, because the exact lookup runs first.
+            var neutral = GenderedNouns.Neutralize(GenderedPronouns.Neutralize(key));
+            if (!ReferenceEquals(neutral, key) && !_textLookup.ContainsKey(neutral)
+                && !_genderNeutralLookup.TryAdd(neutral, display)
+                && !string.Equals(_genderNeutralLookup[neutral], display, StringComparison.Ordinal))
+            {
+                // Two lines collapse to the same key with different Chinese. The
+                // key cannot tell them apart, so it must not answer either one.
+                _ambiguousGenderKeys.Add(neutral);
+            }
         }
 
         if (_genderNeutralLookup.Count > 0)
         {
             _log?.Debug("Indexed {Count:N0} gender-neutral script keys.", _genderNeutralLookup.Count);
+        }
+
+        if (_ambiguousGenderKeys.Count > 0)
+        {
+            _log?.Debug(
+                "{Count:N0} gender-neutral script keys map to more than one line and are not used.",
+                _ambiguousGenderKeys.Count);
         }
 
         return added;
