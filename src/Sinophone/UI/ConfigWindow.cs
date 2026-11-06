@@ -97,6 +97,12 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
+        if (ImGui.BeginTabItem("Logs"))
+        {
+            DrawLogsTab();
+            ImGui.EndTabItem();
+        }
+
         if (ImGui.BeginTabItem("Status"))
         {
             DrawStatusTab();
@@ -489,6 +495,82 @@ public sealed class ConfigWindow : Window
             ImGui.TextColored(ErrorColor, state.LastError);
     }
 
+    /// <summary>
+    /// Group switches for the plugin's own log messages. A group off hides its debug
+    /// and info lines. Warnings and errors are not filtered, so a failure is never
+    /// silent.
+    /// </summary>
+    private void DrawLogsTab()
+    {
+        ImGui.TextWrapped(
+            "Choose which of the plugin's own messages appear in Dalamud's plugin log. " +
+            "Each switch hides one group's detail messages. Warnings and errors always show.");
+
+        ImGui.Spacing();
+        if (ImGui.Button("Show every group"))
+            SetAllLogGroups(true);
+
+        ImGui.SameLine();
+        if (ImGui.Button("Hide every detail message"))
+            SetAllLogGroups(false);
+
+        Section("Groups");
+        LogGroup("Dialogue lookups", _configuration.LogDialogue,
+            v => _configuration.LogDialogue = v,
+            "Every Talk and subtitle line, with the lookup that answered it.");
+
+        LogGroup("Native text", _configuration.LogNativeText,
+            v => _configuration.LogNativeText = v,
+            "Each write into the game's own dialogue box.");
+
+        LogGroup("Selection dialogs", _configuration.LogSelectionDialogs,
+            v => _configuration.LogSelectionDialogs = v,
+            "Each prompt and option the plugin translates.");
+
+        LogGroup("NPC nameplates", _configuration.LogNamePlates,
+            v => _configuration.LogNamePlates = v,
+            "One line for every NPC name it puts on a nameplate.");
+
+        LogGroup("Item names", _configuration.LogItemNames,
+            v => _configuration.LogItemNames = v,
+            "Item name lookups that find no translation.");
+
+        LogGroup("Translation data", _configuration.LogData,
+            v => _configuration.LogData = v,
+            "Loading, indexing, and download checks.");
+
+        LogGroup("Plugin", _configuration.LogPlugin,
+            v => _configuration.LogPlugin = v,
+            "Load, unload, and settings changes.");
+
+#if DEBUG
+        LogGroup("Debug probes", _configuration.LogDiagnostics,
+            v => _configuration.LogDiagnostics = v,
+            "The Talk and native text probes in debug builds.");
+#endif
+    }
+
+    private void LogGroup(string label, bool current, Action<bool> setter, string hint)
+    {
+        Checkbox(label, current, setter);
+        ImGui.Indent();
+        ImGui.TextDisabled(hint);
+        ImGui.Unindent();
+    }
+
+    private void SetAllLogGroups(bool enabled)
+    {
+        _configuration.LogPlugin = enabled;
+        _configuration.LogDialogue = enabled;
+        _configuration.LogNativeText = enabled;
+        _configuration.LogSelectionDialogs = enabled;
+        _configuration.LogNamePlates = enabled;
+        _configuration.LogItemNames = enabled;
+        _configuration.LogData = enabled;
+        _configuration.LogDiagnostics = enabled;
+        _applySettings();
+    }
+
     private void DrawStatusTab()
     {
         ImGui.TextColored(SectionColor, _aboutText());
@@ -749,6 +831,14 @@ public sealed class ConfigWindow : Window
         _configuration.ItemNameColor = defaults.ItemNameColor;
         _configuration.ItemNameOriginalColor = defaults.ItemNameOriginalColor;
         _configuration.ItemNameOpacity = defaults.ItemNameOpacity;
+        _configuration.LogPlugin = defaults.LogPlugin;
+        _configuration.LogDialogue = defaults.LogDialogue;
+        _configuration.LogNativeText = defaults.LogNativeText;
+        _configuration.LogSelectionDialogs = defaults.LogSelectionDialogs;
+        _configuration.LogNamePlates = defaults.LogNamePlates;
+        _configuration.LogItemNames = defaults.LogItemNames;
+        _configuration.LogData = defaults.LogData;
+        _configuration.LogDiagnostics = defaults.LogDiagnostics;
         _configuration.FontSize = defaults.FontSize;
         _configuration.OverlayWidth = defaults.OverlayWidth;
         _configuration.OverlayOffsetX = defaults.OverlayOffsetX;
