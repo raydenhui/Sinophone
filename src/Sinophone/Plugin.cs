@@ -23,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly FontManager _fontManager;
     private readonly OverlayWindow _overlay;
     private readonly NativeTextWriter _nativeTextWriter;
+    private readonly NamePlateNameWriter _namePlateNameWriter;
     private readonly TargetNameWindow _targetNameWindow;
     private readonly ItemNameWindow _itemNameWindow;
     private readonly ConfigWindow _configWindow;
@@ -52,6 +53,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastDownloadBoth;
     private bool _lastEnabled;
     private bool _lastShowTargetName;
+    private TargetNameDisplayMode _lastTargetNameDisplay;
+    private bool _lastTargetNameShowEnglish;
     private bool _lastShowItemName;
     private bool _lastNativeTextMode;
     private bool _lastShowInSelectionDialogs;
@@ -90,6 +93,8 @@ public sealed class Plugin : IDalamudPlugin
         _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
+        _lastTargetNameDisplay = _configuration.TargetNameDisplay;
+        _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
         _lastShowItemName = _configuration.ShowItemName;
         _lastNativeTextMode = _configuration.NativeTextMode;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
@@ -109,6 +114,7 @@ public sealed class Plugin : IDalamudPlugin
         _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, Log);
+        _namePlateNameWriter = new NamePlateNameWriter(GameGui, Log);
         _targetNameWindow = new TargetNameWindow(_configuration, _fontManager);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
@@ -160,7 +166,8 @@ public sealed class Plugin : IDalamudPlugin
             TargetManager,
             _configuration,
             () => _store,
-            _targetNameWindow);
+            _targetNameWindow,
+            _namePlateNameWriter);
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
@@ -497,7 +504,9 @@ public sealed class Plugin : IDalamudPlugin
 
         var needsTargetRefresh = needsStoreReload
                                  || _configuration.Enabled != _lastEnabled
-                                 || _configuration.ShowTargetName != _lastShowTargetName;
+                                 || _configuration.ShowTargetName != _lastShowTargetName
+                                 || _configuration.TargetNameDisplay != _lastTargetNameDisplay
+                                 || _configuration.TargetNameShowEnglish != _lastTargetNameShowEnglish;
 
         var needsItemRefresh = needsStoreReload
                                || _configuration.Enabled != _lastEnabled
@@ -518,6 +527,8 @@ public sealed class Plugin : IDalamudPlugin
         _lastDownloadBoth = _configuration.DownloadBothVariants;
         _lastEnabled = _configuration.Enabled;
         _lastShowTargetName = _configuration.ShowTargetName;
+        _lastTargetNameDisplay = _configuration.TargetNameDisplay;
+        _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
         _lastShowItemName = _configuration.ShowItemName;
         _lastNativeTextMode = _configuration.NativeTextMode;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
