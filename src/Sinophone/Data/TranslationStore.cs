@@ -242,12 +242,22 @@ public sealed class TranslationStore
             return true;
         }
 
-        if (TrySelectRowSlot(row, englishText, slots, out var selected))
+        if (TrySelectRowSlot(row, englishText, slots, out var selected, out var compared))
         {
             chineseText = ResolveDisplay(slots[selected]);
             _log?.Debug("Dialogue matched by {Sheet} row {RowId} after selecting slot {Slot}.",
                 row.Sheet, row.RowId, selected);
             return true;
+        }
+
+        // The row's own English was readable and holds no slot for this line, so
+        // the row is not where the line came from. Guessing the only translated
+        // slot here showed one page's Chinese on the next page as well.
+        if (compared)
+        {
+            _log?.Debug("Dialogue did not match any slot of {Sheet} row {RowId}; using the text fallback.",
+                row.Sheet, row.RowId);
+            return false;
         }
 
         // A row with one translated slot needs no text to choose between slots.
@@ -272,13 +282,23 @@ public sealed class TranslationStore
         return true;
     }
 
+    /// <summary>
+    /// Picks the translated slot whose own English matches the line on screen.
+    /// </summary>
+    /// <param name="compared">
+    /// True when the row's own English slots were read and compared with the line.
+    /// False when there was nothing to compare against, so a single translated slot
+    /// is still a safe answer.
+    /// </param>
     private bool TrySelectRowSlot(
         DialogueRowId row,
         string? englishText,
         string[] slots,
-        out int selected)
+        out int selected,
+        out bool compared)
     {
         selected = -1;
+        compared = false;
 
         if (string.IsNullOrWhiteSpace(englishText)
             || !_descriptorByKey.TryGetValue((row.Sheet, row.Field), out var descriptor)
@@ -290,6 +310,8 @@ public sealed class TranslationStore
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0)
             return false;
+
+        compared = true;
 
         for (var i = 0; i < slots.Length && i < englishSlots.Count; i++)
         {

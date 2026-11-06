@@ -941,6 +941,47 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_FailsOpen_WhenRowTextMatchesNoSlot()
+    {
+        // The store used to guess the only translated slot here, so a second page
+        // that the translation did not cover showed the first page's Chinese again.
+        var rows = new Dictionary<uint, IReadOnlyList<IReadOnlyList<string>>>
+        {
+            [1] = new IReadOnlyList<string>[] { new[] { "First line." }, new[] { "Second line." } },
+        };
+        var descriptor = new FakeSheetDescriptor(SheetName, FieldName, false, rows);
+        var artifacts = Artifacts(null, ArtifactWithSlots("TC",
+            (SheetName, FieldName, 1, ["第一行", "", ""])));
+
+        var store = TranslationStore.Load([descriptor], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId(SheetName, 1, FieldName));
+        Assert.False(store.TryGetDialogue("Second line.", in context, out var chinese));
+        Assert.Equal(string.Empty, chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_UsesTheOnlySlot_WhenThereIsNoLineToCompare()
+    {
+        // A surface without the English line still gets the one translated slot.
+        var rows = new Dictionary<uint, IReadOnlyList<IReadOnlyList<string>>>
+        {
+            [1] = new IReadOnlyList<string>[] { new[] { "First line." }, new[] { "Second line." } },
+        };
+        var descriptor = new FakeSheetDescriptor(SheetName, FieldName, false, rows);
+        var artifacts = Artifacts(null, ArtifactWithSlots("TC",
+            (SheetName, FieldName, 1, ["第一行", "", ""])));
+
+        var store = TranslationStore.Load([descriptor], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId(SheetName, 1, FieldName));
+        Assert.True(store.TryGetDialogue(null, in context, out var chinese));
+        Assert.Equal("第一行", chinese);
+    }
+
+    [Fact]
     public void TryGetDialogue_FallsBackToText_WhenRowIdIsNotInTheArtifact()
     {
         var descriptor = TalkSheet((1, "Hello there."));
