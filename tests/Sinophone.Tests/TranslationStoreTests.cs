@@ -884,6 +884,70 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_MatchesOtherGenderNoun_WhenDumpUsesTheOtherWording()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("Greetin's, lass. What can I do for ye this fine evenin'?", "喲，這裡是後桅旅店接待處。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Greetin's, lad. What can I do for ye this fine evenin'?", out var chinese));
+        Assert.Equal("喲，這裡是後桅旅店接待處。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_MatchesOtherTimeOfDay_WhenDumpUsesTheOtherWording()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("Greetin's, lass. What can I do for ye this fine evenin'?", "喲，這裡是後桅旅店接待處。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Greetin's, lad. What can I do for ye this fine day?", out var chinese));
+        Assert.Equal("喲，這裡是後桅旅店接待處。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_MatchesCollapsedLine_WhenBothVariantsHoldTheScript()
+    {
+        // The fallback variant holds the same English under a different Chinese, so
+        // the fallback pass must not turn the primary's collapsed key ambiguous.
+        var artifacts = Artifacts(
+            Artifact("CN", Scripts(
+                ("Greetin's, lass. What can I do for ye this fine evenin'?", "喲，这里是后桅旅店接待处。"))),
+            Artifact("TC", Scripts(
+                ("Greetin's, lass. What can I do for ye this fine evenin'?", "喲，這裡是後桅旅店接待處。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, true, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Greetin's, lad. What can I do for ye this fine day?", out var chinese));
+        Assert.Equal("喲，這裡是後桅旅店接待處。", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_DoesNotUseACollapsedKey_WhenItMatchesTwoLines()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", Scripts(
+            ("She is the lass.", "她是少女。"),
+            ("She is the lad.", "她是少年。"))));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        // Both lines collapse to the same key with different Chinese, so the key
+        // cannot answer for either one. The exact lines still match.
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("He is the lass.", out _));
+        Assert.True(store.TryGetDialogue("She is the lass.", out var chinese));
+        Assert.Equal("她是少女。", chinese);
+    }
+
+    [Fact]
     public void TryGetDialogue_PrefersRowId_WhenEnglishTextAppearsInSeveralRows()
     {
         var descriptor = TalkSheet((1, "Same line."), (2, "Same line."));

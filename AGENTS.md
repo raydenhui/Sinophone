@@ -225,11 +225,12 @@ premature interface.
   from the text node before lookup.
 - **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
-  branch. `TranslationStore` keeps a second script index with the gendered pronouns collapsed
-  (`GenderedPronouns`), so a line written for the other gender still matches. Exact keys win, and
-  the collapsed key is only tried after a miss. Gendered nouns such as `sir` / `madam` and words
-  that change with the time of day (`mornin'` / `evenin'`) are not collapsed, because they are
-  common in normal prose; a script line that varies that way can still miss.
+  branch. `TranslationStore` keeps a second script index with the branch words collapsed:
+  pronouns (`GenderedPronouns`), nouns of address (`GenderedNouns`: lad/lass, sir/madam), and
+  the time of day (`TimeOfDayWords`: morning/day/evening/night). A line written for the other
+  gender or another time of day still matches. Exact keys win, and the collapsed key is only
+  tried after a miss. When two lines collapse to the same key with different Chinese, the key is
+  dropped instead of guessing.
   For display, `PlayerParameter(4)` (gender) is resolved from `IPlayerState`; every other condition
   shows the first branch.
 - **Player name.** The dumps write `Player Player` where a line names the player, and the game
