@@ -15,7 +15,7 @@ public sealed class TalkHandler : IDisposable
     private const uint NameValueIndex = 1;
 
     private readonly IAddonLifecycle _addonLifecycle;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly OverlayWindow _overlay;
@@ -36,13 +36,13 @@ public sealed class TalkHandler : IDisposable
         NativeTextWriter nativeWriter)
     {
         _addonLifecycle = addonLifecycle;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.Dialogue);
         _targetManager = targetManager;
         _configuration = configuration;
         _getStore = getStore;
         _overlay = overlay;
         _nativeWriter = nativeWriter;
-        _eventReader = new TalkEventReader(log);
+        _eventReader = new TalkEventReader(log, configuration, LogCategory.Dialogue);
         _onAddonEvent = OnAddonEvent;
 
         Register(TalkAddonName);

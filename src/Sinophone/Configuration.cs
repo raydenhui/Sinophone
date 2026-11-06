@@ -156,6 +156,30 @@ public sealed class Configuration : IPluginConfiguration
 
     public float ItemNameOpacity { get; set; } = 0.72f;
 
+    /// <summary>Show the plugin's own detail logs. One switch per log group.</summary>
+    public bool LogPlugin { get; set; } = true;
+
+    /// <summary>Talk and subtitle lookups.</summary>
+    public bool LogDialogue { get; set; } = true;
+
+    /// <summary>Writes into the game's own dialogue box.</summary>
+    public bool LogNativeText { get; set; } = true;
+
+    /// <summary>Selection dialog prompts and options.</summary>
+    public bool LogSelectionDialogs { get; set; } = true;
+
+    /// <summary>NPC nameplate names.</summary>
+    public bool LogNamePlates { get; set; } = true;
+
+    /// <summary>Item name lookups.</summary>
+    public bool LogItemNames { get; set; } = true;
+
+    /// <summary>Translation data loading, indexing, and downloads.</summary>
+    public bool LogData { get; set; } = true;
+
+    /// <summary>The debug probes. Debug builds only.</summary>
+    public bool LogDiagnostics { get; set; } = true;
+
     public float FontSize { get; set; } = 20f;
 
     public float OverlayWidth { get; set; } = 620f;
@@ -192,6 +216,24 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>True when the downloaded Traditional artifact matches <see cref="LastDataVersion"/>.</summary>
     public bool HasTraditionalData { get; set; }
+
+    /// <summary>
+    /// True when the settings show this group's detail logs. Warnings and errors are
+    /// always written, so turning a group off cannot hide a failure.
+    /// </summary>
+    public bool IsLogEnabled(LogCategory category)
+        => category switch
+        {
+            LogCategory.Plugin => LogPlugin,
+            LogCategory.Dialogue => LogDialogue,
+            LogCategory.NativeText => LogNativeText,
+            LogCategory.SelectionDialogs => LogSelectionDialogs,
+            LogCategory.NamePlates => LogNamePlates,
+            LogCategory.ItemNames => LogItemNames,
+            LogCategory.Data => LogData,
+            LogCategory.Diagnostics => LogDiagnostics,
+            _ => true,
+        };
 
     /// <summary>
     /// True when one selection-dialog addon is switched on. The master switch

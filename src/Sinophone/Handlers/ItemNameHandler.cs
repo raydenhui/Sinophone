@@ -31,7 +31,7 @@ public sealed class ItemNameHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly ItemNameWindow _window;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly EventHandler<ulong> _onHoveredItemChanged;
 
     private bool _disposed;
@@ -49,7 +49,7 @@ public sealed class ItemNameHandler : IDisposable
         _configuration = configuration;
         _getStore = getStore;
         _window = window;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.ItemNames);
         _onHoveredItemChanged = OnHoveredItemChanged;
 
         _gameGui.HoveredItemChanged += _onHoveredItemChanged;

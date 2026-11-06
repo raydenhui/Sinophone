@@ -38,7 +38,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
-    private readonly IPluginLog _log;
+    private readonly PluginLog _log;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
@@ -60,7 +60,7 @@ public sealed class SelectionDialogHandler : IDisposable
     {
         _addonLifecycle = addonLifecycle;
         _gameGui = gameGui;
-        _log = log;
+        _log = new PluginLog(log, configuration, LogCategory.SelectionDialogs);
         _configuration = configuration;
         _getStore = getStore;
         _nativeWriter = nativeWriter;

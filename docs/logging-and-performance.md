@@ -18,6 +18,19 @@ Use the right level:
 Never log inside `OverlayWindow.Draw` or `PreDraw`. Those run every frame. Log when the content
 changes instead.
 
+### Log groups
+
+The settings window has a **Logs** tab that turns each group of detail messages on or off:
+dialogue lookups, native text writes, selection dialogs, NPC nameplates, item names,
+translation data, the plugin itself, and the debug probes. This is how a user silences the
+one-line-per-nameplate `Native name:` messages without losing the rest.
+
+Write logs through the component's `PluginLog`, not `IPluginLog` directly. The group is
+chosen where the component is constructed, so a call site only names the message. `Debug`
+and `Info` obey the switch. `Warning` and `Error` always show, so turning a group off cannot
+hide a failure. A new group needs an entry in `LogCategory`, `Configuration`, and the Logs
+tab.
+
 Use structured logging. Pass values as parameters, not by string concatenation:
 
 ```csharp
