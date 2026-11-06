@@ -86,6 +86,13 @@ public sealed class SelectionDialogHandler : IDisposable
 
         if (eventType == AddonEvent.PreDraw)
         {
+            if (!IsEnabled(addonName))
+            {
+                // Turned off while the dialog is open. Put the game's own text back.
+                ClearTracked(addonName);
+                return;
+            }
+
             Reapply(addonName);
             TranslateLate(addonName);
             return;
@@ -100,7 +107,7 @@ public sealed class SelectionDialogHandler : IDisposable
             return;
         }
 
-        if (!_configuration.Enabled || !_configuration.NativeTextMode)
+        if (!IsEnabled(addonName))
             return;
 
         if (eventType == AddonEvent.PostSetup)
@@ -284,9 +291,14 @@ public sealed class SelectionDialogHandler : IDisposable
         }
     }
 
+    private bool IsEnabled(string addonName)
+        => _configuration.Enabled
+           && _configuration.ShowInSelectionDialogs
+           && _configuration.IsSelectionDialogEnabled(addonName);
+
     private void TranslateLate(string addonName)
     {
-        if (!_configuration.Enabled || !_configuration.NativeTextMode)
+        if (!IsEnabled(addonName))
             return;
 
         var attempts = _lateAttempts.GetValueOrDefault(addonName);
@@ -299,7 +311,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private void Reapply(string addonName)
     {
-        if (!_configuration.Enabled || !_configuration.NativeTextMode)
+        if (!IsEnabled(addonName))
             return;
 
         if (!_translated.TryGetValue(addonName, out var nodeIds))
@@ -524,6 +536,20 @@ public sealed class SelectionDialogHandler : IDisposable
             return normalized[4..];
 
         return normalized;
+    }
+
+    /// <summary>
+    /// Puts the game's own text back into every dialog this handler has changed.
+    /// Called when a setting turns the surface off, so an open dialog does not
+    /// keep Chinese until it closes.
+    /// </summary>
+    public void RestoreAll()
+    {
+        if (_disposed)
+            return;
+
+        foreach (var addonName in AddonNames)
+            ClearTracked(addonName);
     }
 
     public void Dispose()

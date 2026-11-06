@@ -22,7 +22,7 @@ public enum ChineseConversion
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
 
     public bool Enabled { get; set; } = true;
 
@@ -91,10 +91,37 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public bool ShowItemName { get; set; }
 
+    /// <summary>
+    /// Translate the game's selection dialogs in place. Native text only: the
+    /// English prompt and options are replaced with Chinese, with no overlay.
+    /// Off by default because it needs a CJK font mod.
+    /// </summary>
+    public bool ShowInSelectionDialogs { get; set; }
+
+    /// <summary>Translate the Yes/No prompt and its buttons.</summary>
+    public bool SelectionYesNo { get; set; } = true;
+
+    /// <summary>Translate the list of text options.</summary>
+    public bool SelectionString { get; set; } = true;
+
+    /// <summary>Translate the list of icon options.</summary>
+    public bool SelectionIconString { get; set; } = true;
+
+    /// <summary>Translate the single OK prompt.</summary>
+    public bool SelectionOk { get; set; } = true;
+
+    /// <summary>Translate the cutscene choice prompt and its options.</summary>
+    public bool SelectionCutScene { get; set; } = true;
+
+    /// <summary>
+    /// Show the English name under the translated name in the target and item
+    /// windows. The Talk overlay always shows both names on one line.
+    /// </summary>
     public bool ShowOriginal { get; set; } = true;
 
     /// <summary>
-    /// When false, the original text is shown even if no Chinese translation was found.
+    /// Talk overlay only. When false, the English line is shown if no Chinese
+    /// translation was found.
     /// </summary>
     public bool HideWhenNoTranslation { get; set; } = true;
 
@@ -103,6 +130,39 @@ public sealed class Configuration : IPluginConfiguration
     public bool Clickthrough { get; set; } = true;
 
     public float OverlayOpacity { get; set; } = 0.72f;
+
+    /// <summary>
+    /// Use the global colors and opacity for the Talk overlay. Turn off to set
+    /// them for Talk and its subtitles only.
+    /// </summary>
+    public bool TalkUseGlobalAppearance { get; set; } = true;
+
+    public Vector4 TalkSpeakerNameColor { get; set; } = new(1f, 0.84f, 0.35f, 1f);
+
+    public Vector4 TalkTranslatedTextColor { get; set; } = new(1f, 1f, 1f, 1f);
+
+    /// <summary>Color of the English fallback when a line has no translation.</summary>
+    public Vector4 TalkOriginalTextColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
+
+    public float TalkOverlayOpacity { get; set; } = 0.72f;
+
+    /// <summary>Use the global colors and opacity for the target name window.</summary>
+    public bool TargetNameUseGlobalAppearance { get; set; } = true;
+
+    public Vector4 TargetNameColor { get; set; } = new(1f, 0.84f, 0.35f, 1f);
+
+    public Vector4 TargetNameOriginalColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
+
+    public float TargetNameOpacity { get; set; } = 0.72f;
+
+    /// <summary>Use the global colors and opacity for the item name window.</summary>
+    public bool ItemNameUseGlobalAppearance { get; set; } = true;
+
+    public Vector4 ItemNameColor { get; set; } = new(1f, 1f, 1f, 1f);
+
+    public Vector4 ItemNameOriginalColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
+
+    public float ItemNameOpacity { get; set; } = 0.72f;
 
     public float FontSize { get; set; } = 20f;
 
@@ -140,4 +200,53 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>True when the downloaded Traditional artifact matches <see cref="LastDataVersion"/>.</summary>
     public bool HasTraditionalData { get; set; }
+
+    /// <summary>
+    /// True when one selection-dialog addon is switched on. The master switch
+    /// <see cref="ShowInSelectionDialogs"/> is checked by the handler.
+    /// </summary>
+    public bool IsSelectionDialogEnabled(string addonName)
+        => addonName switch
+        {
+            "SelectYesno" => SelectionYesNo,
+            "SelectString" => SelectionString,
+            "SelectIconString" => SelectionIconString,
+            "SelectOk" => SelectionOk,
+            "CutSceneSelectString" => SelectionCutScene,
+            _ => false,
+        };
+
+    // Per-component appearance falls back to the global value until the user
+    // turns the override off. Kept as methods so the config file only stores
+    // the fields above.
+
+    public Vector4 GetTalkSpeakerNameColor()
+        => TalkUseGlobalAppearance ? SpeakerNameColor : TalkSpeakerNameColor;
+
+    public Vector4 GetTalkTranslatedTextColor()
+        => TalkUseGlobalAppearance ? TranslatedTextColor : TalkTranslatedTextColor;
+
+    public Vector4 GetTalkOriginalTextColor()
+        => TalkUseGlobalAppearance ? OriginalTextColor : TalkOriginalTextColor;
+
+    public float GetTalkOpacity()
+        => TalkUseGlobalAppearance ? OverlayOpacity : TalkOverlayOpacity;
+
+    public Vector4 GetTargetNameColor()
+        => TargetNameUseGlobalAppearance ? SpeakerNameColor : TargetNameColor;
+
+    public Vector4 GetTargetNameOriginalColor()
+        => TargetNameUseGlobalAppearance ? OriginalTextColor : TargetNameOriginalColor;
+
+    public float GetTargetNameOpacity()
+        => TargetNameUseGlobalAppearance ? OverlayOpacity : TargetNameOpacity;
+
+    public Vector4 GetItemNameColor()
+        => ItemNameUseGlobalAppearance ? TranslatedTextColor : ItemNameColor;
+
+    public Vector4 GetItemNameOriginalColor()
+        => ItemNameUseGlobalAppearance ? OriginalTextColor : ItemNameOriginalColor;
+
+    public float GetItemNameOpacity()
+        => ItemNameUseGlobalAppearance ? OverlayOpacity : ItemNameOpacity;
 }

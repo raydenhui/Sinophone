@@ -112,20 +112,27 @@ events only.
   `LockOverlay` is on, and clears `Position` otherwise so a drag sticks.
 - A conversation ends by hiding the Talk addon, not by closing it. `PostClose` alone leaves the
   last line on screen. `TalkHandler` hides the overlay on `PostHide` and `PreFinalize` too.
+- The overlay shows the Chinese translation only. When a line has no translation and
+  `HideWhenNoTranslation` is off, it falls back to the English line. It never shows both
+  languages at once. Colors and opacity fall back to the global values unless the component's
+  `...UseGlobalAppearance` switch is off; the Talk and subtitle windows share the Talk values.
 
 ### Native text mode
 
 Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialog from the overlay
 to the game's own dialogue box: `TalkHandler` resolves the line as usual, then `NativeTextWriter`
-writes the Chinese into the addon's text node. The settings section is labelled **Alpha: In-game
-text** so it does not read as a finished feature.
+writes the Chinese into the addon's text node. The Talk component labels this **Native (game
+dialogue box)** and warns that a font mod is required.
 
 The selection dialogs (`SelectYesno`, `SelectString`, `SelectIconString`,
-`SelectOk`, and `CutSceneSelectString`) use the same native mode. Their handler
+`SelectOk`, and `CutSceneSelectString`) have their own switch,
+`Configuration.ShowInSelectionDialogs`, independent of Talk. Their handler
 walks the addon's text nodes, looks each visible string up in the store, and
 writes the Chinese back into the same node. There is no overlay for these
-surfaces. The `Addon` sheet supplies short UI labels such as `Yes.`, `No.`, `OK`,
-and `Cancel`.
+surfaces. `IsSelectionDialogEnabled` selects which of the five dialogs are
+translated. Turning the switch off calls `RestoreAll` so an open dialog gets the
+game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
+`No.`, `OK`, and `Cancel`.
 
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
   live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds

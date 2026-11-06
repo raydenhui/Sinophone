@@ -26,7 +26,7 @@ public sealed class TargetNameWindow : Window
         AllowPinning = false;
         DisableWindowSounds = true;
         AllowClickthrough = true;
-        BgAlpha = configuration.OverlayOpacity;
+        BgAlpha = configuration.GetTargetNameOpacity();
     }
 
     public void SetName(string chineseName, string englishName)
@@ -62,7 +62,7 @@ public sealed class TargetNameWindow : Window
                 | ImGuiWindowFlags.NoFocusOnAppearing;
 
         AllowClickthrough = true;
-        BgAlpha = _configuration.OverlayOpacity;
+        BgAlpha = _configuration.GetTargetNameOpacity();
 
         var scale = ImGuiHelpers.GlobalScale;
         var size = MeasureSize();
@@ -84,13 +84,13 @@ public sealed class TargetNameWindow : Window
         var fontHandle = _fontManager.Handle;
         using var font = fontHandle?.Push();
 
-        ImGui.PushStyleColor(ImGuiCol.Text, _configuration.SpeakerNameColor);
+        ImGui.PushStyleColor(ImGuiCol.Text, _configuration.GetTargetNameColor());
         ImGui.TextUnformatted(_chineseName);
         ImGui.PopStyleColor();
 
         if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName))
         {
-            ImGui.PushStyleColor(ImGuiCol.Text, _configuration.OriginalTextColor);
+            ImGui.PushStyleColor(ImGuiCol.Text, _configuration.GetTargetNameOriginalColor());
             ImGui.TextUnformatted(_englishName);
             ImGui.PopStyleColor();
         }

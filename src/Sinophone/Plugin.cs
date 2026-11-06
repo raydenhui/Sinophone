@@ -54,6 +54,12 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastShowTargetName;
     private bool _lastShowItemName;
     private bool _lastNativeTextMode;
+    private bool _lastShowInSelectionDialogs;
+    private bool _lastSelectionYesNo;
+    private bool _lastSelectionString;
+    private bool _lastSelectionIconString;
+    private bool _lastSelectionOk;
+    private bool _lastSelectionCutScene;
     private bool _announceUpdate;
     private bool _updateWasBusy;
     private float _lastFontSize;
@@ -63,6 +69,17 @@ public sealed class Plugin : IDalamudPlugin
     {
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         _configuration.CustomFontPath ??= string.Empty;
+
+        if (_configuration.Version < 2)
+        {
+            // Selection dialogs used to be tied to the Talk native text switch.
+            // Keep them on for anyone who already had native text enabled.
+            _configuration.ShowInSelectionDialogs = _configuration.NativeTextMode;
+            _configuration.Version = 2;
+            PluginInterface.SavePluginConfig(_configuration);
+            Log.Debug("Migrated configuration to version 2; selection dialogs: {Enabled}.",
+                _configuration.ShowInSelectionDialogs);
+        }
 
         // Every value compared by ApplySettings must start at the saved value. A field left at its
         // default reads as "changed" on the first settings click and reloads all data, which takes
@@ -75,6 +92,12 @@ public sealed class Plugin : IDalamudPlugin
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastShowItemName = _configuration.ShowItemName;
         _lastNativeTextMode = _configuration.NativeTextMode;
+        _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
+        _lastSelectionYesNo = _configuration.SelectionYesNo;
+        _lastSelectionString = _configuration.SelectionString;
+        _lastSelectionIconString = _configuration.SelectionIconString;
+        _lastSelectionOk = _configuration.SelectionOk;
+        _lastSelectionCutScene = _configuration.SelectionCutScene;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath;
 
@@ -290,7 +313,6 @@ public sealed class Plugin : IDalamudPlugin
             "這是 Sinophone 的預覽文字，用於檢查中文字型是否正常顯示。\n这是 Sinophone 的预览文字，用于检查中文字体是否正常显示。",
             "This is a preview of the Sinophone overlay.",
             "Sinophone",
-            "Sinophone",
             false);
     }
 
@@ -482,6 +504,12 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.ShowItemName != _lastShowItemName;
 
         var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
+        var selectionSettingsChanged = _lastShowInSelectionDialogs != _configuration.ShowInSelectionDialogs
+                                       || _lastSelectionYesNo != _configuration.SelectionYesNo
+                                       || _lastSelectionString != _configuration.SelectionString
+                                       || _lastSelectionIconString != _configuration.SelectionIconString
+                                       || _lastSelectionOk != _configuration.SelectionOk
+                                       || _lastSelectionCutScene != _configuration.SelectionCutScene;
         var pluginDisabled = _lastEnabled && !_configuration.Enabled;
 
         _lastVariant = _configuration.Variant;
@@ -492,6 +520,12 @@ public sealed class Plugin : IDalamudPlugin
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastShowItemName = _configuration.ShowItemName;
         _lastNativeTextMode = _configuration.NativeTextMode;
+        _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
+        _lastSelectionYesNo = _configuration.SelectionYesNo;
+        _lastSelectionString = _configuration.SelectionString;
+        _lastSelectionIconString = _configuration.SelectionIconString;
+        _lastSelectionOk = _configuration.SelectionOk;
+        _lastSelectionCutScene = _configuration.SelectionCutScene;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
 
@@ -503,6 +537,14 @@ public sealed class Plugin : IDalamudPlugin
             // a no-op when native mode wrote nothing.
             _talkHandler.RestoreNativeText();
             _overlay.Hide();
+        }
+
+        if (selectionSettingsChanged || pluginDisabled)
+        {
+            // Put the game's own prompt back now; the handler re-translates on the
+            // next dialog event when the setting is on.
+            _selectionDialogHandler.RestoreAll();
+            Log.Debug("Selection dialog settings changed; restored the game's text.");
         }
 
         if (needsStoreReload)

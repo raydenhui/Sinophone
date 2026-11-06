@@ -24,6 +24,15 @@ public class ConfigurationTests
         Assert.Equal(170f, config.TargetNameOffsetY);
         Assert.Equal(0f, config.TargetNameOffsetX);
         Assert.False(config.ShowItemName);
+        Assert.False(config.ShowInSelectionDialogs);
+        Assert.True(config.SelectionYesNo);
+        Assert.True(config.SelectionString);
+        Assert.True(config.SelectionIconString);
+        Assert.True(config.SelectionOk);
+        Assert.True(config.SelectionCutScene);
+        Assert.True(config.TalkUseGlobalAppearance);
+        Assert.True(config.TargetNameUseGlobalAppearance);
+        Assert.True(config.ItemNameUseGlobalAppearance);
         Assert.True(config.ShowOriginal);
         Assert.True(config.HideWhenNoTranslation);
         Assert.True(config.LockOverlay);
@@ -42,8 +51,62 @@ public class ConfigurationTests
     }
 
     [Fact]
-    public void Version_StartsAtOne()
-        => Assert.Equal(1, new Configuration().Version);
+    public void Version_StartsAtTwo()
+        => Assert.Equal(2, new Configuration().Version);
+
+    [Fact]
+    public void SelectionDialog_DefaultsOff_AndEveryDialogTypeIsOn()
+    {
+        var config = new Configuration();
+
+        Assert.False(config.ShowInSelectionDialogs);
+        Assert.True(config.IsSelectionDialogEnabled("SelectYesno"));
+        Assert.True(config.IsSelectionDialogEnabled("SelectString"));
+        Assert.True(config.IsSelectionDialogEnabled("SelectIconString"));
+        Assert.True(config.IsSelectionDialogEnabled("SelectOk"));
+        Assert.True(config.IsSelectionDialogEnabled("CutSceneSelectString"));
+        Assert.False(config.IsSelectionDialogEnabled("Talk"));
+    }
+
+    [Fact]
+    public void SelectionDialog_RespectsOneDialogType()
+    {
+        var config = new Configuration { SelectionOk = false };
+
+        Assert.False(config.IsSelectionDialogEnabled("SelectOk"));
+        Assert.True(config.IsSelectionDialogEnabled("SelectYesno"));
+    }
+
+    [Fact]
+    public void Appearance_UsesGlobalValues_UntilTheOverrideIsOff()
+    {
+        var config = new Configuration();
+
+        Assert.Equal(config.SpeakerNameColor, config.GetTalkSpeakerNameColor());
+        Assert.Equal(config.TranslatedTextColor, config.GetTalkTranslatedTextColor());
+        Assert.Equal(config.OriginalTextColor, config.GetTalkOriginalTextColor());
+        Assert.Equal(config.OverlayOpacity, config.GetTalkOpacity());
+
+        config.TalkUseGlobalAppearance = false;
+        config.TalkSpeakerNameColor = new System.Numerics.Vector4(0.1f, 0.2f, 0.3f, 1f);
+
+        Assert.Equal(config.TalkSpeakerNameColor, config.GetTalkSpeakerNameColor());
+    }
+
+    [Fact]
+    public void TargetAndItemAppearance_UseTheirOwnOverrides()
+    {
+        var config = new Configuration
+        {
+            TargetNameUseGlobalAppearance = false,
+            TargetNameColor = new System.Numerics.Vector4(0.4f, 0.5f, 0.6f, 1f),
+            ItemNameUseGlobalAppearance = false,
+            ItemNameColor = new System.Numerics.Vector4(0.7f, 0.8f, 0.9f, 1f),
+        };
+
+        Assert.Equal(config.TargetNameColor, config.GetTargetNameColor());
+        Assert.Equal(config.ItemNameColor, config.GetItemNameColor());
+    }
 
     [Fact]
     public void Variant_HasStableNumericValues()
