@@ -62,9 +62,9 @@ public class TargetNameHandlerTests
     }
 
     [Fact]
-    public void FormatNamePlateText_PutsEnglishOnASecondLineInBrackets()
+    public void FormatNamePlateText_PutsEnglishInBracketsOnTheSameLine()
     {
-        Assert.Equal("雅·修特拉\n(Y'shtola)", NamePlateNameWriter.FormatNamePlateText(
+        Assert.Equal("雅·修特拉 (Y'shtola)", NamePlateNameWriter.FormatNamePlateText(
             "雅·修特拉", "Y'shtola", true));
     }
 

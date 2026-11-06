@@ -43,7 +43,7 @@ Two runs are needed:
 | Turn the native name mode off | Every changed plate returns to English |
 | An NPC whose nameplate is hidden | Nothing changes; the English name stays |
 | Two nearby NPCs with the same name | Note whether both plates show the Chinese name |
-| An NPC with a long name | The two lines are both visible, not clipped |
+| An NPC with a long name | The whole name fits on one line, not clipped, with the Chinese name readable |
 
 ## Done when
 

@@ -9,9 +9,11 @@ namespace Sinophone.Handlers;
 /// <remarks>
 /// The nameplate addon bakes each plate's name into a texture. A new text only reaches
 /// the screen after the plate is marked <c>NeedsToBeBaked</c>, so every write sets it.
-/// The bake is sized from <c>NamePlateObject.TextW</c> and <c>TextH</c>. Those hold the
-/// size of the English name, which is one line, so a two-line name sets them from the
-/// new text and restores them when the plate goes back to English.
+/// A plate holds one line of text: the bake texture is allocated from
+/// <c>NamePlateObject.TextW</c> and <c>TextH</c>, which the game sized for the English
+/// name, and a second line is cut off. Do not change those two fields to make room: the
+/// game resets them when it measures the name again, and the plates share one bake
+/// atlas, so fighting that reset breaks names on other plates, including the player's.
 /// <para>
 /// The game owns the name text and puts the English name back when it updates the plate.
 /// This class remembers what it wrote for each of the 50 slots and restores it after the
@@ -34,7 +36,6 @@ public sealed unsafe class NamePlateNameWriter
     private readonly SlotState?[] _slots = new SlotState?[AddonNamePlate.NumNamePlateObjects];
 
     private bool _enabled;
-    private bool _loggedSizeReset;
 
     public NamePlateNameWriter(
         IGameGui gameGui,
@@ -106,10 +107,7 @@ public sealed unsafe class NamePlateNameWriter
             if (state is not null)
             {
                 if (state.Written is not null && current.SequenceEqual(state.WrittenUtf8))
-                {
-                    KeepSize(plate, state);
                     continue;
-                }
 
                 if (current.SequenceEqual(state.EnglishUtf8))
                 {
@@ -129,15 +127,15 @@ public sealed unsafe class NamePlateNameWriter
     }
 
     /// <summary>
-    /// Builds the text written into the nameplate. The Chinese name stays on the first
-    /// line; the English name goes on a second line in brackets when it is shown.
+    /// Builds the text written into the nameplate. A plate holds one line, so the English
+    /// name follows the Chinese name in brackets when it is shown.
     /// </summary>
     internal static string FormatNamePlateText(string chineseName, string englishName, bool showEnglish)
     {
         if (!showEnglish || string.IsNullOrWhiteSpace(englishName))
             return chineseName;
 
-        return $"{chineseName}\n({englishName})";
+        return $"{chineseName} ({englishName})";
     }
 
     private void Resolve(AddonNamePlate.NamePlateObject* plate, int slot)
@@ -172,9 +170,7 @@ public sealed unsafe class NamePlateNameWriter
             englishName,
             Encoding.UTF8.GetBytes(englishName),
             written,
-            Encoding.UTF8.GetBytes(written),
-            plate->TextW,
-            plate->TextH);
+            Encoding.UTF8.GetBytes(written));
 
         _slots[slot] = state;
         Write(plate, state, replacedByGame: false);
@@ -199,9 +195,6 @@ public sealed unsafe class NamePlateNameWriter
         var node = plate->NameText;
 
         node->SetText(written);
-        state.SizeChanged = ApplySize(plate, written);
-        state.WrittenTextW = plate->TextW;
-        state.WrittenTextH = plate->TextH;
         plate->NeedsToBeBaked = true;
 
         if (replacedByGame && !state.LoggedReplace)
@@ -210,47 +203,6 @@ public sealed unsafe class NamePlateNameWriter
             state.LoggedReplace = true;
             _log.Debug("Native name: the game rewrote a nameplate; keeping the Chinese name for {English}.",
                 state.English);
-        }
-    }
-
-    /// <summary>
-    /// Sizes the bake for a two-line name. The bake texture is allocated from
-    /// <c>TextW</c> and <c>TextH</c>, and the game sized them for one line of English
-    /// text, which cuts off the top line. A single-line name keeps the game's size.
-    /// </summary>
-    private bool ApplySize(AddonNamePlate.NamePlateObject* plate, string text)
-    {
-        if (!text.Contains('\n'))
-            return false;
-
-        var node = plate->NameText;
-        node->ResizeNodeForCurrentText();
-
-        plate->TextW = (short)Math.Min(node->Width, short.MaxValue);
-        plate->TextH = (short)Math.Min(node->Height, short.MaxValue);
-        return true;
-    }
-
-    /// <summary>
-    /// Puts the two-line size back when the game has reset it. The size is what decides
-    /// how much of the name the bake holds, so a reset shows the clipped text again.
-    /// </summary>
-    private void KeepSize(AddonNamePlate.NamePlateObject* plate, SlotState state)
-    {
-        if (!state.SizeChanged
-            || (plate->TextW == state.WrittenTextW && plate->TextH == state.WrittenTextH))
-        {
-            return;
-        }
-
-        plate->TextW = state.WrittenTextW;
-        plate->TextH = state.WrittenTextH;
-        plate->NeedsToBeBaked = true;
-
-        if (!_loggedSizeReset)
-        {
-            _loggedSizeReset = true;
-            _log.Debug("Native name: the game reset a nameplate size; keeping the two-line size.");
         }
     }
 
@@ -279,19 +231,12 @@ public sealed unsafe class NamePlateNameWriter
                 }
 
                 node->SetText(state.English);
-                if (state.SizeChanged)
-                {
-                    plate->TextW = state.OriginalTextW;
-                    plate->TextH = state.OriginalTextH;
-                }
-
                 plate->NeedsToBeBaked = true;
                 _slots[slot] = null;
             }
         }
 
         Array.Clear(_slots);
-        _loggedSizeReset = false;
     }
 
     private AddonNamePlate* GetAddon()
@@ -304,9 +249,7 @@ public sealed unsafe class NamePlateNameWriter
         string english,
         byte[] englishUtf8,
         string? written,
-        byte[] writtenUtf8,
-        short originalTextW,
-        short originalTextH)
+        byte[] writtenUtf8)
     {
         /// <summary>The game's text for this slot when the writer first saw it.</summary>
         public string English { get; } = english;
@@ -318,22 +261,10 @@ public sealed unsafe class NamePlateNameWriter
 
         public byte[] WrittenUtf8 { get; } = writtenUtf8;
 
-        public short OriginalTextW { get; } = originalTextW;
-
-        public short OriginalTextH { get; } = originalTextH;
-
-        /// <summary>True when the writer enlarged the bake for a two-line name.</summary>
-        public bool SizeChanged { get; set; }
-
-        /// <summary>The bake size the writer set, used to put it back after a reset.</summary>
-        public short WrittenTextW { get; set; }
-
-        public short WrittenTextH { get; set; }
-
         /// <summary>Set after the first time the game replaced this slot's text.</summary>
         public bool LoggedReplace { get; set; }
 
         public static SlotState Skipped(string english, byte[] englishUtf8)
-            => new(english, englishUtf8, null, [], 0, 0);
+            => new(english, englishUtf8, null, []);
     }
 }

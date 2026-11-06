@@ -439,7 +439,7 @@ public sealed class ConfigWindow : Window
         Checkbox("Show the English name too", _configuration.TargetNameShowEnglish,
             v => _configuration.TargetNameShowEnglish = v);
         if (nativeNamePlate)
-            ImGui.TextDisabled("In native mode the English name goes on a second line, in brackets.");
+            ImGui.TextDisabled("In native mode the English name follows the Chinese name in brackets, on the same line.");
         else
             ImGui.TextDisabled("The English name is shown under the Chinese name.");
 

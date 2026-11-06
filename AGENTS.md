@@ -260,9 +260,11 @@ premature interface.
 - **Native NPC names.** `TargetNameDisplay` can write Chinese names into the game's own nameplates
   above every visible NPC, not only the target. It needs a font mod and NPC nameplates visible in
   the game settings. A plate slot carries no object id, so the writer translates the text on each
-  plate; two visible NPCs with the same name both get the Chinese name. The bake is sized for one
-  line of English text, so a two-line name sets `TextW`/`TextH` from the measured node and puts
-  them back if the game resets them. Player characters are skipped.
+  plate; two visible NPCs with the same name both get the Chinese name. A plate shows one line, so
+  the English name follows the Chinese name in brackets. The bake is sized from
+  `TextW`/`TextH`, which the game sets for the English name; changing those fields broke the
+  shared bake atlas and names on other plates, so the writer never touches them. Player
+  characters are skipped.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 
 ## References

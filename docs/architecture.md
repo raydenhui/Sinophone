@@ -172,9 +172,11 @@ own nameplates. Native mode translates every visible NPC plate, not only the tar
   another object owns that slot now.
 - The game puts the English name back when it updates the plate. `TargetNameHandler` registers
   `PostUpdate` for `NamePlate` and calls `Update`, which puts the Chinese back.
-- The bake texture is allocated from `NamePlateObject.TextW` and `TextH`, which the game sized
-  for one line of English text. A two-line name sets them from the measured node, and
-  `KeepSize` puts them back if the game resets them. A single-line name keeps the game's size.
+- A plate draws one line, so the English name follows the Chinese name in brackets when it is
+  shown. The bake texture is allocated from `NamePlateObject.TextW` and `TextH`, which the game
+  sizes for the English name. Do not change those fields to fit a longer string: the game resets
+  them while it measures, and the plates share one bake atlas, so the fight corrupts names on
+  other plates, including the player's.
 - Player characters are skipped. NPC nameplates must be visible in the game settings; a hidden
   plate is left alone.
 

@@ -98,8 +98,8 @@ public sealed class Configuration : IPluginConfiguration
     public TargetNameDisplayMode TargetNameDisplay { get; set; } = TargetNameDisplayMode.Overlay;
 
     /// <summary>
-    /// Show the English name with the translated name. In native mode it goes on a
-    /// second line, in brackets, for every NPC plate.
+    /// Show the English name with the translated name. In native mode it follows the
+    /// Chinese name in brackets on the same line, for every NPC plate.
     /// </summary>
     public bool TargetNameShowEnglish { get; set; } = true;
 
