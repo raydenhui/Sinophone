@@ -280,9 +280,13 @@ premature interface.
   tooltip (`ItemDetail`, field `ItemNameText`) instead of drawing the overlay. It needs a font mod.
   The name is written on `HoveredItemChanged` and again on the tooltip addon's `PostSetup` and
   `PostRefresh`, because the hover can change before the addon has its new text. A tooltip that
-  has no name node falls back to the overlay, so native mode never shows nothing. The saved English
-  name goes back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead,
-  because the node may already belong to another addon.
+  has no name node falls back to the overlay, so native mode never shows nothing. The tooltip
+  writes its own name again while it is open, so the handler also reapplies on every `PreDraw`,
+  the same guarded per-frame write the Talk window uses. The tooltip sizes the name node to the
+  English name, so the handler clears `WordWrap` and grows the node to fit one line; do not drop
+  that step or a Chinese name wraps into lines of a few characters. The saved English name goes
+  back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead, because the
+  node may already belong to another addon.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
   target. It needs a font mod and nameplates visible in the game settings. The names change

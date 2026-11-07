@@ -216,6 +216,12 @@ gives the Chinese.
 - The handler writes on `HoveredItemChanged` and again when the tooltip addon fires `PostSetup`
   or `PostRefresh`. The hover can change before the addon has its new text, and a write that comes
   first is replaced by the game's own English.
+- The tooltip writes its name again while it is open, so a write lasts one frame. Like the Talk
+  window, the handler calls `ReapplyAt` on every tooltip `PreDraw`. That path compares the node
+  bytes with the last write, so matching text costs no allocation.
+- The tooltip sizes the name node to the English name, so a longer Chinese name wraps into lines
+  of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis` and grows the node to the
+  measured text. It runs after every write and on every reapply, because the game can reset both.
 - A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
   Native mode never shows nothing.
 - When the item changes, the handler forgets the saved text for the old node. When the setting is

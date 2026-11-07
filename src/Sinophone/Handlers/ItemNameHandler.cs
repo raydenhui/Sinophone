@@ -76,6 +76,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
         _gameGui.HoveredItemChanged += _onHoveredItemChanged;
         _addonLifecycle.RegisterListener(AddonEvent.PostSetup, ItemDetailAddon, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PreDraw, ItemDetailAddon, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PostHide, ItemDetailAddon, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, ItemDetailAddon, _onAddonEvent);
     }
@@ -108,6 +109,12 @@ public sealed unsafe class ItemNameHandler : IDisposable
         if (_disposed)
             return;
 
+        if (eventType == AddonEvent.PreDraw)
+        {
+            ReapplyTooltip();
+            return;
+        }
+
         if (eventType is AddonEvent.PostHide or AddonEvent.PreFinalize)
         {
             ForgetTooltip();
@@ -115,6 +122,25 @@ public sealed unsafe class ItemNameHandler : IDisposable
         }
 
         Show(_gameGui.HoveredItem);
+    }
+
+    /// <summary>
+    /// The tooltip writes its own name again while it is open, so a write from an addon
+    /// event lasts one frame. Runs on every tooltip draw, the same way the Talk window
+    /// keeps its line: matching text costs a byte compare and no allocation.
+    /// </summary>
+    private void ReapplyTooltip()
+    {
+        if (_tooltipNode == 0
+            || !_configuration.Enabled
+            || !_configuration.ShowItemName
+            || !_configuration.ItemNameNativeMode)
+        {
+            return;
+        }
+
+        _nativeWriter.ReapplyAt(ItemDetailAddon, _tooltipNode);
+        FitTooltipName(_tooltipNode);
     }
 
     private void Show(ulong hoveredItem)
@@ -177,8 +203,33 @@ public sealed unsafe class ItemNameHandler : IDisposable
             return false;
 
         _tooltipNode = node;
+        FitTooltipName(node);
         _log.Debug("Native item name: {English} -> {Text}.", content.EnglishName, text);
         return true;
+    }
+
+    /// <summary>
+    /// The tooltip sizes the name node to the English name, so a longer Chinese name
+    /// wraps into narrow lines of a few characters. The header draws one line, so the
+    /// wrap comes off and the node grows to the text.
+    /// </summary>
+    private static unsafe void FitTooltipName(nint address)
+    {
+        var node = (AtkTextNode*)address;
+        if (node is null)
+            return;
+
+        node->TextFlags &= ~(TextFlags.WordWrap | TextFlags.Ellipsis);
+
+        ushort width = 0;
+        ushort height = 0;
+        node->GetTextDrawSize(&width, &height);
+
+        if (width > node->Width)
+            node->Width = width;
+
+        if (height > node->Height)
+            node->Height = height;
     }
 
     /// <summary>Puts the game's own item name back into the tooltip.</summary>
@@ -287,6 +338,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
         _gameGui.HoveredItemChanged -= _onHoveredItemChanged;
         _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, ItemDetailAddon, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PreDraw, ItemDetailAddon, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostHide, ItemDetailAddon, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, ItemDetailAddon, _onAddonEvent);
 
