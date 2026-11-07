@@ -38,21 +38,33 @@ public sealed class FontManager : IDisposable
 
     private readonly IFontAtlas _atlas;
     private readonly Configuration _configuration;
+    private readonly PluginLog _log;
 
     private IFontHandle? _handle;
     private string? _activePath;
     private float _activeSize;
     private bool _disposed;
 
-    public FontManager(IFontAtlas atlas, Configuration configuration)
+    public FontManager(IUiBuilder uiBuilder, Configuration configuration, PluginLog log)
     {
-        _atlas = atlas;
         _configuration = configuration;
+        _log = log;
+
+        // A private atlas in async mode builds on a worker task. The plugin-private
+        // UiBuilder atlas rebuilds on the draw thread, where rasterizing the CJK
+        // ranges froze the game for seconds at load.
+        _atlas = uiBuilder.CreateFontAtlas(FontAtlasAutoRebuildMode.Async, debugName: "Sinophone");
         Rebuild();
     }
 
     /// <summary>Font handle to push while drawing Chinese text. Null when no usable font was found.</summary>
     public IFontHandle? Handle => _handle;
+
+    /// <summary>
+    /// True when the handle can draw. A failed build counts as ready, so a broken
+    /// font never holds the translation back forever.
+    /// </summary>
+    public bool IsReady => _handle is null || _handle.Available || _handle.LoadException is not null;
 
     /// <summary>Path of the font currently loaded, or null when a system font was unavailable.</summary>
     public string? ActiveFontPath => _activePath;
@@ -101,6 +113,27 @@ public sealed class FontManager : IDisposable
 
             toolkit.Font = toolkit.AddFontFromFile(path, fontConfig);
         }));
+
+        // Async mode never rebuilds on its own. Starting the build here keeps the
+        // glyph rasterization off the draw thread.
+        _ = BuildAsync(_handle);
+    }
+
+    private async Task BuildAsync(IFontHandle handle)
+    {
+        try
+        {
+            await _atlas.BuildFontsAsync().ConfigureAwait(false);
+
+            if (handle.LoadException is { } loadException)
+                _log.Error(loadException, "Failed to build the CJK font atlas.");
+            else
+                _log.Debug("Built the CJK font atlas.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex, "Failed to build the CJK font atlas.");
+        }
     }
 
     private static string? ResolveFontPath(Configuration configuration, out bool isSystemFont)
@@ -155,5 +188,6 @@ public sealed class FontManager : IDisposable
         _disposed = true;
         _handle?.Dispose();
         _handle = null;
+        _atlas.Dispose();
     }
 }

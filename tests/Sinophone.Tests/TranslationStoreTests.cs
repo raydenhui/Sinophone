@@ -238,6 +238,75 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Build_FromTimeSlicedExtraction_MatchesTheSyncBuild()
+    {
+        // The plugin reads the sheets a few milliseconds at a time, then indexes on
+        // a worker task. The result must match the one-shot build.
+        var descriptor = TalkSheet((1, "Hello there."), (2, "Another line."));
+        var artifacts = Artifacts(null, Artifact("TC",
+            (SheetName, FieldName, 1, "你好。"),
+            (SheetName, FieldName, 2, "另一行。")));
+        var parsed = TranslationStore.Parse(
+            new Configuration { Variant = ChineseVariant.Traditional },
+            new FakePluginLog(),
+            artifacts);
+
+        Assert.NotNull(parsed);
+
+        var extraction = new SheetExtraction(parsed!, [descriptor]);
+        Assert.False(extraction.IsComplete);
+
+        while (!extraction.IsComplete)
+            extraction.Extract(TimeSpan.Zero);
+
+        Assert.Equal(2, extraction.RowCount);
+
+        var store = TranslationStore.Build(
+            parsed!,
+            [descriptor],
+            extraction,
+            ChineseVariant.Traditional,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello there.", out var first));
+        Assert.Equal("你好。", first);
+        Assert.True(store.TryGetDialogue("Another line.", out var second));
+        Assert.Equal("另一行。", second);
+    }
+
+    [Fact]
+    public void Build_UsesTheIndexResolverAtLoad_AndTheDisplayResolverAtLookup()
+    {
+        // The index build runs on a worker task and gets a copy of the player
+        // state. Text that depends on the player is still resolved with the live
+        // resolver when it is looked up.
+        var descriptor = TalkSheet((1, "Hello there."), (2, "Hello again."));
+        var artifacts = Artifacts(null, Artifact("TC",
+            (SheetName, FieldName, 1, "你好。"),
+            (SheetName, FieldName, 2, "<Highlight>ObjectParameter(1)</Highlight> 再見。")));
+        var parsed = TranslationStore.Parse(
+            new Configuration { Variant = ChineseVariant.Traditional },
+            new FakePluginLog(),
+            artifacts);
+
+        Assert.NotNull(parsed);
+        var store = TranslationStore.Build(
+            parsed!,
+            [descriptor],
+            ChineseVariant.Traditional,
+            new FakePluginLog(),
+            displayResolver: text => "live:" + text,
+            indexResolver: text => "load:" + text);
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Hello there.", out var first));
+        Assert.Equal("load:你好。", first);
+        Assert.True(store.TryGetDialogue("Hello again.", out var second));
+        Assert.Equal("live:<Highlight>ObjectParameter(1)</Highlight> 再見。", second);
+    }
+
+    [Fact]
     public void Parse_ReturnsNull_WhenNoArtifactsExist()
     {
         var configuration = new Configuration { Variant = ChineseVariant.Traditional };
