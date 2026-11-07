@@ -5,7 +5,10 @@ name: Data
 # users get updated translations without waiting for a plugin build.
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    # GitHub cron runs in UTC. 16:00 UTC is 00:00 in UTC+8. The check job below
+    # skips the build when none of the three dumps changed since the published
+    # release.
+    - cron: "0 16 * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,8 +19,73 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    name: Check for new datamining data
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+
+    steps:
+      - name: Compare upstream commits
+        id: compare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # This job has no checkout, so tell gh which repository to read.
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # The dumps are not ours, so they cannot notify us. Ask each repository
+          # for its current commit instead. ls-remote needs no token and no API
+          # quota.
+          upstream() {
+            git ls-remote "https://github.com/$1" HEAD | cut -c1-12
+          }
+
+          cn=$(upstream thewakingsands/ffxiv-datamining-cn)
+          tc=$(upstream thewakingsands/ffxiv-datamining-tc)
+          en=$(upstream xivapi/ffxiv-datamining)
+
+          echo "Upstream: CN $cn TC $tc EN $en"
+
+          mkdir -p published
+          if ! gh release download data --pattern manifest.json --dir published --clobber 2>/dev/null; then
+            echo "There is no published data yet."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          read -r published_cn published_tc published_en < <(
+            python3 - published/manifest.json <<'PY' | tr -d '\r'
+          import json
+          import sys
+
+          manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+          print(
+              manifest.get("cnSourceCommit", ""),
+              manifest.get("tcSourceCommit", ""),
+              manifest.get("enSourceCommit", ""),
+          )
+          PY
+          )
+
+          echo "Published: CN ${published_cn:-none} TC ${published_tc:-none} EN ${published_en:-none}"
+
+          if [[ -n "$published_cn" && "$cn" == "$published_cn" \
+             && "$tc" == "$published_tc" && "$en" == "$published_en" ]]; then
+            echo "No upstream commit changed. Skipping the build."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "An upstream commit changed."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
     name: Build and publish translation data
+    needs: check
+    # A manual run always builds, so the workflow can still force a refresh.
+    if: github.event_name == 'workflow_dispatch' || needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -118,6 +186,7 @@ jobs:
 
           cn_commit=$(git ls-remote https://github.com/thewakingsands/ffxiv-datamining-cn HEAD | cut -c1-12)
           tc_commit=$(git ls-remote https://github.com/thewakingsands/ffxiv-datamining-tc HEAD | cut -c1-12)
+          en_commit=$(git ls-remote https://github.com/xivapi/ffxiv-datamining HEAD | cut -c1-12)
 
           dotnet run --project tools/Sinophone.DataPrep -c Release -- \
             --source csv/cn --language CN \
@@ -131,6 +200,7 @@ jobs:
 
           echo "CN_COMMIT=$cn_commit" >> "$GITHUB_ENV"
           echo "TC_COMMIT=$tc_commit" >> "$GITHUB_ENV"
+          echo "EN_COMMIT=$en_commit" >> "$GITHUB_ENV"
 
       - name: Write manifest
         shell: bash
@@ -178,6 +248,7 @@ jobs:
               "tcSha256": tc_sha,
               "cnSourceCommit": os.environ["CN_COMMIT"],
               "tcSourceCommit": os.environ["TC_COMMIT"],
+              "enSourceCommit": os.environ["EN_COMMIT"],
           }
 
           with open("out/manifest.json", "w", encoding="utf-8") as file:
@@ -213,18 +284,26 @@ jobs:
           fi
 
       - name: Publish data release
-        if: steps.compare.outputs.changed == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          DATA_CHANGED: ${{ steps.compare.outputs.changed }}
         run: |
           set -euo pipefail
 
-          assets=(
-            out/manifest.json
-            out/Sinophone.cn.json.gz
-            out/Sinophone.tc.json.gz
-          )
+          # Record the source commits even when the built data did not change.
+          # Without this, the daily check sees the same moved commit every day
+          # and rebuilds forever. The version is the content hash, so an
+          # unchanged version never makes a client download the data files.
+          if [[ "$DATA_CHANGED" == "true" ]]; then
+            assets=(
+              out/manifest.json
+              out/Sinophone.cn.json.gz
+              out/Sinophone.tc.json.gz
+            )
+          else
+            assets=(out/manifest.json)
+          fi
 
           if gh release view data >/dev/null 2>&1; then
             gh release upload data "${assets[@]}" --clobber

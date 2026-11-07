@@ -13,7 +13,8 @@ Chinese game data, then matches English text read from the game against it.
 Three ideas explain the whole plugin:
 
 1. **Data is built ahead of time.** `tools/Sinophone.DataPrep` turns datamining CSV files into
-   gzipped JSON. Those files are embedded in the plugin assembly.
+   gzipped JSON. The plugin downloads those files on first load; a build that finds them on disk
+   embeds them as a fallback.
 2. **English text is the key.** At load, the plugin reads each row of the live game sheets and
    maps the English text to the Chinese text. Lookup is a dictionary hit at runtime. The finished
    index is cached as `Sinophone.index.bin`, so a later start reads that file instead of indexing
@@ -325,7 +326,8 @@ premature interface.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation. A
   release build carries no data files, so the first load downloads about 60 MB from the `data`
   release. Later loads fetch the manifest, download only when the version changed, and reindex in
-  the background. The old translation stays in use until the new index is ready.
+  the background; the old translation stays in use until the new index is ready. The data workflow
+  checks the three dumps once a day at 00:00 UTC+8 and rebuilds only when one of them changed.
 
 ## References
 
