@@ -190,6 +190,10 @@ This applies to commit messages, PR bodies, code comments, log messages, and doc
 
 Comments explain why, not what. The code already says what it does.
 
+The readme comes in three files. `README.en.md` is the source: change it first, then update the
+translations. `README.md` is Traditional Chinese and is what GitHub shows by default;
+`README.zh-CN.md` is Simplified Chinese. Keep the links and section order the same in all three.
+
 ## Boundaries
 
 **Always**
@@ -270,7 +274,7 @@ premature interface.
   once its font files are replaced. TexTools and Penumbra both install the same modpack; the font
   comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
   mode shows the missing-glyph character and the plugin cannot tell. See
-  [README](README.md#font-setup).
+  [README](README.en.md#font-setup).
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
   at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows
