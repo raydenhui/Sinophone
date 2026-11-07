@@ -266,9 +266,11 @@ premature interface.
   CSVs before assuming a lookup bug.
 - **Conversion is not exact.** The optional simplified/traditional layer uses OpenCC tables with
   one candidate per key, mapped through OpenCC's Taiwan variant table because the TC game data
-  uses those forms: 為, 裡, 才, not 爲, 裏, 纔. Converting back can still pick a different
-  variant, for example 髮 becomes 发 and then 發. It is a reading aid, not a replacement for the
-  official text of that variant.
+  uses those forms: 為, 裡, 才, not 爲, 裏, 纔. The converter skips text that is mostly already in
+  the target script, so a traditional line is not converted again. OpenCC's phrase choices still
+  differ from the localisation: 别只 converts to 別隻, where the TC data writes 別只. Converting
+  back can pick a different variant, for example 髮 becomes 发 and then 發. It is a reading aid,
+  not a replacement for the official text of that variant.
 - **Event items.** The item name surface reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.

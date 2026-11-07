@@ -35,11 +35,39 @@ public static class ChineseConverter
         if (string.IsNullOrEmpty(text) || conversion == ChineseConversion.None)
             return text ?? string.Empty;
 
-        var table = conversion == ChineseConversion.SimplifiedToTraditional
-            ? SimplifiedToTraditional.Value
-            : TraditionalToSimplified.Value;
+        var (table, other) = conversion == ChineseConversion.SimplifiedToTraditional
+            ? (SimplifiedToTraditional.Value, TraditionalToSimplified.Value)
+            : (TraditionalToSimplified.Value, SimplifiedToTraditional.Value);
 
-        return table?.Convert(text) ?? text;
+        if (table is null)
+            return text;
+
+        // Text that is already in the target script must not be converted. Converting
+        // it can only corrupt shared characters: already-traditional text goes through
+        // the simplified keys and comes out wrong. The user can select any variant, so
+        // the script of the text decides, not the setting.
+        return IsMostlySourceScript(text, table, other) ? table.Convert(text) : text;
+    }
+
+    /// <summary>
+    /// True when more characters need this table than need the reverse table. Text with
+    /// no characters from either table (Latin, numbers, punctuation) is left alone.
+    /// </summary>
+    private static bool IsMostlySourceScript(string text, Table source, Table? target)
+    {
+        var sourceCount = 0;
+        var targetCount = 0;
+
+        foreach (var character in text)
+        {
+            if (source.ChangesCharacter(character))
+                sourceCount++;
+
+            if (target is not null && target.ChangesCharacter(character))
+                targetCount++;
+        }
+
+        return sourceCount > targetCount;
     }
 
     private static Table? LoadTable(string suffix)
@@ -80,6 +108,9 @@ public static class ChineseConverter
     {
         private readonly Dictionary<string, string>.AlternateLookup<ReadOnlySpan<char>> _lookup;
 
+        /// <summary>Single characters this table rewrites, used to tell the scripts apart.</summary>
+        private readonly HashSet<char> _changedCharacters = new();
+
         /// <summary>Longest key that starts with a character, so most positions try one slice.</summary>
         private readonly int[] _maxLengthByFirstChar = new int[char.MaxValue + 1];
 
@@ -87,12 +118,18 @@ public static class ChineseConverter
         {
             _lookup = entries.GetAlternateLookup<ReadOnlySpan<char>>();
 
-            foreach (var key in entries.Keys)
+            foreach (var (key, value) in entries)
             {
+                if (key.Length == 1 && !string.Equals(key, value, StringComparison.Ordinal))
+                    _changedCharacters.Add(key[0]);
+
                 if (key.Length > _maxLengthByFirstChar[key[0]])
                     _maxLengthByFirstChar[key[0]] = key.Length;
             }
         }
+
+        /// <summary>True when this table rewrites the character on its own.</summary>
+        public bool ChangesCharacter(char character) => _changedCharacters.Contains(character);
 
         public string Convert(string text)
         {

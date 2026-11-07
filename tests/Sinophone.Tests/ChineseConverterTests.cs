@@ -39,6 +39,30 @@ public class ChineseConverterTests
     }
 
     [Fact]
+    public void Convert_LeavesTraditionalTextUnchanged_WhenAskedForTraditional()
+    {
+        // The setting can be on while the selected variant is already traditional.
+        // Converting that text again would corrupt shared characters.
+        const string traditional = "「行會令」指的是冒險者行會發行的以小隊為對象的特殊任務。";
+
+        Assert.Equal(traditional, ChineseConverter.Convert(traditional, ChineseConversion.SimplifiedToTraditional));
+    }
+
+    [Fact]
+    public void Convert_LeavesSimplifiedTextUnchanged_WhenAskedForSimplified()
+    {
+        const string simplified = "「行会令」指的是冒险者行会发行的以小队为对象的特殊任务。";
+
+        Assert.Equal(simplified, ChineseConverter.Convert(simplified, ChineseConversion.TraditionalToSimplified));
+    }
+
+    [Fact]
+    public void Convert_ConvertsMixedText_WhenMostCharactersNeedIt()
+    {
+        Assert.Equal("這是簡體", ChineseConverter.Convert("這是简体", ChineseConversion.SimplifiedToTraditional));
+    }
+
+    [Fact]
     public void Convert_LeavesTextUnchanged_WhenDirectionIsNone()
     {
         const string text = "「行會令」指的是冒險者行會發行的特殊任務。";
