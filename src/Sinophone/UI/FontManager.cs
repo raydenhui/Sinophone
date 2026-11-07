@@ -43,6 +43,7 @@ public sealed class FontManager : IDisposable
     private IFontHandle? _handle;
     private string? _activePath;
     private float _activeSize;
+    private bool _buildFailed;
     private bool _disposed;
 
     public FontManager(IUiBuilder uiBuilder, Configuration configuration, PluginLog log)
@@ -64,7 +65,8 @@ public sealed class FontManager : IDisposable
     /// True when the handle can draw. A failed build counts as ready, so a broken
     /// font never holds the translation back forever.
     /// </summary>
-    public bool IsReady => _handle is null || _handle.Available || _handle.LoadException is not null;
+    public bool IsReady
+        => _handle is null || _handle.Available || _handle.LoadException is not null || _buildFailed;
 
     /// <summary>Path of the font currently loaded, or null when a system font was unavailable.</summary>
     public string? ActiveFontPath => _activePath;
@@ -92,6 +94,7 @@ public sealed class FontManager : IDisposable
 
         _handle?.Dispose();
         _handle = null;
+        _buildFailed = false;
         _activePath = path;
         _activeSize = size;
         UsingSystemFont = isSystemFont;
@@ -132,6 +135,8 @@ public sealed class FontManager : IDisposable
         }
         catch (Exception ex)
         {
+            // Do not hold the store back forever if the build never finishes.
+            _buildFailed = true;
             _log.Error(ex, "Failed to build the CJK font atlas.");
         }
     }
