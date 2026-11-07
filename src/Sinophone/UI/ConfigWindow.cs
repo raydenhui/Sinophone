@@ -213,10 +213,8 @@ public sealed class ConfigWindow : Window
         ColorEdit("Translated text", _configuration.TranslatedTextColor, v => _configuration.TranslatedTextColor = v);
         ColorEdit("Original text", _configuration.OriginalTextColor, v => _configuration.OriginalTextColor = v);
 
-        Checkbox("Also show the English name in the item name overlay",
-            _configuration.ShowOriginal, v => _configuration.ShowOriginal = v);
-        ImGui.TextDisabled("The nameplate switch is on its own tab. " +
-                           "The Talk overlay always shows both names.");
+        ImGui.TextDisabled("The item name language is on its own tab. " +
+                           "The nameplate switch is on its own tab too.");
 
         Section("Shared actions");
         if (ImGui.Button("Use the default colors for every component"))
@@ -430,15 +428,60 @@ public sealed class ConfigWindow : Window
         Checkbox("Show the Chinese name of the hovered item", _configuration.ShowItemName,
             v => _configuration.ShowItemName = v);
 
-        ImGui.TextDisabled("The name follows the mouse, above the item tooltip.");
-
         Section("Mode");
-        ImGui.RadioButton("Overlay###itemOverlay", true);
+        if (ImGui.RadioButton("Overlay###itemOverlay", !_configuration.ItemNameNativeMode))
+        {
+            _configuration.ItemNameNativeMode = false;
+            _applySettings();
+        }
+
         ImGui.SameLine();
-        ImGui.BeginDisabled();
-        ImGui.RadioButton("Native item tooltip (planned)###itemNative", false);
-        ImGui.EndDisabled();
-        ImGui.TextDisabled("Native item names are planned. See the tracking issue.");
+        if (ImGui.RadioButton("Native item tooltip###itemNative", _configuration.ItemNameNativeMode))
+        {
+            _configuration.ItemNameNativeMode = true;
+            _applySettings();
+        }
+
+        if (_configuration.ItemNameNativeMode)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+            ImGui.TextWrapped(
+                "Native mode writes the name into the game's own item tooltip. " +
+                "The game's font has no Chinese glyphs, so install a font mod first.");
+            ImGui.PopStyleColor();
+
+            if (ImGui.Selectable("Open the font setup guide###itemFontGuide"))
+                Util.OpenLink(FontSetupUrl);
+
+            ImGui.TextDisabled(FontSetupUrl);
+            ImGui.TextDisabled("A tooltip the plugin cannot write falls back to the overlay.");
+        }
+        else
+        {
+            ImGui.TextDisabled("The name follows the mouse, above the item tooltip.");
+        }
+
+        Section("Language");
+        if (ImGui.RadioButton("Chinese only###itemLanguageChinese", !_configuration.ShowOriginal))
+        {
+            _configuration.ShowOriginal = false;
+            _applySettings();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Chinese and English###itemLanguageBoth", _configuration.ShowOriginal))
+        {
+            _configuration.ShowOriginal = true;
+            _applySettings();
+        }
+
+        ImGui.TextDisabled("The English name follows the Chinese name in brackets, on the same line.");
+
+        if (_configuration.ItemNameNativeMode)
+        {
+            ImGui.TextDisabled("Native mode draws the name with the game's own colors and size.");
+            return;
+        }
 
         Section("Appearance");
         Checkbox("Use the default colors and opacity", _configuration.ItemNameUseGlobalAppearance,
@@ -812,6 +855,7 @@ public sealed class ConfigWindow : Window
         _configuration.ShowTargetName = defaults.ShowTargetName;
         _configuration.TargetNameShowEnglish = defaults.TargetNameShowEnglish;
         _configuration.ShowItemName = defaults.ShowItemName;
+        _configuration.ItemNameNativeMode = defaults.ItemNameNativeMode;
         _configuration.ShowInSelectionDialogs = defaults.ShowInSelectionDialogs;
         _configuration.SelectionYesNo = defaults.SelectionYesNo;
         _configuration.SelectionString = defaults.SelectionString;
