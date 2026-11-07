@@ -35,11 +35,30 @@ public static class ChineseConverter
         if (string.IsNullOrEmpty(text) || conversion == ChineseConversion.None)
             return text ?? string.Empty;
 
-        var table = conversion == ChineseConversion.SimplifiedToTraditional
-            ? SimplifiedToTraditional.Value
-            : TraditionalToSimplified.Value;
+        var (table, other) = conversion == ChineseConversion.SimplifiedToTraditional
+            ? (SimplifiedToTraditional.Value, TraditionalToSimplified.Value)
+            : (TraditionalToSimplified.Value, SimplifiedToTraditional.Value);
 
-        return table?.Convert(text) ?? text;
+        if (table is null)
+            return text;
+
+        // Text that is already in the target script must not be converted. Converting
+        // it can only corrupt shared characters: already-traditional text goes through
+        // the simplified keys and comes out wrong. The user can select any variant, so
+        // the script of the text decides, not the setting.
+        return IsMostlySourceScript(text, table, other) ? table.Convert(text) : text;
+    }
+
+    /// <summary>
+    /// True when more characters need this table than need the reverse table. Text with
+    /// no characters from either table (Latin, numbers, punctuation) is left alone.
+    /// </summary>
+    private static bool IsMostlySourceScript(string text, Table source, Table? target)
+    {
+        var sourceCount = source.CountChanges(text);
+        var targetCount = target?.CountChanges(text) ?? 0;
+
+        return sourceCount > targetCount;
     }
 
     private static Table? LoadTable(string suffix)
@@ -92,6 +111,52 @@ public static class ChineseConverter
                 if (key.Length > _maxLengthByFirstChar[key[0]])
                     _maxLengthByFirstChar[key[0]] = key.Length;
             }
+        }
+
+        /// <summary>
+        /// Number of characters this table would rewrite, with the same longest match as
+        /// <see cref="Convert"/>. Phrases count too, so a line whose only evidence is a
+        /// phrase such as 只身 still converts.
+        /// </summary>
+        public int CountChanges(string text)
+        {
+            var changed = 0;
+            var index = 0;
+
+            while (index < text.Length)
+            {
+                var maxLength = _maxLengthByFirstChar[text[index]];
+                if (maxLength == 0)
+                {
+                    index++;
+                    continue;
+                }
+
+                var remaining = text.Length - index;
+                if (maxLength > remaining)
+                    maxLength = remaining;
+
+                var matched = 0;
+                for (var length = maxLength; length >= 1; length--)
+                {
+                    if (!_lookup.ContainsKey(text.AsSpan(index, length)))
+                        continue;
+
+                    matched = length;
+                    break;
+                }
+
+                if (matched == 0)
+                {
+                    index++;
+                    continue;
+                }
+
+                changed += matched;
+                index += matched;
+            }
+
+            return changed;
         }
 
         public string Convert(string text)
