@@ -76,7 +76,7 @@ public sealed unsafe class NativeTextWriter
                       && string.Equals(current, saved.Written, StringComparison.Ordinal)
             ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Style = style, Reapplied = false }
             : new SavedText(current, text, writtenUtf8, style,
-                node->TextColor, node->EdgeColor, node->TextFlags);
+                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height);
 
         node->SetText(text);
         ApplyStyle(node, style);
@@ -110,7 +110,7 @@ public sealed unsafe class NativeTextWriter
                         && string.Equals(current, saved.Written, StringComparison.Ordinal)
             ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
             : new SavedText(current, text, writtenUtf8, default,
-                node->TextColor, node->EdgeColor, node->TextFlags);
+                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height);
 
         node->SetText(text);
         node->ResizeNodeForCurrentText();
@@ -123,6 +123,24 @@ public sealed unsafe class NativeTextWriter
     /// <summary>Drops the saved text for an exact node without writing it back.</summary>
     public void ForgetAt(string addonName, nint address)
         => _savedAt.Remove((addonName, address));
+
+    /// <summary>
+    /// Reads the size the game gave an exact node before the first write. A caller that
+    /// fits the node to a translation uses it to keep the line where the game drew it.
+    /// </summary>
+    public bool TryGetOriginalSize(string addonName, nint address, out ushort width, out ushort height)
+    {
+        if (_savedAt.TryGetValue((addonName, address), out var saved))
+        {
+            width = saved.OriginalWidth;
+            height = saved.OriginalHeight;
+            return true;
+        }
+
+        width = 0;
+        height = 0;
+        return false;
+    }
 
     /// <summary>True when the exact node still holds text this writer put there.</summary>
     public bool IsStillOursAt(string addonName, nint address)
@@ -290,6 +308,12 @@ public sealed unsafe class NativeTextWriter
         node->TextFlags = saved.OriginalFlags;
         node->ResizeNodeForCurrentText();
 
+        // The resize measures the text. Put the size the game had back, because a
+        // handler may have changed it for the translation, such as the item tooltip's
+        // one-line width.
+        node->Width = saved.OriginalWidth;
+        node->Height = saved.OriginalHeight;
+
         _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId}.",
             saved.Original.Length, addonName, nodeId);
     }
@@ -304,7 +328,8 @@ public sealed unsafe class NativeTextWriter
             RestoreAt(key.Addon, key.Address);
     }
 
-    private void RestoreAt(string addonName, nint address)
+    /// <summary>Puts the game's own text back into one exact node.</summary>
+    public void RestoreAt(string addonName, nint address)
     {
         var key = (addonName, address);
         if (!_savedAt.Remove(key, out var saved))
@@ -319,6 +344,8 @@ public sealed unsafe class NativeTextWriter
         node->EdgeColor = saved.OriginalEdgeColor;
         node->TextFlags = saved.OriginalFlags;
         node->ResizeNodeForCurrentText();
+        node->Width = saved.OriginalWidth;
+        node->Height = saved.OriginalHeight;
         _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId} at {Address:X}.",
             saved.Original.Length, addonName, node->NodeId, address);
     }
@@ -372,5 +399,7 @@ public sealed unsafe class NativeTextWriter
         ByteColor OriginalTextColor,
         ByteColor OriginalEdgeColor,
         TextFlags OriginalFlags,
+        ushort OriginalWidth,
+        ushort OriginalHeight,
         bool Reapplied = false);
 }

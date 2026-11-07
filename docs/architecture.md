@@ -25,7 +25,7 @@ src/Sinophone/
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
-    ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
+    ItemNameHandler.cs    Watches the hovered item. Feeds the item name window or the game tooltip.
   UI/
     OverlayWindow.cs      The translation overlay.
     ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.
@@ -159,9 +159,10 @@ know leaves the English line in place.
   only) before changing either constant.
 - The game's font has no CJK glyphs. Without a font mod the line shows the missing-glyph character,
   so the settings section warns and links the README font setup. The plugin cannot detect the mod.
-- A write saves the game's text for that node first. `RestoreAll` puts it back when the setting is
-  turned off and on plugin unload. A second write must not save Chinese as the original, so the
-  writer only saves when the node does not already hold text this writer put there.
+- A write saves the game's text, colors, flags, and node size for that node first. `RestoreAll`
+  puts them back when the setting is turned off and on plugin unload. A second write must not save
+  Chinese as the original, so the writer only saves when the node does not already hold text this
+  writer put there.
 - The game redraws the line while its text stream runs, so a write on `PostSetup` or `PostRefresh`
   lasts about one frame and the English comes back. `TalkHandler` therefore calls
   `NativeTextWriter.Reapply` on every `PreDraw`, which puts the Chinese back. This is the one
@@ -200,6 +201,48 @@ names: there is no overlay window for them.
   English names back when the mode is turned off.
 - Player characters are skipped. Nameplates must be visible in the game settings; a hidden plate
   is left alone.
+
+### Item names
+
+`ItemNameHandler` reads the item under the mouse and shows its Chinese name in one of two modes.
+`ItemNameNativeMode` picks the mode. The English name comes from `Item`; the store's name lookup
+gives the Chinese.
+
+- **Overlay** (default). `ItemNameWindow` draws the name above the cursor, so the tooltip stays
+  as the game drew it.
+- **Native.** The handler writes the name into the game's own tooltip: `ItemDetail`, field
+  `ItemNameText`. The game then draws the Chinese with its own font, size, and color, so a font
+  mod is required. The write goes through `NativeTextWriter`, the same path the selection dialogs
+  use, so the English name is saved and can be put back.
+- The handler writes on `HoveredItemChanged` and again when the tooltip addon fires `PostSetup`
+  or `PostRefresh`. The hover can change before the addon has its new text, and a write that comes
+  first is replaced by the game's own English.
+- The tooltip writes its name again while it is open, so a write lasts one frame. Like the Talk
+  window, the handler calls `ReapplyAt` on every tooltip `PreDraw`. That path compares the node
+  bytes with the last write, so matching text costs no allocation.
+- The tooltip sizes the name node to the English name, so a longer Chinese name wraps into lines
+  of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis` and grows the width to the
+  measured text. The height goes back to what the game gave the English name and stays there. It
+  runs after every write and on every reapply, because the game can reset the size.
+- The name is one line when it fits the tooltip. When the Chinese and English names are wider than
+  the space left in the tooltip window, the English name moves to a second line. The height does
+  not change: the tooltip draws the line at the bottom of the node, so the Chinese line stacks
+  upward into the header and the English line keeps the place where the game drew it. Growing the
+  node instead pushes the English line down over the item description. The window width comes from
+  the addon's root node; before the addon is up, the name stays on one line.
+- A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
+  Native mode never shows nothing.
+- When the item changes, the handler forgets the saved text for the old node. When the setting is
+  turned off, it puts the saved English name back, along with the node's saved width and height.
+  Without the size, the English name stays at the position the Chinese name needed. `PostHide`
+  and `PreFinalize` forget the node instead of writing it, because a freed node can belong to
+  another addon by then.
+- The node address is checked against the live addon before a restore, so a stale address is never
+  written.
+
+`ShowOriginal` puts the English name in brackets after the Chinese name, the same shape the
+nameplates use; off shows Chinese only. The overlay keeps the name on one line. Native mode moves
+the English name to a second line when both names are too wide for the tooltip.
 
 ### Runtime data updates
 
