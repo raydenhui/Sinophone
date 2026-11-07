@@ -36,6 +36,17 @@ dialogue lookup, overlay behavior, native text mode, and runtime data updates.
 The rule to keep in mind when changing the matcher: try ids before text, and let every
 id layer fail open. `DefaultTalk` row ids are packed, so use `EventId.Id`, not `EntryId`.
 
+Chinese `Addon` rows write runtime values as `<Format(IntegerParameter(n),...)/>` and
+`<Time(...)/>`. Lumina parses both as value macros. Substitute the whole `Format` tag with the
+value the English line showed. Replacing only the inner expression lets the macro strip remove
+the number. A `Time` tag draws nothing: it fills the date and clock registers the row reads with
+`TopLevelParameter(n)`. Fill those from the date and clock the English line shows, and drop the
+`Time` tag.
+
+The English line is the only source for a date. A SetTime prompt is built from the rendered
+English text, so a missing value stays English. The English client writes the date month first,
+and a number above 12 marks the day-first form.
+
 ## Commands
 
 The plugin targets `net10.0-windows7.0` and `win-x64`. It needs a local Dalamud install to

@@ -31,20 +31,27 @@ internal static class AddonParameterTemplateFactory
 
             switch (payload.MacroCode)
             {
+                // Every macro that renders a value. Format and ZeroPaddedValue in the
+                // Chinese dumps parse as Digit. Head and its siblings draw the
+                // expression they wrap, such as a class name. Time draws nothing but
+                // sets the date values, so its wildcard matches an empty span.
                 case MacroCode.Num:
+                case MacroCode.Hex:
+                case MacroCode.Kilo:
+                case MacroCode.Byte:
+                case MacroCode.Sec:
+                case MacroCode.Time:
+                case MacroCode.Float:
+                case MacroCode.Digit:
                 case MacroCode.Ordinal:
                 case MacroCode.String:
-                    if (TryGetParameterIndex(payload, out var index))
-                    {
-                        builder.Append(ScriptTextTemplate.Wildcard);
-                        indices.Add(index);
-                    }
-                    else
-                    {
-                        builder.Append(ScriptTextTemplate.Wildcard);
-                        indices.Add(-1);
-                    }
-
+                case MacroCode.Head:
+                case MacroCode.HeadAll:
+                case MacroCode.Caps:
+                case MacroCode.Lower:
+                case MacroCode.LowerHead:
+                    builder.Append(ScriptTextTemplate.Wildcard);
+                    indices.Add(TryGetParameterIndex(payload, out var index) ? index : -1);
                     break;
 
                 case MacroCode.If:

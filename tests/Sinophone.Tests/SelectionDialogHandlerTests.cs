@@ -104,6 +104,122 @@ public class SelectionDialogHandlerTests
         Assert.DoesNotContain("\n", resolved);
     }
 
+    [Fact]
+    public void ResolveAddonText_FillsFormattedValueFromCapture()
+    {
+        // Addon row 2379. The game draws the gil amount inside the Format macro,
+        // so the value has to replace the whole tag, not just its expression.
+        const string chinese = "金币管理　[现保管金币：<Format(IntegerParameter(1),FF022C)/>]";
+        const string live = "Entrust or withdraw gil. (Gil entrusted: 1,234)";
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            chinese, live, ["1,234"], parameterIndices: [1]);
+
+        Assert.Equal("金币管理　[现保管金币：1,234]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_FillsFormattedValueFromNumbers_WhenNoCapture()
+    {
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            "所持Gil：<Format(IntegerParameter(1),FF022C)/>", "Current Gil: 42");
+
+        Assert.Equal("所持Gil：42", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenFormattedValueIsMissing()
+    {
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(
+            "<Format(IntegerParameter(2),FF022C)/>", "No values here."));
+    }
+
+    [Fact]
+    public void ResolveAddonText_FillsDateAndClockFromLiveLine()
+    {
+        // Addon row 2384. The SetTime macro fills the date and clock values but
+        // draws nothing, so the values have to come from the English line.
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            VenturePrompt, "View venture report. (Complete on 8/27 8:00)",
+            now: new DateTime(2026, 8, 20));
+
+        Assert.Equal("查看雇员探险情况　[～2026/8/27 8:00]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReadsDayFirstDate()
+    {
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            VenturePrompt, "View venture report. (Complete on 27/8 8:00)",
+            now: new DateTime(2026, 8, 20));
+
+        Assert.Equal("查看雇员探险情况　[～2026/8/27 8:00]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_UsesNextYear_WhenTheDateHasPassed()
+    {
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            VenturePrompt, "View venture report. (Complete on 8/27 8:00)",
+            now: new DateTime(2026, 11, 7));
+
+        Assert.Equal("查看雇员探险情况　[～2027/8/27 8:00]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReadsAfternoonClock()
+    {
+        const string chinese =
+            "<Time(IntegerParameter(1))/><Value>TopLevelParameter(218)</Value>:" +
+            "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>";
+
+        Assert.Equal("20:00", SelectionDialogHandler.ResolveAddonText(chinese, "8:00 p.m."));
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenTheDateIsMissing()
+    {
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(VenturePrompt, "View venture report."));
+    }
+
+    [Fact]
+    public void ResolveAddonText_FillsSheetNameFromTheEnglishLine()
+    {
+        // Addon row 2390. The row names the retainer's class through the ClassJob
+        // sheet, and the English line shows the name the game drew.
+        var store = LoadStore("""
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{"Addon":{"5":{"Text":["刻木匠"]}}}}
+            """);
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            "设置雇员职业　[<Value>IntegerParameter(2)</Value>级<Sheet(ClassJob,IntegerParameter(1),0)/>]",
+            "Reset retainer class. (Carpenter: Lv. 50)",
+            ["Carpenter", "50"], store, [-1, 2]);
+
+        Assert.Equal("设置雇员职业　[50级刻木匠]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenTheSheetNameIsUnknown()
+    {
+        var store = LoadStore("""
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{"Addon":{"3":{"Text":["是"]}}}}
+            """);
+
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(
+            "设置雇员职业　[<Value>IntegerParameter(2)</Value>级<Sheet(ClassJob,IntegerParameter(1),0)/>]",
+            "Reset retainer class. (Carpenter: Lv. 50)",
+            ["Carpenter", "50"], store, [-1, 2]));
+    }
+
+    private const string VenturePrompt =
+        "查看雇员探险情况　[～<Time(IntegerParameter(1))/>" +
+        "<Value>TopLevelParameter(222)</Value>/<Value>TopLevelParameter(221)</Value>/" +
+        "<Value>TopLevelParameter(219)</Value> <Value>TopLevelParameter(218)</Value>:" +
+        "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>]";
+
     private static TranslationStore LoadStore(string json)
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
@@ -112,6 +228,7 @@ public class SelectionDialogHandlerTests
                 [1] = ["OK"],
                 [3] = ["Yes."],
                 [4] = ["No."],
+                [5] = ["Carpenter"],
             });
 
         var store = TranslationStore.Load(
