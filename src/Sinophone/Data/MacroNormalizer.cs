@@ -145,7 +145,7 @@ public static partial class MacroNormalizer
     /// </summary>
     public static string ExtractSpeakerPrefix(string? text)
     {
-        if (string.IsNullOrEmpty(text))
+        if (string.IsNullOrEmpty(text) || !StartsWithSpeakerPrefix(text))
             return string.Empty;
 
         var match = SpeakerPrefixPattern().Match(text);
@@ -158,7 +158,22 @@ public static partial class MacroNormalizer
     /// not in the dialogue text.
     /// </summary>
     public static string StripSpeakerPrefix(string? text)
-        => string.IsNullOrEmpty(text) ? text ?? string.Empty : SpeakerPrefixPattern().Replace(text, string.Empty);
+        => string.IsNullOrEmpty(text) || !StartsWithSpeakerPrefix(text)
+            ? text ?? string.Empty
+            : SpeakerPrefixPattern().Replace(text, string.Empty);
+
+    /// <summary>
+    /// Cheap test before the speaker regex. Every script line goes through this at
+    /// load, and almost none carry an alias.
+    /// </summary>
+    private static bool StartsWithSpeakerPrefix(string text)
+    {
+        var index = 0;
+        while (index < text.Length && char.IsWhiteSpace(text[index]))
+            index++;
+
+        return index + 1 < text.Length && text[index] == '(' && text[index + 1] == '-';
+    }
 
     /// <summary>
     /// Normalizes text for use as a dictionary key. All whitespace, including
@@ -171,11 +186,23 @@ public static partial class MacroNormalizer
 
         var cleaned = StripInvisible(text);
 
-        // Turn <br> into a space before the generic macro strip, which would
-        // otherwise glue the words on either side together.
-        cleaned = LineBreakPattern().Replace(cleaned, " ");
-        cleaned = MacroPattern().Replace(cleaned, string.Empty);
-        cleaned = EmphasisPattern().Replace(cleaned, string.Empty);
+        // Most lines carry no macro. Running a regex per line costs more at load
+        // than the character scan below, so test for the brackets first.
+        if (cleaned.Contains('<'))
+        {
+            // Turn <br> into a space before the generic macro strip, which would
+            // otherwise glue the words on either side together.
+            cleaned = LineBreakPattern().Replace(cleaned, " ");
+            cleaned = MacroPattern().Replace(cleaned, string.Empty);
+        }
+
+        if (cleaned.Contains('*'))
+            cleaned = EmphasisPattern().Replace(cleaned, string.Empty);
+
+        // A line with single spaces and no leading or trailing whitespace is
+        // already the key. Copying it into a builder would only cost time.
+        if (!NeedsWhitespaceCollapse(cleaned))
+            return cleaned;
 
         var builder = new StringBuilder(cleaned.Length);
         var previousWasWhitespace = false;
@@ -201,6 +228,37 @@ public static partial class MacroNormalizer
     }
 
     /// <summary>
+    /// True when the text has a run of whitespace, whitespace that is not a plain
+    /// space, or whitespace at either end.
+    /// </summary>
+    private static bool NeedsWhitespaceCollapse(string text)
+    {
+        if (text.Length == 0)
+            return false;
+
+        if (char.IsWhiteSpace(text[0]) || char.IsWhiteSpace(text[^1]))
+            return true;
+
+        var previousWasWhitespace = false;
+
+        foreach (var ch in text)
+        {
+            if (!char.IsWhiteSpace(ch))
+            {
+                previousWasWhitespace = false;
+                continue;
+            }
+
+            if (previousWasWhitespace || ch != ' ')
+                return true;
+
+            previousWasWhitespace = true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Prepares Chinese text for display: conditionals are resolved, macros are
     /// stripped, line breaks are preserved, and trailing whitespace on each line is
     /// trimmed.
@@ -221,22 +279,34 @@ public static partial class MacroNormalizer
 
         var cleaned = StripInvisible(text);
         cleaned = cleaned.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
-        cleaned = LineBreakPattern().Replace(cleaned, "\n");
-        cleaned = ConditionalText.Resolve(cleaned, evaluate);
+
+        // Text without a bracket cannot hold a macro, and most lines have none.
+        if (cleaned.Contains('<'))
+        {
+            cleaned = LineBreakPattern().Replace(cleaned, "\n");
+            cleaned = ConditionalText.Resolve(cleaned, evaluate);
+        }
 
         // The script dumps prefix some lines with a speaker alias such as
         // "(-Pattin-)". The game draws that name in the speaker node, so it is
         // metadata, not part of the dialogue the overlay should show.
-        cleaned = SpeakerPrefixPattern().Replace(cleaned, string.Empty);
+        cleaned = StripSpeakerPrefix(cleaned);
 
         // Before the macro strip: that strip removes <Highlight> and </Highlight> but
         // leaves the parameter text between them sitting in the sentence.
-        cleaned = ResolveObjectParameters(cleaned, playerName);
+        if (cleaned.Contains("ObjectParameter(", StringComparison.Ordinal))
+            cleaned = ResolveObjectParameters(cleaned, playerName);
 
-        // UI color tags and unnamed macros carry a payload such as F20223 or 0262
-        // between the tags. Remove the whole pair, not just the tags.
-        cleaned = TaggedPayloadPattern().Replace(cleaned, string.Empty);
-        cleaned = MacroPattern().Replace(cleaned, string.Empty);
+        if (cleaned.Contains('<'))
+        {
+            // UI color tags and unnamed macros carry a payload such as F20223 or 0262
+            // between the tags. Remove the whole pair, not just the tags.
+            cleaned = TaggedPayloadPattern().Replace(cleaned, string.Empty);
+            cleaned = MacroPattern().Replace(cleaned, string.Empty);
+        }
+
+        if (cleaned.IndexOf('\n') < 0)
+            return cleaned.Trim();
 
         var lines = cleaned.Split('\n');
         var builder = new StringBuilder(cleaned.Length);
@@ -254,6 +324,9 @@ public static partial class MacroNormalizer
 
     private static string StripInvisible(string text)
     {
+        if (!HasInvisible(text))
+            return text;
+
         var builder = new StringBuilder(text.Length);
 
         foreach (var ch in text)
@@ -288,5 +361,37 @@ public static partial class MacroNormalizer
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// True when the text holds a character <see cref="StripInvisible"/> would
+    /// change. Almost no line does, so the scan saves a copy for every key.
+    /// </summary>
+    private static bool HasInvisible(string text)
+    {
+        foreach (var ch in text)
+        {
+            switch (ch)
+            {
+                case '­': // soft hyphen
+                case '​': // zero width space
+                case '‌': // zero width non-joiner
+                case '‍': // zero width joiner
+                case '﻿': // zero width no-break space / BOM
+                case '�': // replacement character from malformed UTF-8
+                case ' ': // non-breaking space
+                    return true;
+                case '\t':
+                case '\n':
+                case '\r':
+                    continue;
+                default:
+                    if (char.IsControl(ch))
+                        return true;
+                    break;
+            }
+        }
+
+        return false;
     }
 }

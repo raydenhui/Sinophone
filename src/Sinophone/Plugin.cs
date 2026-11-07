@@ -45,6 +45,21 @@ public sealed class Plugin : IDalamudPlugin
     /// older load into the swap.
     /// </summary>
     private Task<ParsedArtifacts?>? _pendingParse;
+
+    /// <summary>
+    /// A parsed artifact waiting for its sheet reads. The reads are spread over
+    /// several frames so a large artifact never stalls the game.
+    /// </summary>
+    private ParsedArtifacts? _parsedForLoad;
+    private IReadOnlyList<ISheetDescriptor>? _loadDescriptors;
+    private SheetExtraction? _loadExtraction;
+
+    /// <summary>The index build, which runs on a worker task once the sheet reads finish.</summary>
+    private Task<TranslationStore?>? _pendingBuild;
+
+    /// <summary>A built store waiting for the CJK font atlas to finish building.</summary>
+    private TranslationStore? _storeAwaitingFont;
+
     private bool _disposed;
 
     private ChineseVariant _lastVariant;
@@ -114,7 +129,7 @@ public sealed class Plugin : IDalamudPlugin
             PluginInterface.GetPluginConfigDirectory(),
             Log);
 
-        _fontManager = new FontManager(PluginInterface.UiBuilder.FontAtlas, _configuration);
+        _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _log);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, _configuration, Log);
         _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
@@ -187,7 +202,26 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
 
         if (_configuration.CheckForDataUpdates)
-            _dataUpdater.StartCheck();
+        {
+            // A release build ships no translation data, so a fresh install must
+            // fetch it. Later loads only check for a newer version.
+            if (TranslationDataUpdater.NeedsInitialDownload(
+                    _configuration.LastDataVersion,
+                    _dataUpdater.IsMissingRequiredFile(),
+                    HasEmbeddedData()))
+            {
+                _log.Info("No translation data is installed; downloading it.");
+                _announceUpdate = true;
+                _updateWasBusy = true;
+                _dataUpdater.StartUpdate();
+                ChatGui.Print(
+                    "[Sinophone] Downloading translation data (about 60 MB). Translation starts when it finishes.");
+            }
+            else
+            {
+                _dataUpdater.StartCheck();
+            }
+        }
 
         if (!ChineseConverter.IsAvailable(_configuration.Conversion))
             _log.Warning("The conversion table for {Conversion} is missing; text will not be converted.",
@@ -366,6 +400,13 @@ public sealed class Plugin : IDalamudPlugin
         return $"Using downloaded data ({version}).";
     }
 
+    /// <summary>True when this build carries a translation artifact inside the assembly.</summary>
+    private bool HasEmbeddedData()
+    {
+        using var stream = TranslationStore.OpenEmbeddedResource(_configuration.Variant);
+        return stream is not null;
+    }
+
     /// <summary>
     /// Resolves conditionals in stored Chinese text and applies the optional
     /// simplified/traditional conversion. The artifact keeps conditionals because the
@@ -399,7 +440,7 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private void OnTick()
     {
-        FinishStoreLoad();
+        AdvanceStoreLoad();
         AnnounceUpdateResult();
 
         if (!_dataUpdater.ConsumeReloadRequest())
@@ -419,6 +460,11 @@ public sealed class Plugin : IDalamudPlugin
         var log = Log;
         var openResource = _dataUpdater.OpenData;
 
+        _parsedForLoad = null;
+        _loadDescriptors = null;
+        _loadExtraction = null;
+        _pendingBuild = null;
+        _storeAwaitingFont = null;
         _pendingParse = Task.Run<ParsedArtifacts?>(() => TranslationStore.Parse(
             configuration,
             log,
@@ -427,60 +473,156 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>
-    /// Finishes a load started by <see cref="StartStoreLoad"/>. Returns true when a
-    /// store was swapped in, so the caller can refresh the surfaces that read it.
+    /// The most time the game thread spends reading game sheets in one frame.
+    /// The rest of the load runs on worker tasks.
     /// </summary>
-    private bool FinishStoreLoad()
+    private static readonly TimeSpan SheetReadBudget = TimeSpan.FromMilliseconds(4);
+
+    /// <summary>
+    /// Moves a load started by <see cref="StartStoreLoad"/> one step forward: parse
+    /// on a worker task, read the live sheets in small slices, index on a worker
+    /// task, then swap the store in. No step runs long enough to stall a frame.
+    /// </summary>
+    private void AdvanceStoreLoad()
     {
         if (_disposed)
-            return false;
+            return;
 
-        var pending = _pendingParse;
-        if (pending is null || !pending.IsCompleted)
-            return false;
-
-        _pendingParse = null;
-
-        if (pending.IsFaulted)
+        if (_storeAwaitingFont is { } ready)
         {
-            _log.Error(pending.Exception, "Failed to parse the translation artifacts.");
-            return false;
+            // Chinese drawn before the atlas is built shows as boxes, so the
+            // store waits for it.
+            if (!_fontManager.IsReady)
+                return;
+
+            _storeAwaitingFont = null;
+            SwapStore(ready);
         }
 
-        var parsed = pending.Result;
-        if (parsed is null)
+        if (_pendingParse is { } parse)
         {
-            _log.Warning("No translation artifacts are available. Talk text will not be translated.");
-            return false;
+            if (!parse.IsCompleted)
+                return;
+
+            _pendingParse = null;
+
+            if (parse.IsFaulted)
+            {
+                _log.Error(parse.Exception, "Failed to parse the translation artifacts.");
+                return;
+            }
+
+            var parsed = parse.Result;
+            if (parsed is null)
+            {
+                _log.Warning("No translation artifacts are available. Talk text will not be translated.");
+                return;
+            }
+
+            _parsedForLoad = parsed;
+            _loadDescriptors = SheetCatalog.Create(DataManager);
+            _loadExtraction = new SheetExtraction(parsed, _loadDescriptors);
         }
 
-        TranslationStore? store;
-        try
+        if (_parsedForLoad is null)
+            return;
+
+        if (_loadExtraction is { IsComplete: false } extraction)
         {
-            store = TranslationStore.Build(
+            extraction.Extract(SheetReadBudget);
+            if (!extraction.IsComplete)
+                return;
+
+            new PluginLog(Log, _configuration, LogCategory.Data).Debug(
+                "Read {Rows:N0} sheet rows for the {Variant} index across several frames.",
+                extraction.RowCount,
+                _parsedForLoad.Variant);
+        }
+
+        if (_pendingBuild is null)
+        {
+            var parsed = _parsedForLoad;
+            var descriptors = _loadDescriptors!;
+            var prepared = _loadExtraction!;
+            var variant = parsed.Variant;
+            var log = Log;
+            var configuration = _configuration;
+            var indexResolver = CreateLoadDisplayResolver();
+
+            // Building touches no game sheet now, so it can run off the game
+            // thread. It uses a copy of the player state, but lookups keep the live
+            // resolver, so a character switch is still picked up.
+            _pendingBuild = Task.Run(() => TranslationStore.Build(
                 parsed,
-                _configuration,
-                DataManager,
-                Log,
+                descriptors,
+                prepared,
+                variant,
+                log,
                 ResolveDisplayText,
-                () => PlayerState.CharacterName);
+                () => PlayerState.CharacterName,
+                configuration,
+                indexResolver));
         }
-        catch (Exception ex)
+
+        if (!_pendingBuild.IsCompleted)
+            return;
+
+        var build = _pendingBuild;
+        _pendingBuild = null;
+        _parsedForLoad = null;
+        _loadDescriptors = null;
+        _loadExtraction = null;
+
+        if (build.IsFaulted)
         {
-            // Building reads live sheets. An exception here would escape into the
-            // draw loop, so keep whatever store was already loaded.
-            _log.Error(ex, "Failed to build the translation store.");
-            return false;
+            _log.Error(build.Exception, "Failed to build the translation store.");
+            return;
         }
 
+        var store = build.Result;
         if (store is null)
-            return false;
+            return;
 
+        if (!_fontManager.IsReady)
+        {
+            _log.Debug("Store built; waiting for the CJK font atlas before using it.");
+            _storeAwaitingFont = store;
+            return;
+        }
+
+        SwapStore(store);
+    }
+
+    private void SwapStore(TranslationStore store)
+    {
+        _log.Debug("Translation store is ready; swapped it in.");
         _store = store;
         _overlay.Hide();
         RefreshNamePlates(namesChanged: true);
         _itemNameHandler.Refresh();
-        return true;
+    }
+
+    /// <summary>
+    /// The display resolver for the index build. The build runs on a worker task,
+    /// so the player state it may need is read once here and captured.
+    /// </summary>
+    private Func<string, string> CreateLoadDisplayResolver()
+    {
+        var loaded = PlayerState.IsLoaded;
+        var isFemale = loaded && PlayerState.Sex == Sex.Female;
+        var companyRowId = loaded ? PlayerState.GrandCompany.RowId : 0;
+        var companyRank = loaded
+            ? PlayerState.GetGrandCompanyRank(PlayerState.GrandCompany.Value)
+            : 0;
+        var characterName = loaded ? PlayerState.CharacterName : null;
+        var conversion = _configuration.Conversion;
+
+        return text => ChineseConverter.Convert(
+            MacroNormalizer.CleanForDisplay(
+                text,
+                condition => PlayerConditionEvaluator.Evaluate(condition, isFemale, companyRowId, companyRank),
+                characterName),
+            conversion);
     }
 
     /// <summary>
@@ -608,6 +750,11 @@ public sealed class Plugin : IDalamudPlugin
         // Drop a load in flight so it is never built into a disposed plugin.
         _disposed = true;
         _pendingParse = null;
+        _parsedForLoad = null;
+        _loadExtraction = null;
+        _loadDescriptors = null;
+        _pendingBuild = null;
+        _storeAwaitingFont = null;
 
         PluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         PluginInterface.UiBuilder.Draw -= OnTick;

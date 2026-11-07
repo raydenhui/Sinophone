@@ -253,6 +253,12 @@ the assembly. `TranslationDataUpdater` fills that directory from the `data` GitH
 00:00 UTC+8 and starts the build only when the CN, TC, or English dump commit moved since the
 published manifest, so an unchanged day costs a few seconds.
 
+A release build carries no embedded artifacts, because they are about 60 MB and not committed. A
+fresh install therefore has no data until the first download. `Plugin.Initialize` starts
+`StartUpdate` when no data file exists and the build has no embedded copy, and runs `StartCheck`
+only on later loads. Keep that order: a release that only checks leaves the plugin with nothing to
+show.
+
 - The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
   `Sinophone.tc.json.gz`. The base URL is hardcoded in `TranslationDataUpdater`; renaming the
   repository breaks every installed copy.
@@ -277,11 +283,14 @@ published manifest, so an unchanged day costs a few seconds.
   Keep that order: a partial file must never replace working data.
 - A completed download only raises a flag. `Plugin.OnTick` rebuilds the store on the game thread.
   Do not touch windows, fonts, or Lumina sheets from the updater's worker task.
-- A load is split in two. `TranslationStore.Parse` reads and deserializes the artifacts and is safe
-  on a worker task, so `Plugin` runs it through `Task.Run`. `TranslationStore.Build` reads the live
-  Lumina sheets and indexes, so it runs on the game thread from `Plugin.OnTick`. Measured on
-  2026-11-01 data: parse is about 1.1 s, build about 1.8 s with one variant. Do not move the sheet
-  reads into the worker task; that breaks the rule above.
+- A load is split so no step runs in one frame. `TranslationStore.Parse` reads and deserializes the
+  artifacts on a worker task. `SheetExtraction` then reads the live Lumina sheets from
+  `Plugin.OnTick` in slices of about 4 ms per frame, because Dalamud forbids sheet reads off the
+  game thread. `TranslationStore.Build` indexes the extracted English text on a worker task, and
+  `Plugin` swaps the store in only after it and the CJK font atlas are ready. Measured on
+  2026-11-01 data: parse is about 1.1 s, the sheet reads are about 0.4 s in total, and indexing
+  about 1 s with one variant. Do not move the sheet reads into the worker task; that breaks the
+  rule above.
 - Only one parse may be in flight. A settings change or a new data file replaces the pending task,
   so an older result is dropped before it is built. `Dispose` drops it too.
 - If a downloaded file cannot be parsed, `TranslationStore` retries with the embedded copy instead

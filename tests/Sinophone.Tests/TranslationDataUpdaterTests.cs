@@ -18,6 +18,20 @@ public class TranslationDataUpdaterTests
         => Assert.Equal(expected, TranslationDataUpdater.IsCurrent(installed, published, hasFlag, fileExists));
 
     [Theory]
+    // A release build has no embedded copy, so a fresh install downloads.
+    [InlineData("", true, false, true)]
+    [InlineData(null, true, false, true)]
+    // Data is already installed, the file is on disk, or the build carries a copy.
+    [InlineData("v1", true, false, false)]
+    [InlineData("", false, false, false)]
+    [InlineData("", true, true, false)]
+    public void NeedsInitialDownload_OnlyOnAFreshInstall(
+        string? lastDataVersion, bool missingFile, bool hasEmbeddedData, bool expected)
+        => Assert.Equal(
+            expected,
+            TranslationDataUpdater.NeedsInitialDownload(lastDataVersion, missingFile, hasEmbeddedData));
+
+    [Theory]
     [InlineData(false, 1)]
     [InlineData(true, 2)]
     public void RequiredVariants_FollowsDownloadSetting(bool downloadBoth, int expected)
