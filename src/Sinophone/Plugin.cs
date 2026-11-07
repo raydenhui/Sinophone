@@ -40,11 +40,15 @@ public sealed class Plugin : IDalamudPlugin
     private TranslationStore? _store;
 
     /// <summary>
-    /// A load started on a worker task. The plugin owns parsing; the game thread
-    /// finishes it. Only one may be in flight so a settings change never races an
-    /// older load into the swap.
+    /// A load started on a worker task. It reads the index cache or parses the
+    /// artifacts; the game thread finishes the load. Only one may be in flight so a
+    /// settings change never races an older load into the swap.
     /// </summary>
-    private Task<ParsedArtifacts?>? _pendingParse;
+    private Task<StoreLoadResult>? _pendingParse;
+
+    /// <summary>Where the finished index is cached, and the key it was built for.</summary>
+    private string _loadCachePath = string.Empty;
+    private string _loadCacheKey = string.Empty;
 
     /// <summary>
     /// A parsed artifact waiting for its sheet reads. The reads are spread over
@@ -219,7 +223,10 @@ public sealed class Plugin : IDalamudPlugin
             }
             else
             {
-                _dataUpdater.StartCheck();
+                // This only downloads when the published version differs, so an
+                // unchanged install does one manifest request and no more. The
+                // current store keeps serving while the download runs.
+                _dataUpdater.StartUpdate();
             }
         }
 
@@ -460,16 +467,83 @@ public sealed class Plugin : IDalamudPlugin
         var log = Log;
         var openResource = _dataUpdater.OpenData;
 
+        // Descriptors hold Lumina objects, so they are created on the game thread.
+        // A cached index needs them too: some lookups still read the live English
+        // text to choose a row's slot.
+        var descriptors = SheetCatalog.Create(DataManager);
+        var cachePath = Path.Combine(
+            PluginInterface.GetPluginConfigDirectory(),
+            TranslationStore.CacheFileName);
+        var cacheKey = BuildStoreCacheKey();
+        var dialogueLog = new PluginLog(log, configuration, LogCategory.Dialogue);
+
         _parsedForLoad = null;
-        _loadDescriptors = null;
+        _loadDescriptors = descriptors;
         _loadExtraction = null;
         _pendingBuild = null;
         _storeAwaitingFont = null;
-        _pendingParse = Task.Run<ParsedArtifacts?>(() => TranslationStore.Parse(
-            configuration,
-            log,
-            openResource,
-            TranslationStore.OpenEmbeddedResource));
+        _loadCachePath = cachePath;
+        _loadCacheKey = cacheKey;
+
+        _pendingParse = Task.Run(() =>
+        {
+            // A cache hit skips the artifact parse, the sheet reads, and the index
+            // build. The live sheets are read only when it misses.
+            if (TranslationStore.TryLoadCache(
+                    cachePath,
+                    cacheKey,
+                    descriptors,
+                    dialogueLog,
+                    ResolveDisplayText,
+                    () => PlayerState.CharacterName,
+                    out var cached))
+            {
+                return new StoreLoadResult(cached, null);
+            }
+
+            return new StoreLoadResult(
+                null,
+                TranslationStore.Parse(
+                    configuration,
+                    log,
+                    openResource,
+                    TranslationStore.OpenEmbeddedResource));
+        });
+    }
+
+    /// <summary>
+    /// Ties a cached index to the inputs it was built from. A game patch changes the
+    /// English text the index is keyed on, and a new download changes the artifact,
+    /// so either one makes the cache stale.
+    /// </summary>
+    private string BuildStoreCacheKey()
+    {
+        var configuration = _configuration;
+
+        return string.Join(
+            "|",
+            configuration.Variant.ToString(),
+            configuration.UseFallbackVariant.ToString(),
+            configuration.Conversion.ToString(),
+            GetGameDataVersion(),
+            _dataUpdater.SourceIdentity(ChineseVariant.Simplified),
+            _dataUpdater.SourceIdentity(ChineseVariant.Traditional));
+    }
+
+    private string GetGameDataVersion()
+    {
+        try
+        {
+            return DataManager.GameData.Repositories.TryGetValue("ffxiv", out var repository)
+                ? repository.Version
+                : "unknown";
+        }
+        catch (Exception ex)
+        {
+            // An unknown version only costs a rebuild, so do not fail the load.
+            _log.Debug(ex, "Could not read the game data version.");
+            return "unknown";
+        }
     }
 
     /// <summary>
@@ -508,11 +582,31 @@ public sealed class Plugin : IDalamudPlugin
 
             if (parse.IsFaulted)
             {
-                _log.Error(parse.Exception, "Failed to parse the translation artifacts.");
+                _log.Error(parse.Exception, "Failed to load the translation data.");
                 return;
             }
 
-            var parsed = parse.Result;
+            var result = parse.Result;
+
+            if (result.Cached is { } cached)
+            {
+                // The cache holds the finished index, so the sheet reads and the
+                // build are skipped. The store still waits for the font atlas.
+                _parsedForLoad = null;
+                _loadDescriptors = null;
+                _loadExtraction = null;
+
+                if (!_fontManager.IsReady)
+                {
+                    _storeAwaitingFont = cached;
+                    return;
+                }
+
+                SwapStore(cached);
+                return;
+            }
+
+            var parsed = result.Parsed;
             if (parsed is null)
             {
                 _log.Warning("No translation artifacts are available. Talk text will not be translated.");
@@ -520,8 +614,7 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             _parsedForLoad = parsed;
-            _loadDescriptors = SheetCatalog.Create(DataManager);
-            _loadExtraction = new SheetExtraction(parsed, _loadDescriptors);
+            _loadExtraction = new SheetExtraction(parsed, _loadDescriptors!);
         }
 
         if (_parsedForLoad is null)
@@ -548,20 +641,33 @@ public sealed class Plugin : IDalamudPlugin
             var log = Log;
             var configuration = _configuration;
             var indexResolver = CreateLoadDisplayResolver();
+            var cachePath = _loadCachePath;
+            var cacheKey = _loadCacheKey;
+            var dataLog = new PluginLog(log, configuration, LogCategory.Data);
 
             // Building touches no game sheet now, so it can run off the game
             // thread. It uses a copy of the player state, but lookups keep the live
             // resolver, so a character switch is still picked up.
-            _pendingBuild = Task.Run(() => TranslationStore.Build(
-                parsed,
-                descriptors,
-                prepared,
-                variant,
-                log,
-                ResolveDisplayText,
-                () => PlayerState.CharacterName,
-                configuration,
-                indexResolver));
+            _pendingBuild = Task.Run(() =>
+            {
+                var built = TranslationStore.Build(
+                    parsed,
+                    descriptors,
+                    prepared,
+                    variant,
+                    log,
+                    ResolveDisplayText,
+                    () => PlayerState.CharacterName,
+                    configuration,
+                    indexResolver);
+
+                // Saving here keeps the disk write off the game thread. The next
+                // start reads this file instead of re-reading the sheets.
+                if (built is not null)
+                    TranslationStore.SaveCache(cachePath, cacheKey, built, dataLog);
+
+                return built;
+            });
         }
 
         if (!_pendingBuild.IsCompleted)
@@ -774,4 +880,10 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();
     }
+
+    /// <summary>
+    /// What the worker task found: a usable index cache, or the parsed artifacts
+    /// that still need their sheet reads and build.
+    /// </summary>
+    private sealed record StoreLoadResult(TranslationStore? Cached, ParsedArtifacts? Parsed);
 }

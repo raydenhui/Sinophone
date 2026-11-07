@@ -208,7 +208,9 @@ public sealed class Configuration : IPluginConfiguration
     public string CustomFontPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Check the published translation data for a newer version when the plugin loads.
+    /// Download published translation data when it differs from the installed copy.
+    /// The download runs in the background, so the old data keeps working until the
+    /// new data is ready.
     /// </summary>
     public bool CheckForDataUpdates { get; set; } = true;
 

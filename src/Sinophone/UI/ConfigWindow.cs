@@ -506,8 +506,9 @@ public sealed class ConfigWindow : Window
     {
         ImGui.TextWrapped(_dataSourceText());
 
-        Checkbox("Check for data updates on load", _configuration.CheckForDataUpdates,
+        Checkbox("Download data updates on load", _configuration.CheckForDataUpdates,
             v => _configuration.CheckForDataUpdates = v);
+        ImGui.TextDisabled("Runs in the background. The old data stays in use until the new data is ready.");
 
         Checkbox("Download both language variants", _configuration.DownloadBothVariants,
             v => _configuration.DownloadBothVariants = v);

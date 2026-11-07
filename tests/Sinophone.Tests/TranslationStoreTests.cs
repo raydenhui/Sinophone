@@ -1296,4 +1296,115 @@ public class TranslationStoreTests
         Assert.True(store.TryGetName("Pattin?", out var name));
         Assert.Equal("帕汀", name);
     }
+
+    [Fact]
+    public void Cache_RoundTrip_RestoresTheLookups()
+    {
+        var talk = TalkSheet((1, "Hello there."));
+        var names = NameSheet((1, "Mother Miounne"));
+        var addon = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [102421] = ["Duty calls. Commence battle for\n“UNKNOWN”?\n\nLevel: 90\nItem level: 665"],
+            });
+
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC",
+                Scripts(("(-Ancient Spirit-)I... I...", "(-古代人-)<UIForeground>F20223</UIForeground>我，我是……<UIForeground>01</UIForeground>")),
+                (SheetName, FieldName, 1, "你好。"),
+                (NameSheetName, NameFieldName, 1, "穆恩"),
+                ("Addon", "Text", 102421, "要开始“StringParameter(1)”的战斗吗？")));
+
+        var store = TranslationStore.Load(
+            [talk, names, addon],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "key", store, log);
+
+            Assert.True(TranslationStore.TryLoadCache(
+                path, "key", [talk, names, addon], log, s => s, null, out var cached));
+            Assert.NotNull(cached);
+
+            Assert.Equal(store.TextEntryCount, cached.TextEntryCount);
+            Assert.Equal(store.NameEntryCount, cached.NameEntryCount);
+            Assert.Equal(store.ScriptEntryCount, cached.ScriptEntryCount);
+
+            Assert.True(cached.TryGetDialogue("Hello there.", out var dialogue));
+            Assert.Equal("你好。", dialogue);
+
+            Assert.True(cached.TryGetName("Mother Miounne", out var name));
+            Assert.Equal("穆恩", name);
+
+            Assert.True(cached.TryGetDialogue("I... I...", out var script));
+            Assert.Equal("我，我是……", script);
+            Assert.True(cached.TryGetStyle(script, out var style));
+            Assert.Equal((ushort)0x0223, style.ForegroundKey);
+
+            Assert.True(cached.TryGetAddonText(
+                "Duty calls. Commence battle for\n“Inform the Cold?”\n\nLevel: 90\nItem level: 665",
+                out var addonText));
+            Assert.Contains("StringParameter(1)", addonText);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenTheKeyDiffers()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "old", store, log);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "new", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenTheFileIsNotAnIndex()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            File.WriteAllBytes(path, [1, 2, 3, 4]);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "key", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

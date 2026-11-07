@@ -59,5 +59,9 @@ The overlay draws every frame while a Talk window is open. Keep these rules:
   on a worker task. The plugin-private UiBuilder atlas rebuilds on the draw thread. The store is
   not swapped in until the atlas reports ready, so Chinese never draws as boxes.
 - Normalization runs once per lookup. Do not call it twice for the same text.
+- Keep the index cache working. The first load after install parses the artifact and indexes the
+  sheets. Later loads read `Sinophone.index.bin` and skip both. The cache is written on the index
+  worker task, never on the game thread. Log its read and write time at `Debug` under the data
+  group. A cache miss is normal after a game patch, a settings change, or a data update.
 
 When you add work to a per-frame path, say in the PR what the cost is and why it is acceptable.

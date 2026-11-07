@@ -11,7 +11,7 @@ namespace Sinophone.Data;
 /// configured variant is indexed first and always wins, and the other variant only
 /// fills keys the primary variant does not cover.
 /// </remarks>
-public sealed class TranslationStore
+public sealed partial class TranslationStore
 {
     public const string ResourceCnSuffix = "Sinophone.cn.json.gz";
     public const string ResourceTcSuffix = "Sinophone.tc.json.gz";
