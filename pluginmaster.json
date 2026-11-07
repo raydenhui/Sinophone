@@ -3,7 +3,8 @@
     "Author": "raydenhui",
     "Name": "Sinophone",
     "Punchline": "Official Chinese dialogue for FFXIV, as you play.",
-    "Description": "Shows the official Simplified or Traditional Chinese translation of FFXIV dialogue, with speaker names and the English original. Data comes from the official CN/TC game files. Use the overlay, or try the alpha native in-game mode.",
+    "Description": "Shows the official Simplified or Traditional Chinese translation of FFXIV text: dialogue in an overlay or in the game's own windows, selection dialogs, nameplates, and item tooltips. Data comes from the official CN/TC game files. English client only.",
+    "IconUrl": "https://raw.githubusercontent.com/raydenhui/Sinophone/main/images/icon.png",
     "Tags": [
       "translation",
       "chinese",
