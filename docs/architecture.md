@@ -142,6 +142,12 @@ matches those rows as templates: the live English line fills the wildcards, and 
 is replaced with the same text. `Format` and `ZeroPaddedValue` keep the value the English line
 showed, including thousands separators, so the Chinese prompt shows the real amount.
 
+A date or clock prompt works the other way round. The Chinese row starts with a `Time` tag that
+fills the date and clock values and draws nothing, then reads them back as
+`TopLevelParameter(n)`. The game keeps those values to itself, so the handler reads the date and
+clock from the English line and fills the slots itself. A value it cannot read leaves the English
+line in place.
+
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
   live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds
   only) before changing either constant.

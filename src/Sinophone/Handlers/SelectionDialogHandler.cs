@@ -42,7 +42,34 @@ public sealed class SelectionDialogHandler : IDisposable
     /// so the value must be substituted before the macro strip removes the tag.
     /// </summary>
     private static readonly Regex FormattedValue = new(
-        @"<(?:Format|Time|Digit)\(IntegerParameter\((\d+)\)[^<>]*/>",
+        @"<(?:Format|Digit)\(IntegerParameter\((\d+)\)[^<>]*/>",
+        RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// A SetTime macro. It fills the date and time values the row draws, and draws
+    /// nothing itself, so the whole tag goes.
+    /// </summary>
+    private static readonly Regex TimeSetter = new(
+        @"<\s*Time\([^<>]*\)\s*/>",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// A date or clock value drawn from a SetTime macro, such as
+    /// <c>&lt;Value&gt;TopLevelParameter(222)&lt;/Value&gt;</c>. TwoDigitValue pads
+    /// the value to two digits.
+    /// </summary>
+    private static readonly Regex TimeValue = new(
+        @"<(Value|TwoDigitValue)>TopLevelParameter\((\d+)\)</\1>",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    /// <summary>A numeric date such as 8/27, 27/8, 8/27/2026 or 2026/8/27.</summary>
+    private static readonly Regex NumericDate = new(
+        @"(?<![\d/])(\d{1,4})/(\d{1,2})(?:/(\d{1,4}))?(?![\d/])",
+        RegexOptions.CultureInvariant);
+
+    /// <summary>A clock value such as 8:00, 8:00:00 or 8:00 p.m.</summary>
+    private static readonly Regex ClockValue = new(
+        @"(?<![\d:])(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([aApP])\.?\s*[mM]\.?)?",
         RegexOptions.CultureInvariant);
 
     /// <summary>UI icon placeholders from the Chinese client; they are not text.</summary>
@@ -431,13 +458,20 @@ public sealed class SelectionDialogHandler : IDisposable
         string liveEnglish,
         IReadOnlyList<string>? captures = null,
         TranslationStore? store = null,
-        IReadOnlyList<int>? parameterIndices = null)
+        IReadOnlyList<int>? parameterIndices = null,
+        DateTime? now = null)
     {
         var questName = QuotedText.Match(liveEnglish).Groups[1].Value;
         var level = EnglishLevel.Match(liveEnglish).Groups[1].Value;
         var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
 
         var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
+
+        // A date or clock in the row is drawn from a SetTime macro. The game
+        // converts the timestamp to the player's local time, and it does not pass
+        // the result to the addon, so the values are read back from the English.
+        if (!TryResolveTimeValues(resolved, liveEnglish, now ?? DateTime.Now, out resolved))
+            return string.Empty;
 
         // Addon rows such as "Garden n: Patch n" use the first two integer
         // parameters. The numbers in the live prompt are their fallback value.
@@ -458,8 +492,8 @@ public sealed class SelectionDialogHandler : IDisposable
         if (currentNumber.Length > 0)
             numbers.Add(currentNumber.ToString());
 
-        // A Format or Time macro has no text of its own: it renders the value of
-        // the expression inside the tag. Replace the whole tag, or the macro strip
+        // A Format macro has no text of its own: it renders the value of the
+        // expression inside the tag. Replace the whole tag, or the macro strip
         // removes the value along with the tag.
         var missingValue = false;
         resolved = FormattedValue.Replace(resolved, match =>
@@ -531,6 +565,162 @@ public sealed class SelectionDialogHandler : IDisposable
         resolved = PrivateUseCharacter.Replace(resolved, string.Empty);
 
         return MacroNormalizer.CleanForDisplay(resolved);
+    }
+
+    /// <summary>
+    /// Fills the date and time values a Chinese Addon row draws from a SetTime
+    /// macro. Returns false when a value the row needs is not in the English line,
+    /// because a half-filled date reads worse than the English.
+    /// </summary>
+    private static bool TryResolveTimeValues(
+        string chinese,
+        string liveEnglish,
+        DateTime now,
+        out string resolved)
+    {
+        resolved = TimeSetter.Replace(chinese, string.Empty);
+
+        if (!resolved.Contains("TopLevelParameter(", StringComparison.Ordinal))
+            return true;
+
+        var date = ReadDate(liveEnglish, now);
+        var clock = ReadClock(liveEnglish);
+
+        var missing = false;
+        resolved = TimeValue.Replace(resolved, match =>
+        {
+            var value = ReadTopLevelValue(match.Groups[2].Value, date, clock);
+            if (value is null)
+            {
+                missing = true;
+                return match.Value;
+            }
+
+            return string.Equals(match.Groups[1].Value, "TwoDigitValue", StringComparison.OrdinalIgnoreCase)
+                ? value.PadLeft(2, '0')
+                : value;
+        });
+
+        return !missing;
+    }
+
+    /// <summary>
+    /// Reads the date the game drew in the English line. The year is often left
+    /// out. The prompt names a time close to now, so a month and day that have
+    /// already passed belong to next year.
+    /// </summary>
+    private static DateTime? ReadDate(string text, DateTime now)
+    {
+        var match = NumericDate.Match(text);
+        if (!match.Success)
+            return null;
+
+        var first = int.Parse(match.Groups[1].Value);
+        var second = int.Parse(match.Groups[2].Value);
+        var year = now.Year;
+        var hasYear = match.Groups[3].Success;
+
+        if (match.Groups[1].Value.Length >= 4)
+        {
+            // Year first, as in 2026/8/27.
+            if (!hasYear)
+                return null;
+
+            year = first;
+            first = second;
+            second = int.Parse(match.Groups[3].Value);
+        }
+        else if (hasYear)
+        {
+            year = int.Parse(match.Groups[3].Value);
+            if (year < 100)
+                year += 2000;
+        }
+
+        // The English client writes the month first. A number above 12 can only
+        // be a day, so a client that writes the day first still reads right.
+        var month = first;
+        var day = second;
+        if (first > 12)
+        {
+            month = second;
+            day = first;
+        }
+
+        if (month is < 1 or > 12 || day is < 1 or > 31)
+            return null;
+
+        if (day > DateTime.DaysInMonth(year, month))
+            return null;
+
+        var date = new DateTime(year, month, day);
+        if (!hasYear && date < now.Date)
+            date = date.AddYears(1);
+
+        return date;
+    }
+
+    /// <summary>Reads the clock time the game drew in the English line.</summary>
+    private static (int Hour, int Minute, int Second)? ReadClock(string text)
+    {
+        var match = ClockValue.Match(text);
+        if (!match.Success)
+            return null;
+
+        var hour = int.Parse(match.Groups[1].Value);
+        var minute = int.Parse(match.Groups[2].Value);
+        var second = match.Groups[3].Success ? int.Parse(match.Groups[3].Value) : 0;
+
+        if (match.Groups[4].Success)
+        {
+            var afternoon = char.ToLowerInvariant(match.Groups[4].Value[0]) == 'p';
+            hour = (hour % 12) + (afternoon ? 12 : 0);
+        }
+
+        if (hour > 23 || minute > 59 || second > 59)
+            return null;
+
+        return (hour, minute, second);
+    }
+
+    /// <summary>
+    /// Reads one date or clock value by its TopLevelParameter index. The SetTime
+    /// macro sets 222 year, 221 month, 220 weekday, 219 day, 218 hour, 217 minute,
+    /// 216 second and 215 millisecond.
+    /// </summary>
+    private static string? ReadTopLevelValue(
+        string indexText,
+        DateTime? date,
+        (int Hour, int Minute, int Second)? clock)
+    {
+        if (!int.TryParse(indexText, out var index))
+            return null;
+
+        if (index is 215 or 216 or 217 or 218)
+        {
+            if (clock is not { } clockTime)
+                return null;
+
+            return index switch
+            {
+                215 => "0",
+                216 => clockTime.Second.ToString(),
+                217 => clockTime.Minute.ToString(),
+                _ => clockTime.Hour.ToString(),
+            };
+        }
+
+        if (date is not { } parsedDate)
+            return null;
+
+        return index switch
+        {
+            219 => parsedDate.Day.ToString(),
+            220 => ((int)parsedDate.DayOfWeek + 1).ToString(),
+            221 => parsedDate.Month.ToString(),
+            222 => parsedDate.Year.ToString(),
+            _ => null,
+        };
     }
 
     private static string ResolveItemMacros(

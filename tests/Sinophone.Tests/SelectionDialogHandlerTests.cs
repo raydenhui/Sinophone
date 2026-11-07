@@ -134,6 +134,60 @@ public class SelectionDialogHandlerTests
             "<Format(IntegerParameter(2),FF022C)/>", "No values here."));
     }
 
+    [Fact]
+    public void ResolveAddonText_FillsDateAndClockFromLiveLine()
+    {
+        // Addon row 2384. The SetTime macro fills the date and clock values but
+        // draws nothing, so the values have to come from the English line.
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            VenturePrompt, "View venture report. (Complete on 8/27 8:00)",
+            now: new DateTime(2026, 8, 20));
+
+        Assert.Equal("查看雇员探险情况　[～2026/8/27 8:00]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReadsDayFirstDate()
+    {
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            VenturePrompt, "View venture report. (Complete on 27/8 8:00)",
+            now: new DateTime(2026, 8, 20));
+
+        Assert.Equal("查看雇员探险情况　[～2026/8/27 8:00]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_UsesNextYear_WhenTheDateHasPassed()
+    {
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            VenturePrompt, "View venture report. (Complete on 8/27 8:00)",
+            now: new DateTime(2026, 11, 7));
+
+        Assert.Equal("查看雇员探险情况　[～2027/8/27 8:00]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReadsAfternoonClock()
+    {
+        const string chinese =
+            "<Time(IntegerParameter(1))/><Value>TopLevelParameter(218)</Value>:" +
+            "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>";
+
+        Assert.Equal("20:00", SelectionDialogHandler.ResolveAddonText(chinese, "8:00 p.m."));
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenTheDateIsMissing()
+    {
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(VenturePrompt, "View venture report."));
+    }
+
+    private const string VenturePrompt =
+        "查看雇员探险情况　[～<Time(IntegerParameter(1))/>" +
+        "<Value>TopLevelParameter(222)</Value>/<Value>TopLevelParameter(221)</Value>/" +
+        "<Value>TopLevelParameter(219)</Value> <Value>TopLevelParameter(218)</Value>:" +
+        "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>]";
+
     private static TranslationStore LoadStore(string json)
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
