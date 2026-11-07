@@ -20,6 +20,11 @@ game displays, which is then mapped to Chinese.
 
 Support for the other three game languages — **Japanese, German, and French** — is planned.
 
+## Compatibility
+
+Sinophone only changes what is drawn on screen. It does not change the game's data or the text
+other plugins read, so other plugins still see the English text. It works alongside them.
+
 ## Requirements
 
 - Dalamud API 15 (`Dalamud.NET.SDK/15.0.0`)
