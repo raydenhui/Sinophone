@@ -92,6 +92,13 @@ public sealed class Configuration : IPluginConfiguration
     public bool ShowItemName { get; set; }
 
     /// <summary>
+    /// Write the Chinese item name into the game's own item tooltip instead of drawing
+    /// an overlay. Needs a font mod, because the game font has no CJK glyphs. Off by
+    /// default. A tooltip the plugin cannot write falls back to the overlay.
+    /// </summary>
+    public bool ItemNameNativeMode { get; set; }
+
+    /// <summary>
     /// Translate the game's selection dialogs in place. Native text only: the
     /// English prompt and options are replaced with Chinese, with no overlay.
     /// Off by default because it needs a CJK font mod.
@@ -114,9 +121,9 @@ public sealed class Configuration : IPluginConfiguration
     public bool SelectionCutScene { get; set; } = true;
 
     /// <summary>
-    /// Show the English name under the translated name in the item name window.
-    /// The target name has its own switch, <see cref="TargetNameShowEnglish"/>.
-    /// The Talk overlay always shows both names on one line.
+    /// Show the English name with the Chinese name in the item name surface. It follows
+    /// the Chinese name in brackets on the same line, like an NPC nameplate. Off shows
+    /// Chinese only. The target name has its own switch, <see cref="TargetNameShowEnglish"/>.
     /// </summary>
     public bool ShowOriginal { get; set; } = true;
 

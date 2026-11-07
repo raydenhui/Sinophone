@@ -304,7 +304,8 @@ public sealed unsafe class NativeTextWriter
             RestoreAt(key.Addon, key.Address);
     }
 
-    private void RestoreAt(string addonName, nint address)
+    /// <summary>Puts the game's own text back into one exact node.</summary>
+    public void RestoreAt(string addonName, nint address)
     {
         var key = (addonName, address);
         if (!_savedAt.Remove(key, out var saved))

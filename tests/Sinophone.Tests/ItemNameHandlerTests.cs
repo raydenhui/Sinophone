@@ -46,6 +46,19 @@ public class ItemNameHandlerTests
     public void Resolve_ReturnsNull_WhenNameHasNoTranslation()
         => Assert.Null(ItemNameHandler.Resolve(CreateStore(), 9999, "Unknown Item"));
 
+    [Fact]
+    public void FormatItemName_UsesChineseOnly_WhenEnglishIsOff()
+        => Assert.Equal("火之碎晶", ItemNameHandler.FormatItemName("火之碎晶", "Fire Crystal", false));
+
+    [Fact]
+    public void FormatItemName_PutsEnglishInBracketsOnTheSameLine()
+        => Assert.Equal("火之碎晶 (Fire Crystal)",
+            ItemNameHandler.FormatItemName("火之碎晶", "Fire Crystal", true));
+
+    [Fact]
+    public void FormatItemName_UsesChineseOnly_WhenEnglishNameIsEmpty()
+        => Assert.Equal("火之碎晶", ItemNameHandler.FormatItemName("火之碎晶", string.Empty, true));
+
     private static TranslationStore CreateStore()
     {
         var descriptor = new FakeSheetDescriptor(SheetName, FieldName, true,

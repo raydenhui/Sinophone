@@ -1,15 +1,25 @@
+using FFXIVClientStructs.FFXIV.Client.UI;
+
 namespace Sinophone.Handlers;
 
 /// <summary>
-/// Watches the item under the mouse and feeds the Chinese item name to the item
-/// name window.
+/// Watches the item under the mouse and shows the Chinese item name, either in the
+/// item name window or in the game's own item tooltip.
 /// </summary>
 /// <remarks>
 /// The game raises <see cref="IGameGui.HoveredItemChanged"/> when the hovered
 /// item changes, so nothing is read per frame.
+/// <para>
+/// Native mode writes into the tooltip's name node, which the game lays out itself.
+/// The handler also listens to the tooltip addon, because the hovered item can change
+/// before the addon has its new text. A tooltip with no name node falls back to the
+/// overlay, so the setting never shows nothing.
+/// </para>
 /// </remarks>
-public sealed class ItemNameHandler : IDisposable
+public sealed unsafe class ItemNameHandler : IDisposable
 {
+    private const string ItemDetailAddon = "ItemDetail";
+
     /// <summary>
     /// The game adds this to the id of a high-quality item.
     /// </summary>
@@ -28,31 +38,46 @@ public sealed class ItemNameHandler : IDisposable
 
     private readonly IGameGui _gameGui;
     private readonly IDataManager _dataManager;
+    private readonly IAddonLifecycle _addonLifecycle;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly ItemNameWindow _window;
+    private readonly NativeTextWriter _nativeWriter;
     private readonly PluginLog _log;
     private readonly EventHandler<ulong> _onHoveredItemChanged;
+    private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
+
+    /// <summary>The tooltip name node this handler changed, or 0 when it changed none.</summary>
+    private nint _tooltipNode;
 
     private bool _disposed;
 
     public ItemNameHandler(
         IGameGui gameGui,
         IDataManager dataManager,
+        IAddonLifecycle addonLifecycle,
         Configuration configuration,
         Func<TranslationStore?> getStore,
         ItemNameWindow window,
+        NativeTextWriter nativeWriter,
         IPluginLog log)
     {
         _gameGui = gameGui;
         _dataManager = dataManager;
+        _addonLifecycle = addonLifecycle;
         _configuration = configuration;
         _getStore = getStore;
         _window = window;
+        _nativeWriter = nativeWriter;
         _log = new PluginLog(log, configuration, LogCategory.ItemNames);
         _onHoveredItemChanged = OnHoveredItemChanged;
+        _onAddonEvent = OnAddonEvent;
 
         _gameGui.HoveredItemChanged += _onHoveredItemChanged;
+        _addonLifecycle.RegisterListener(AddonEvent.PostSetup, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostRefresh, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PostHide, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, ItemDetailAddon, _onAddonEvent);
     }
 
     /// <summary>Re-reads the hovered item. Call after a settings or store change.</summary>
@@ -72,11 +97,31 @@ public sealed class ItemNameHandler : IDisposable
         Show(itemId);
     }
 
+    /// <summary>
+    /// The tooltip addon is rebuilt for each hovered item. The hover can change before
+    /// the addon has its new text, so write again once the addon settles. A hide or a
+    /// finalize means the tooltip is going away; drop the saved text rather than write
+    /// it into a node the game no longer owns.
+    /// </summary>
+    private void OnAddonEvent(AddonEvent eventType, AddonArgs args)
+    {
+        if (_disposed)
+            return;
+
+        if (eventType is AddonEvent.PostHide or AddonEvent.PreFinalize)
+        {
+            ForgetTooltip();
+            return;
+        }
+
+        Show(_gameGui.HoveredItem);
+    }
+
     private void Show(ulong hoveredItem)
     {
         if (!_configuration.Enabled || !_configuration.ShowItemName)
         {
-            _window.Hide();
+            HideAll();
             return;
         }
 
@@ -89,11 +134,98 @@ public sealed class ItemNameHandler : IDisposable
             if (itemId != 0 && !string.IsNullOrEmpty(englishName))
                 _log.Debug("No Chinese name for item {ItemId} ({Name}).", itemId, englishName);
 
+            HideAll();
+            return;
+        }
+
+        if (_configuration.ItemNameNativeMode && TryWriteTooltip(content.Value))
+        {
             _window.Hide();
             return;
         }
 
+        // Overlay mode, or native mode with no tooltip node to write. The overlay is
+        // the fallback, so the item keeps a Chinese name either way.
+        RestoreTooltip();
         _window.SetName(content.Value.ChineseName, content.Value.EnglishName);
+    }
+
+    private void HideAll()
+    {
+        RestoreTooltip();
+        _window.Hide();
+    }
+
+    /// <summary>
+    /// Writes the name into the tooltip's own name node. Returns false when the addon
+    /// or the node is missing, so the caller can show the overlay instead.
+    /// </summary>
+    private bool TryWriteTooltip(ItemNameContent content)
+    {
+        var node = CurrentNameNode();
+        if (node == 0)
+        {
+            _log.Debug("Native item name: {Addon} has no name node.", ItemDetailAddon);
+            return false;
+        }
+
+        if (_tooltipNode != 0 && _tooltipNode != node)
+            _nativeWriter.ForgetAt(ItemDetailAddon, _tooltipNode);
+
+        var text = FormatItemName(content.ChineseName, content.EnglishName, _configuration.ShowOriginal);
+        if (!_nativeWriter.WriteAt(ItemDetailAddon, node, text))
+            return false;
+
+        _tooltipNode = node;
+        _log.Debug("Native item name: {English} -> {Text}.", content.EnglishName, text);
+        return true;
+    }
+
+    /// <summary>Puts the game's own item name back into the tooltip.</summary>
+    private void RestoreTooltip()
+    {
+        if (_tooltipNode == 0)
+            return;
+
+        // The addon may have closed, and the freed node may hold another addon's
+        // text now. Only write when the tooltip still points at the node we changed.
+        if (CurrentNameNode() == _tooltipNode)
+            _nativeWriter.RestoreAt(ItemDetailAddon, _tooltipNode);
+        else
+            _nativeWriter.ForgetAt(ItemDetailAddon, _tooltipNode);
+
+        _tooltipNode = 0;
+    }
+
+    /// <summary>Drops the saved name without writing it back, for a tooltip that closed.</summary>
+    private void ForgetTooltip()
+    {
+        if (_tooltipNode == 0)
+            return;
+
+        _nativeWriter.ForgetAt(ItemDetailAddon, _tooltipNode);
+        _tooltipNode = 0;
+    }
+
+    private nint CurrentNameNode()
+    {
+        var addon = (AddonItemDetail*)_gameGui.GetAddonByName<AtkUnitBase>(ItemDetailAddon, 1);
+        if (addon is null || addon->ItemNameText is null)
+            return 0;
+
+        return (nint)addon->ItemNameText;
+    }
+
+    /// <summary>
+    /// Builds the name to show. The tooltip draws one line, so the English name follows
+    /// the Chinese name in brackets, the same shape the nameplates use.
+    /// </summary>
+    internal static string FormatItemName(string chineseName, string englishName, bool showEnglish)
+    {
+        if (!showEnglish || string.IsNullOrWhiteSpace(englishName))
+            return chineseName;
+
+        return $"{chineseName} ({englishName})";
     }
 
     private string? GetEnglishName(uint itemId)
@@ -153,6 +285,12 @@ public sealed class ItemNameHandler : IDisposable
         _disposed = true;
 
         _gameGui.HoveredItemChanged -= _onHoveredItemChanged;
+        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PostHide, ItemDetailAddon, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, ItemDetailAddon, _onAddonEvent);
+
+        RestoreTooltip();
         _window.Hide();
     }
 }

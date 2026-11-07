@@ -23,6 +23,8 @@ public class ConfigurationTests
         Assert.False(config.ShowTargetName);
         Assert.True(config.TargetNameShowEnglish);
         Assert.False(config.ShowItemName);
+        // Native item names need a font mod, so the overlay is the default mode.
+        Assert.False(config.ItemNameNativeMode);
         Assert.False(config.ShowInSelectionDialogs);
         Assert.True(config.SelectionYesNo);
         Assert.True(config.SelectionString);

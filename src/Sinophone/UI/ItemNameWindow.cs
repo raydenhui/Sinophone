@@ -92,13 +92,21 @@ public sealed class ItemNameWindow : Window
         ImGui.TextUnformatted(_chineseName);
         ImGui.PopStyleColor();
 
-        if (_configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName))
+        // One line, the same shape as a nameplate: the English name follows the
+        // Chinese name in brackets.
+        if (ShowEnglish)
         {
+            ImGui.SameLine(0f, ImGui.GetStyle().ItemInnerSpacing.X);
             ImGui.PushStyleColor(ImGuiCol.Text, _configuration.GetItemNameOriginalColor());
-            ImGui.TextUnformatted(_englishName);
+            ImGui.TextUnformatted(EnglishText);
             ImGui.PopStyleColor();
         }
     }
+
+    private bool ShowEnglish
+        => _configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName);
+
+    private string EnglishText => $"({_englishName})";
 
     private Vector2 MeasureSize()
     {
@@ -106,17 +114,16 @@ public sealed class ItemNameWindow : Window
         using var font = fontHandle?.Push();
 
         var style = ImGui.GetStyle();
-        var showOriginal = _configuration.ShowOriginal && !string.IsNullOrWhiteSpace(_englishName);
+        var chineseSize = ImGui.CalcTextSize(_chineseName, false, -1f);
+        var width = chineseSize.X;
+        var height = chineseSize.Y;
 
-        var textSize = ImGui.CalcTextSize(_chineseName, false, -1f);
-        var width = textSize.X;
-
-        if (showOriginal)
-            width = MathF.Max(width, ImGui.CalcTextSize(_englishName, false, -1f).X);
-
-        var height = textSize.Y;
-        if (showOriginal)
-            height += style.ItemSpacing.Y + ImGui.CalcTextSize(_englishName, false, -1f).Y;
+        if (ShowEnglish)
+        {
+            var englishSize = ImGui.CalcTextSize(EnglishText, false, -1f);
+            width += style.ItemInnerSpacing.X + englishSize.X;
+            height = MathF.Max(height, englishSize.Y);
+        }
 
         return new Vector2(
             width + style.WindowPadding.X * 2f,

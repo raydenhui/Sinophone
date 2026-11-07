@@ -55,6 +55,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastShowTargetName;
     private bool _lastTargetNameShowEnglish;
     private bool _lastShowItemName;
+    private bool _lastItemNameNativeMode;
+    private bool _lastItemNameShowEnglish;
     private bool _lastNativeTextMode;
     private bool _lastShowInSelectionDialogs;
     private bool _lastSelectionYesNo;
@@ -95,6 +97,8 @@ public sealed class Plugin : IDalamudPlugin
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
         _lastShowItemName = _configuration.ShowItemName;
+        _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
+        _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
@@ -161,9 +165,11 @@ public sealed class Plugin : IDalamudPlugin
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
+            AddonLifecycle,
             _configuration,
             () => _store,
             _itemNameWindow,
+            _nativeTextWriter,
             Log);
 
         // Parsing the artifacts is the slow half and touches no game state, so it
@@ -515,7 +521,9 @@ public sealed class Plugin : IDalamudPlugin
 
         var needsItemRefresh = needsStoreReload
                                || _configuration.Enabled != _lastEnabled
-                               || _configuration.ShowItemName != _lastShowItemName;
+                               || _configuration.ShowItemName != _lastShowItemName
+                               || _configuration.ItemNameNativeMode != _lastItemNameNativeMode
+                               || _configuration.ShowOriginal != _lastItemNameShowEnglish;
 
         var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
         var selectionSettingsChanged = _lastShowInSelectionDialogs != _configuration.ShowInSelectionDialogs
@@ -534,6 +542,8 @@ public sealed class Plugin : IDalamudPlugin
         _lastShowTargetName = _configuration.ShowTargetName;
         _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
         _lastShowItemName = _configuration.ShowItemName;
+        _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
+        _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
