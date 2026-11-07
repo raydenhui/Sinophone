@@ -21,7 +21,7 @@ changes instead.
 ### Log groups
 
 The settings window has a **Logs** tab that turns each group of detail messages on or off:
-dialogue lookups, native text writes, selection dialogs, NPC nameplates, item names,
+dialogue lookups, native text writes, selection dialogs, nameplates, item names,
 translation data, the plugin itself, and the debug probes. This is how a user silences the
 one-line-per-nameplate `Native name:` messages without losing the rest.
 
