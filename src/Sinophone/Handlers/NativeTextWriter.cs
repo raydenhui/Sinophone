@@ -124,6 +124,24 @@ public sealed unsafe class NativeTextWriter
     public void ForgetAt(string addonName, nint address)
         => _savedAt.Remove((addonName, address));
 
+    /// <summary>
+    /// Reads the size the game gave an exact node before the first write. A caller that
+    /// fits the node to a translation uses it to keep the line where the game drew it.
+    /// </summary>
+    public bool TryGetOriginalSize(string addonName, nint address, out ushort width, out ushort height)
+    {
+        if (_savedAt.TryGetValue((addonName, address), out var saved))
+        {
+            width = saved.OriginalWidth;
+            height = saved.OriginalHeight;
+            return true;
+        }
+
+        width = 0;
+        height = 0;
+        return false;
+    }
+
     /// <summary>True when the exact node still holds text this writer put there.</summary>
     public bool IsStillOursAt(string addonName, nint address)
     {

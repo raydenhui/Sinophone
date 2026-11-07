@@ -20,6 +20,9 @@ public sealed unsafe class ItemNameHandler : IDisposable
 {
     private const string ItemDetailAddon = "ItemDetail";
 
+    /// <summary>Space the tooltip keeps on the right of the name.</summary>
+    private const int NameRightMargin = 8;
+
     /// <summary>
     /// The game adds this to the id of a high-quality item.
     /// </summary>
@@ -49,6 +52,12 @@ public sealed unsafe class ItemNameHandler : IDisposable
 
     /// <summary>The tooltip name node this handler changed, or 0 when it changed none.</summary>
     private nint _tooltipNode;
+
+    /// <summary>Lines the current tooltip name uses. Two when both languages do not fit on one.</summary>
+    private int _tooltipLines = 1;
+
+    /// <summary>Height of one line in the tooltip font, for the two-line name.</summary>
+    private ushort _tooltipLineHeight;
 
     private bool _disposed;
 
@@ -199,6 +208,16 @@ public sealed unsafe class ItemNameHandler : IDisposable
             _nativeWriter.ForgetAt(ItemDetailAddon, _tooltipNode);
 
         var text = FormatItemName(content.ChineseName, content.EnglishName, _configuration.ShowOriginal);
+        var (textWidth, lineHeight) = MeasureText((AtkTextNode*)node, text);
+        var available = AvailableWidth((AtkTextNode*)node);
+
+        // The tooltip is not wide enough for both languages on one line, so the
+        // English name goes on a second line instead of running past the window.
+        _tooltipLines = available > 0 && textWidth > available ? 2 : 1;
+        _tooltipLineHeight = lineHeight;
+        if (_tooltipLines == 2)
+            text = FormatItemName(content.ChineseName, content.EnglishName, _configuration.ShowOriginal, twoLines: true);
+
         if (!_nativeWriter.WriteAt(ItemDetailAddon, node, text))
             return false;
 
@@ -207,9 +226,9 @@ public sealed unsafe class ItemNameHandler : IDisposable
 
         var nameNode = (AtkTextNode*)node;
         _log.Debug(
-            "Native item name: {English} -> {Text} (node at {X},{Y} {Width}x{Height}, flags {Flags}).",
+            "Native item name: {English} -> {Text} (node at {X},{Y} {Width}x{Height}, flags {Flags}, {Lines} line(s), {Available} px).",
             content.EnglishName, text, nameNode->X, nameNode->Y, nameNode->Width,
-            nameNode->Height, nameNode->TextFlags);
+            nameNode->Height, nameNode->TextFlags, _tooltipLines, available);
         return true;
     }
 
@@ -219,11 +238,11 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// wrap comes off and the node grows to the text.
     /// </summary>
     /// <remarks>
-    /// The height is set to the measured line, not grown. A node left taller than its
-    /// text keeps the extra height, and the text sits at the bottom of the box, a few
-    /// lines below the header, over the description.
+    /// The height goes back to what the game gave the English name, plus one line when
+    /// the English name moved to a second line. Any other height moves the line off the
+    /// place the game drew the original, either under it or above it.
     /// </remarks>
-    private static unsafe void FitTooltipName(nint address)
+    private void FitTooltipName(nint address)
     {
         var node = (AtkTextNode*)address;
         if (node is null)
@@ -235,12 +254,43 @@ public sealed unsafe class ItemNameHandler : IDisposable
         ushort height = 0;
         node->GetTextDrawSize(&width, &height);
 
+        if (!_nativeWriter.TryGetOriginalSize(ItemDetailAddon, address, out var originalWidth, out var originalHeight))
+        {
+            originalWidth = node->Width;
+            originalHeight = node->Height;
+        }
+
         // The width only grows, so the name is never clipped.
-        if (width > node->Width)
+        if (width > originalWidth)
             node->Width = width;
 
-        if (height > 0)
-            node->Height = height;
+        node->Height = (ushort)(originalHeight + ((_tooltipLines - 1) * _tooltipLineHeight));
+    }
+
+    /// <summary>Measures a candidate name without writing it into the node.</summary>
+    private static unsafe (ushort Width, ushort Height) MeasureText(AtkTextNode* node, string text)
+    {
+        var utf8 = Encoding.UTF8.GetBytes(text);
+        ushort width = 0;
+        ushort height = 0;
+        fixed (byte* pointer = utf8)
+            node->GetTextDrawSize(&width, &height, pointer);
+
+        return (width, height);
+    }
+
+    /// <summary>
+    /// Width the tooltip gives the name, or 0 when the addon is not up yet. The name
+    /// starts after the icon, so the space is what is left of the window from there.
+    /// </summary>
+    private ushort AvailableWidth(AtkTextNode* node)
+    {
+        var addon = (AtkUnitBase*)_gameGui.GetAddonByName<AtkUnitBase>(ItemDetailAddon, 1);
+        if (addon is null || addon->RootNode is null)
+            return 0;
+
+        var available = (int)addon->RootNode->Width - node->X - NameRightMargin;
+        return available <= 0 ? (ushort)0 : (ushort)available;
     }
 
     /// <summary>Puts the game's own item name back into the tooltip.</summary>
@@ -279,15 +329,22 @@ public sealed unsafe class ItemNameHandler : IDisposable
     }
 
     /// <summary>
-    /// Builds the name to show. The tooltip draws one line, so the English name follows
-    /// the Chinese name in brackets, the same shape the nameplates use.
+    /// Builds the name to show. The tooltip normally draws one line, so the English name
+    /// follows the Chinese name in brackets, the same shape the nameplates use. When the
+    /// two names do not fit on one line, the English name moves to the second line.
     /// </summary>
-    internal static string FormatItemName(string chineseName, string englishName, bool showEnglish)
+    internal static string FormatItemName(
+        string chineseName,
+        string englishName,
+        bool showEnglish,
+        bool twoLines = false)
     {
         if (!showEnglish || string.IsNullOrWhiteSpace(englishName))
             return chineseName;
 
-        return $"{chineseName} ({englishName})";
+        return twoLines
+            ? $"{chineseName}\n({englishName})"
+            : $"{chineseName} ({englishName})";
     }
 
     private string? GetEnglishName(uint itemId)

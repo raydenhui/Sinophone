@@ -283,11 +283,13 @@ premature interface.
   has no name node falls back to the overlay, so native mode never shows nothing. The tooltip
   writes its own name again while it is open, so the handler also reapplies on every `PreDraw`,
   the same guarded per-frame write the Talk window uses. The tooltip sizes the name node to the
-  English name, so the handler clears `WordWrap`, grows the width, and sets the height to one
-  measured line; do not drop that step or a Chinese name wraps into lines of a few characters.
-  Setting the height matters: growing it leaves a tall box, and the line draws at the bottom,
-  over the item description. A write also saves the node's width and height, and the restore puts
-  them back, so the English name returns to the exact place it was drawn before. The saved English
+  English name, so the handler clears `WordWrap` and grows the width to the text; do not drop that
+  step or a Chinese name wraps into lines of a few characters. The height goes back to the size
+  the game gave the English name, plus one line when the English name moved to a second line.
+  Any other height moves the line off the game's own place, under the item description or above
+  the original line. When both languages are wider than the tooltip window, the English name moves
+  to a second line. A write also saves the node's width and height, and the restore puts them
+  back, so the English name returns to the exact place it was drawn before. The saved English
   name goes back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead,
   because the node may already belong to another addon.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above

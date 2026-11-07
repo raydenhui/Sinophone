@@ -59,6 +59,16 @@ public class ItemNameHandlerTests
     public void FormatItemName_UsesChineseOnly_WhenEnglishNameIsEmpty()
         => Assert.Equal("火之碎晶", ItemNameHandler.FormatItemName("火之碎晶", string.Empty, true));
 
+    [Fact]
+    public void FormatItemName_PutsEnglishOnTheSecondLine_WhenTheNameIsTooWide()
+        => Assert.Equal("火之碎晶\n(Fire Crystal)",
+            ItemNameHandler.FormatItemName("火之碎晶", "Fire Crystal", true, twoLines: true));
+
+    [Fact]
+    public void FormatItemName_KeepsOneLine_WhenTheEnglishNameIsOff()
+        => Assert.Equal("火之碎晶",
+            ItemNameHandler.FormatItemName("火之碎晶", "Fire Crystal", false, twoLines: true));
+
     private static TranslationStore CreateStore()
     {
         var descriptor = new FakeSheetDescriptor(SheetName, FieldName, true,

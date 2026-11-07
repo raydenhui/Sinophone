@@ -221,10 +221,14 @@ gives the Chinese.
   window, the handler calls `ReapplyAt` on every tooltip `PreDraw`. That path compares the node
   bytes with the last write, so matching text costs no allocation.
 - The tooltip sizes the name node to the English name, so a longer Chinese name wraps into lines
-  of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis`, grows the width to the
-  measured text, and sets the height to the measured line. The height is not grown: a taller box
-  keeps the extra space and draws the line at its bottom, over the item description. It runs after
-  every write and on every reapply, because the game can reset the size.
+  of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis` and grows the width to the
+  measured text. The height goes back to what the game gave the English name, plus one line when
+  the English name moved to a second line. Any other height moves the line off the place the game
+  drew the original, either under it or above it. It runs after every write and on every reapply,
+  because the game can reset the size.
+- The name is one line when it fits the tooltip. When the Chinese and English names are wider than
+  the space left in the tooltip window, the English name moves to a second line. The window width
+  comes from the addon's root node; before the addon is up, the name stays on one line.
 - A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
   Native mode never shows nothing.
 - When the item changes, the handler forgets the saved text for the old node. When the setting is
@@ -235,8 +239,9 @@ gives the Chinese.
 - The node address is checked against the live addon before a restore, so a stale address is never
   written.
 
-The name is one line in both modes. `ShowOriginal` puts the English name in brackets after the
-Chinese name, the same shape the nameplates use; off shows Chinese only.
+`ShowOriginal` puts the English name in brackets after the Chinese name, the same shape the
+nameplates use; off shows Chinese only. The overlay keeps the name on one line. Native mode moves
+the English name to a second line when both names are too wide for the tooltip.
 
 ### Runtime data updates
 
