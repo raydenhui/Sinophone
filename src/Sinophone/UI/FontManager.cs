@@ -12,6 +12,30 @@ public sealed class FontManager : IDisposable
     private static readonly string[] TraditionalFontCandidates = ["msjh.ttc", "msjh.ttf", "mingliub.ttc"];
     private static readonly string[] SimplifiedFontCandidates = ["msyh.ttc", "msyh.ttf", "simsun.ttc"];
 
+    /// <summary>
+    /// The glyphs the overlay can draw: Latin, punctuation, and CJK. Building the
+    /// atlas for all of Unicode stalled the game at load, because ImGui tries every
+    /// codepoint in the range before drawing a frame.
+    /// </summary>
+    private static readonly UnicodeRange[] GlyphRanges =
+    [
+        UnicodeRanges.BasicLatin,
+        UnicodeRanges.Latin1Supplement,
+        UnicodeRanges.LatinExtendedA,
+        UnicodeRanges.LatinExtendedB,
+        UnicodeRanges.LatinExtendedAdditional,
+        UnicodeRanges.GreekandCoptic,
+        UnicodeRanges.Cyrillic,
+        UnicodeRanges.GeneralPunctuation,
+        UnicodeRanges.CjkSymbolsandPunctuation,
+        UnicodeRanges.Hiragana,
+        UnicodeRanges.Katakana,
+        UnicodeRanges.CjkUnifiedIdeographsExtensionA,
+        UnicodeRanges.CjkUnifiedIdeographs,
+        UnicodeRanges.CjkCompatibilityIdeographs,
+        UnicodeRanges.HalfwidthandFullwidthForms,
+    ];
+
     private readonly IFontAtlas _atlas;
     private readonly Configuration _configuration;
 
@@ -66,7 +90,7 @@ public sealed class FontManager : IDisposable
         _handle = _atlas.NewDelegateFontHandle(e => e.OnPreBuild(toolkit =>
         {
             var ranges = default(FluentGlyphRangeBuilder)
-                .With(UnicodeRanges.All)
+                .With(GlyphRanges)
                 .Build();
 
             var fontConfig = new SafeFontConfig

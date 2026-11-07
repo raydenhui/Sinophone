@@ -51,6 +51,9 @@ The overlay draws every frame while a Talk window is open. Keep these rules:
 - Do not re-read game sheets per frame. Index once at load.
 - Rebuild the font atlas only when font settings change. `FontManager.Rebuild` already checks this;
   keep the check.
+- Build the atlas for the glyph ranges the text needs. `FontManager.GlyphRanges` lists Latin,
+  punctuation, and CJK. `UnicodeRanges.All` makes ImGui try every codepoint in Unicode, which froze
+  the game for several seconds at load.
 - Normalization runs once per lookup. Do not call it twice for the same text.
 
 When you add work to a per-frame path, say in the PR what the cost is and why it is acceptable.
