@@ -162,6 +162,38 @@ public class TranslationDataUpdaterTests
     }
 
     [Fact]
+    public void SourceIdentity_ChangesWhenTheInstalledFileChanges()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var configuration = new Configuration
+            {
+                HasSimplifiedData = true,
+                LastDataVersion = "v1",
+            };
+            var updater = new TranslationDataUpdater(configuration, directory, new FakePluginLog());
+            var path = updater.DataFilePath(ChineseVariant.Simplified);
+
+            // With no downloaded file the identity follows the assembly build.
+            var embedded = updater.SourceIdentity(ChineseVariant.Simplified);
+            Assert.StartsWith("embedded:", embedded, StringComparison.Ordinal);
+
+            File.WriteAllBytes(path, [1, 2, 3]);
+            var first = updater.SourceIdentity(ChineseVariant.Simplified);
+            Assert.NotEqual(embedded, first);
+
+            File.WriteAllBytes(path, [1, 2, 3, 4]);
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+            Assert.NotEqual(first, updater.SourceIdentity(ChineseVariant.Simplified));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void NewUpdater_IsIdleAndHasNoPendingReload()
     {
         var directory = CreateTemporaryDirectory();

@@ -101,6 +101,23 @@ public sealed class TranslationDataUpdater : IDisposable
     internal bool ShouldUseDownloadedFile(ChineseVariant variant, bool fileExists)
         => fileExists && IsInstalled(variant);
 
+    /// <summary>
+    /// Identifies the data a variant's index was built from, so the index cache can
+    /// tell whether it is still valid. A downloaded file is identified by its size
+    /// and write time; the embedded copy changes only with a new plugin build.
+    /// </summary>
+    internal string SourceIdentity(ChineseVariant variant)
+    {
+        var path = DataFilePath(variant);
+        if (ShouldUseDownloadedFile(variant, File.Exists(path)))
+        {
+            var file = new FileInfo(path);
+            return $"{file.Length}:{file.LastWriteTimeUtc.Ticks}";
+        }
+
+        return $"embedded:{typeof(TranslationStore).Assembly.ManifestModule.ModuleVersionId}";
+    }
+
     /// <summary>True when a file the current settings need is not on disk.</summary>
     public bool IsMissingRequiredFile()
         => RequiredVariants().Any(variant => !File.Exists(DataFilePath(variant)));
@@ -317,8 +334,14 @@ public sealed class TranslationDataUpdater : IDisposable
 
     private async Task UpdateAsync(CancellationToken token)
     {
-        var manifest = await GetManifestAsync(token).ConfigureAwait(false)
-                       ?? throw new InvalidOperationException("Could not download the data manifest.");
+        var manifest = await GetManifestAsync(token).ConfigureAwait(false);
+
+        if (manifest is null)
+        {
+            // The update runs at every load, so a missing network is not an error.
+            SetState(s => s with { Progress = 0f, Status = "Could not reach the update server." });
+            return;
+        }
 
         if (manifest.FormatVersion != 1)
             throw new InvalidOperationException($"Unsupported data format version {manifest.FormatVersion}.");
