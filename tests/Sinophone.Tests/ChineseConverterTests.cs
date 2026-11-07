@@ -29,6 +29,16 @@ public class ChineseConverterTests
     }
 
     [Fact]
+    public void Convert_UsesTheTraditionalFormsTheTcDataUses()
+    {
+        // OpenCC's base table keeps older variants (爲, 裏, 纔). The TC game data
+        // uses the Taiwan forms, so the conversion must not put the old ones back.
+        Assert.Equal("剛才", ChineseConverter.Convert("刚才", ChineseConversion.SimplifiedToTraditional));
+        Assert.Equal("裡面", ChineseConverter.Convert("里面", ChineseConversion.SimplifiedToTraditional));
+        Assert.Equal("行為", ChineseConverter.Convert("行为", ChineseConversion.SimplifiedToTraditional));
+    }
+
+    [Fact]
     public void Convert_LeavesTextUnchanged_WhenDirectionIsNone()
     {
         const string text = "「行會令」指的是冒險者行會發行的特殊任務。";

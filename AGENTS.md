@@ -265,8 +265,10 @@ premature interface.
   runtime is not covered, and text that exists in no dump stays untranslated. Check the datamining
   CSVs before assuming a lookup bug.
 - **Conversion is not exact.** The optional simplified/traditional layer uses OpenCC tables with
-  one candidate per key. Converting back can pick a different variant, for example 為 becomes 为
-  and then 爲. It is a reading aid, not a replacement for the official text of that variant.
+  one candidate per key, mapped through OpenCC's Taiwan variant table because the TC game data
+  uses those forms: 為, 裡, 才, not 爲, 裏, 纔. Converting back can still pick a different
+  variant, for example 髮 becomes 发 and then 發. It is a reading aid, not a replacement for the
+  official text of that variant.
 - **Event items.** The item name surface reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
