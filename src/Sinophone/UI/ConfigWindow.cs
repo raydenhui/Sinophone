@@ -215,7 +215,7 @@ public sealed class ConfigWindow : Window
 
         Checkbox("Also show the English name in the item name overlay",
             _configuration.ShowOriginal, v => _configuration.ShowOriginal = v);
-        ImGui.TextDisabled("The target name has its own switch on its tab. " +
+        ImGui.TextDisabled("The nameplate switch is on its own tab. " +
                            "The Talk overlay always shows both names.");
 
         Section("Shared actions");
@@ -250,7 +250,7 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("NPC names"))
+        if (ImGui.BeginTabItem("Nameplates"))
         {
             DrawTargetNameComponentTab();
             ImGui.EndTabItem();
@@ -403,9 +403,10 @@ public sealed class ConfigWindow : Window
     {
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
         ImGui.TextWrapped(
-            "The Chinese name is written into the game's nameplate above every visible NPC. " +
+            "The Chinese name is written into the game's own nameplate above every visible NPC " +
+            "and object, such as a summoning bell, company chest, or door. " +
             "It needs a font mod, or the name shows the missing-glyph character. " +
-            "NPC nameplates must be visible in the game settings.");
+            "Nameplates must be visible in the game settings.");
         ImGui.PopStyleColor();
 
         if (ImGui.Selectable("Open the font setup guide"))
@@ -413,10 +414,10 @@ public sealed class ConfigWindow : Window
 
         ImGui.TextDisabled(FontSetupUrl);
 
-        Checkbox("Show the Chinese name above NPCs' heads", _configuration.ShowTargetName,
+        Checkbox("Show Chinese names on nameplates", _configuration.ShowTargetName,
             v => _configuration.ShowTargetName = v);
 
-        ImGui.TextDisabled("Every visible NPC nameplate is translated, not only the target. " +
+        ImGui.TextDisabled("Every visible nameplate is translated, not only the target. " +
             "Player names are not translated.");
 
         Checkbox("Show the English name too", _configuration.TargetNameShowEnglish,
@@ -527,9 +528,9 @@ public sealed class ConfigWindow : Window
             v => _configuration.LogSelectionDialogs = v,
             "Each prompt and option the plugin translates.");
 
-        LogGroup("NPC nameplates", _configuration.LogNamePlates,
+        LogGroup("Nameplates", _configuration.LogNamePlates,
             v => _configuration.LogNamePlates = v,
-            "One line for every NPC name it puts on a nameplate.");
+            "One line for every name it puts on a nameplate.");
 
         LogGroup("Item names", _configuration.LogItemNames,
             v => _configuration.LogItemNames = v,

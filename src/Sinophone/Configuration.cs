@@ -74,14 +74,14 @@ public sealed class Configuration : IPluginConfiguration
     public Vector4 OriginalTextColor { get; set; } = new(0.72f, 0.76f, 0.82f, 1f);
 
     /// <summary>
-    /// Show the Chinese name of every visible NPC in the game's own nameplate above its
-    /// head. Needs a font mod, because the game font has no CJK glyphs. Off by default.
+    /// Show the Chinese name of every visible NPC or object in the game's own nameplate
+    /// above it. Needs a font mod, because the game font has no CJK glyphs. Off by default.
     /// </summary>
     public bool ShowTargetName { get; set; }
 
     /// <summary>
     /// Show the English name with the Chinese name in the nameplate. It follows the
-    /// Chinese name in brackets on the same line, for every NPC plate.
+    /// Chinese name in brackets on the same line, for every nameplate.
     /// </summary>
     public bool TargetNameShowEnglish { get; set; } = true;
 
@@ -168,7 +168,7 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Selection dialog prompts and options.</summary>
     public bool LogSelectionDialogs { get; set; } = true;
 
-    /// <summary>NPC nameplate names.</summary>
+    /// <summary>Nameplate names.</summary>
     public bool LogNamePlates { get; set; } = true;
 
     /// <summary>Item name lookups.</summary>

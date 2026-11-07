@@ -262,18 +262,19 @@ premature interface.
   [README](README.md#font-setup).
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
-  at once. NPC nameplates follow `TargetNameShowEnglish` and the item name window follows
+  at once. Nameplates follow `TargetNameShowEnglish` and the item name window follows
   `ShowOriginal`; both put the English name with the Chinese name. Selection dialogs have their
   own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
-- **Native NPC names.** `ShowTargetName` puts Chinese names into the game's own nameplates above
-  every visible NPC, not only the target. It needs a font mod and NPC nameplates visible in the
-  game settings. The names change through Dalamud's nameplate API
+- **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
+  every visible NPC or object, such as a summoning bell, company chest, or door, not only the
+  target. It needs a font mod and nameplates visible in the game settings. The names change
+  through Dalamud's nameplate API
   (`INamePlateGui.OnNamePlateUpdate`), which runs before the game lays the plate out, so the game
   measures and bakes the Chinese text itself. Do not write the text node after the addon update,
   and do not change `NamePlateObject.TextW` or `TextH`: both cut the sides off a wider name and
   damaged the shared bake atlas. A plate shows one line, so the English name follows the Chinese
   name in brackets. A plate slot carries no object id, so the translation follows the name text;
-  two visible NPCs with the same name both get the Chinese name. `RequestRedraw` applies and
+  two visible objects with the same name both get the Chinese name. `RequestRedraw` applies and
   removes the names at once. Player characters are skipped.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
 

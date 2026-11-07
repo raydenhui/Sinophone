@@ -24,7 +24,7 @@ src/Sinophone/
     TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
-    NamePlateNameWriter.cs Translates the game's NPC nameplates through Dalamud's nameplate API.
+    NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
   UI/
     OverlayWindow.cs      The translation overlay.
@@ -156,12 +156,13 @@ game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 - Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
   are checked in game. A failed write falls back to the overlay.
 
-### Native NPC names
+### Native nameplates
 
-`Configuration.ShowTargetName` turns on NPC name translation in the game's own nameplates. Every
-visible NPC plate is translated, not only the target. `NamePlateNameWriter` replaces each plate's
-name through Dalamud's nameplate API (`INamePlateGui.OnNamePlateUpdate`). It is the only surface
-for NPC names: there is no overlay window for them.
+`Configuration.ShowTargetName` turns on name translation in the game's own nameplates. Every
+visible nameplate is translated, not only the target. This covers NPCs and objects such as a
+summoning bell, company chest, or door. `NamePlateNameWriter` replaces each plate's name through
+Dalamud's nameplate API (`INamePlateGui.OnNamePlateUpdate`). It is the only surface for these
+names: there is no overlay window for them.
 
 - The event fires inside the nameplate addon's update, before the game sets the plate's text.
   The game then measures our text and bakes the plate at that size, so a wider Chinese name is
@@ -175,13 +176,13 @@ for NPC names: there is no overlay window for them.
   shown.
 - The event only passes plates with a new or changed name, so this is not a per-frame path. The
   name is looked up in the store each time.
-- A plate slot carries no object id, so the translation follows the name text. Two visible NPCs
+- A plate slot carries no object id, so the translation follows the name text. Two visible objects
   with the same name get the same Chinese name.
 - `Enable` and `Disable` subscribe and unsubscribe, then call `RequestRedraw`, which makes the
   game lay out every visible plate again. That shows the Chinese names at once, and puts the
   English names back when the mode is turned off.
-- Player characters are skipped. NPC nameplates must be visible in the game settings; a hidden
-  plate is left alone.
+- Player characters are skipped. Nameplates must be visible in the game settings; a hidden plate
+  is left alone.
 
 ### Runtime data updates
 

@@ -5,7 +5,7 @@ namespace Sinophone.Handlers;
 
 /// <summary>
 /// Translates the game's own nameplates, so the game draws the Chinese name above every
-/// visible NPC with the font, size, and position it uses for the English name.
+/// visible NPC or object with the font, size, and position it uses for the English name.
 /// </summary>
 /// <remarks>
 /// The name is replaced through Dalamud's nameplate API, before the game lays the plate
@@ -19,7 +19,7 @@ namespace Sinophone.Handlers;
 /// </para>
 /// <para>
 /// A plate slot carries no object id, so the translation follows the name text. Two visible
-/// NPCs with the same name both get the same Chinese name. Player names are left alone.
+/// objects with the same name both get the same Chinese name. Player names are left alone.
 /// </para>
 /// </remarks>
 public sealed class NamePlateNameWriter
@@ -57,7 +57,7 @@ public sealed class NamePlateNameWriter
         _enabled = true;
         _namePlateGui.OnNamePlateUpdate += _onPlateUpdate;
         _namePlateGui.RequestRedraw();
-        _log.Debug("Native names: translating every visible NPC nameplate.");
+        _log.Debug("Native names: translating every visible nameplate.");
     }
 
     /// <summary>Stops translating and asks the game to draw its own names again.</summary>

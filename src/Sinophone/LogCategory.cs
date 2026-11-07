@@ -18,7 +18,7 @@ public enum LogCategory
     /// <summary>Selection dialog prompts and options.</summary>
     SelectionDialogs = 3,
 
-    /// <summary>NPC nameplate names.</summary>
+    /// <summary>Nameplate names.</summary>
     NamePlates = 4,
 
     /// <summary>Item name lookups.</summary>
