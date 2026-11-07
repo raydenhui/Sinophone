@@ -621,8 +621,8 @@ public sealed class ConfigWindow : Window
 
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
         ImGui.TextWrapped(
-            "Not usable yet. Some NPC dialogue is not detected. " +
-            "The first usable release is planned for 0.2.0.");
+            "Early development. Some NPC dialogue is not detected, " +
+            "and text that exists in no game dump stays untranslated.");
         ImGui.PopStyleColor();
 
         ImGui.Spacing();
