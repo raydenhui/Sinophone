@@ -55,17 +55,8 @@ public static class ChineseConverter
     /// </summary>
     private static bool IsMostlySourceScript(string text, Table source, Table? target)
     {
-        var sourceCount = 0;
-        var targetCount = 0;
-
-        foreach (var character in text)
-        {
-            if (source.ChangesCharacter(character))
-                sourceCount++;
-
-            if (target is not null && target.ChangesCharacter(character))
-                targetCount++;
-        }
+        var sourceCount = source.CountChanges(text);
+        var targetCount = target?.CountChanges(text) ?? 0;
 
         return sourceCount > targetCount;
     }
@@ -108,9 +99,6 @@ public static class ChineseConverter
     {
         private readonly Dictionary<string, string>.AlternateLookup<ReadOnlySpan<char>> _lookup;
 
-        /// <summary>Single characters this table rewrites, used to tell the scripts apart.</summary>
-        private readonly HashSet<char> _changedCharacters = new();
-
         /// <summary>Longest key that starts with a character, so most positions try one slice.</summary>
         private readonly int[] _maxLengthByFirstChar = new int[char.MaxValue + 1];
 
@@ -118,18 +106,58 @@ public static class ChineseConverter
         {
             _lookup = entries.GetAlternateLookup<ReadOnlySpan<char>>();
 
-            foreach (var (key, value) in entries)
+            foreach (var key in entries.Keys)
             {
-                if (key.Length == 1 && !string.Equals(key, value, StringComparison.Ordinal))
-                    _changedCharacters.Add(key[0]);
-
                 if (key.Length > _maxLengthByFirstChar[key[0]])
                     _maxLengthByFirstChar[key[0]] = key.Length;
             }
         }
 
-        /// <summary>True when this table rewrites the character on its own.</summary>
-        public bool ChangesCharacter(char character) => _changedCharacters.Contains(character);
+        /// <summary>
+        /// Number of characters this table would rewrite, with the same longest match as
+        /// <see cref="Convert"/>. Phrases count too, so a line whose only evidence is a
+        /// phrase such as 只身 still converts.
+        /// </summary>
+        public int CountChanges(string text)
+        {
+            var changed = 0;
+            var index = 0;
+
+            while (index < text.Length)
+            {
+                var maxLength = _maxLengthByFirstChar[text[index]];
+                if (maxLength == 0)
+                {
+                    index++;
+                    continue;
+                }
+
+                var remaining = text.Length - index;
+                if (maxLength > remaining)
+                    maxLength = remaining;
+
+                var matched = 0;
+                for (var length = maxLength; length >= 1; length--)
+                {
+                    if (!_lookup.ContainsKey(text.AsSpan(index, length)))
+                        continue;
+
+                    matched = length;
+                    break;
+                }
+
+                if (matched == 0)
+                {
+                    index++;
+                    continue;
+                }
+
+                changed += matched;
+                index += matched;
+            }
+
+            return changed;
+        }
 
         public string Convert(string text)
         {

@@ -63,6 +63,14 @@ public class ChineseConverterTests
     }
 
     [Fact]
+    public void Convert_ConvertsPhrasesMadeOfSharedCharacters()
+    {
+        // 只 and 身 are the same in both scripts, so only the phrase shows that the
+        // line is simplified. The TC data writes 隻身.
+        Assert.Equal("他隻身一人", ChineseConverter.Convert("他只身一人", ChineseConversion.SimplifiedToTraditional));
+    }
+
+    [Fact]
     public void Convert_LeavesTextUnchanged_WhenDirectionIsNone()
     {
         const string text = "「行會令」指的是冒險者行會發行的特殊任務。";
