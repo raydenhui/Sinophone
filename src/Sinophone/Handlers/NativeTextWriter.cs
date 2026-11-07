@@ -76,7 +76,7 @@ public sealed unsafe class NativeTextWriter
                       && string.Equals(current, saved.Written, StringComparison.Ordinal)
             ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Style = style, Reapplied = false }
             : new SavedText(current, text, writtenUtf8, style,
-                node->TextColor, node->EdgeColor, node->TextFlags);
+                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height);
 
         node->SetText(text);
         ApplyStyle(node, style);
@@ -110,7 +110,7 @@ public sealed unsafe class NativeTextWriter
                         && string.Equals(current, saved.Written, StringComparison.Ordinal)
             ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
             : new SavedText(current, text, writtenUtf8, default,
-                node->TextColor, node->EdgeColor, node->TextFlags);
+                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height);
 
         node->SetText(text);
         node->ResizeNodeForCurrentText();
@@ -290,6 +290,12 @@ public sealed unsafe class NativeTextWriter
         node->TextFlags = saved.OriginalFlags;
         node->ResizeNodeForCurrentText();
 
+        // The resize measures the text. Put the size the game had back, because a
+        // handler may have changed it for the translation, such as the item tooltip's
+        // one-line width.
+        node->Width = saved.OriginalWidth;
+        node->Height = saved.OriginalHeight;
+
         _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId}.",
             saved.Original.Length, addonName, nodeId);
     }
@@ -320,6 +326,8 @@ public sealed unsafe class NativeTextWriter
         node->EdgeColor = saved.OriginalEdgeColor;
         node->TextFlags = saved.OriginalFlags;
         node->ResizeNodeForCurrentText();
+        node->Width = saved.OriginalWidth;
+        node->Height = saved.OriginalHeight;
         _log.Debug("Native text: restored {Length} chars in {Addon} node {NodeId} at {Address:X}.",
             saved.Original.Length, addonName, node->NodeId, address);
     }
@@ -373,5 +381,7 @@ public sealed unsafe class NativeTextWriter
         ByteColor OriginalTextColor,
         ByteColor OriginalEdgeColor,
         TextFlags OriginalFlags,
+        ushort OriginalWidth,
+        ushort OriginalHeight,
         bool Reapplied = false);
 }

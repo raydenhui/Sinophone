@@ -159,9 +159,10 @@ know leaves the English line in place.
   only) before changing either constant.
 - The game's font has no CJK glyphs. Without a font mod the line shows the missing-glyph character,
   so the settings section warns and links the README font setup. The plugin cannot detect the mod.
-- A write saves the game's text for that node first. `RestoreAll` puts it back when the setting is
-  turned off and on plugin unload. A second write must not save Chinese as the original, so the
-  writer only saves when the node does not already hold text this writer put there.
+- A write saves the game's text, colors, flags, and node size for that node first. `RestoreAll`
+  puts them back when the setting is turned off and on plugin unload. A second write must not save
+  Chinese as the original, so the writer only saves when the node does not already hold text this
+  writer put there.
 - The game redraws the line while its text stream runs, so a write on `PostSetup` or `PostRefresh`
   lasts about one frame and the English comes back. `TalkHandler` therefore calls
   `NativeTextWriter.Reapply` on every `PreDraw`, which puts the Chinese back. This is the one
@@ -227,8 +228,10 @@ gives the Chinese.
 - A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
   Native mode never shows nothing.
 - When the item changes, the handler forgets the saved text for the old node. When the setting is
-  turned off, it puts the saved English name back. `PostHide` and `PreFinalize` forget the node
-  instead of writing it, because a freed node can belong to another addon by then.
+  turned off, it puts the saved English name back, along with the node's saved width and height.
+  Without the size, the English name stays at the position the Chinese name needed. `PostHide`
+  and `PreFinalize` forget the node instead of writing it, because a freed node can belong to
+  another addon by then.
 - The node address is checked against the live addon before a restore, so a stale address is never
   written.
 

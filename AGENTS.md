@@ -286,9 +286,10 @@ premature interface.
   English name, so the handler clears `WordWrap`, grows the width, and sets the height to one
   measured line; do not drop that step or a Chinese name wraps into lines of a few characters.
   Setting the height matters: growing it leaves a tall box, and the line draws at the bottom,
-  over the item description. The saved English name goes
-  back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead, because the
-  node may already belong to another addon.
+  over the item description. A write also saves the node's width and height, and the restore puts
+  them back, so the English name returns to the exact place it was drawn before. The saved English
+  name goes back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead,
+  because the node may already belong to another addon.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
   target. It needs a font mod and nameplates visible in the game settings. The names change
