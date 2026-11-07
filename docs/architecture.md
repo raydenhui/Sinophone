@@ -220,8 +220,10 @@ gives the Chinese.
   window, the handler calls `ReapplyAt` on every tooltip `PreDraw`. That path compares the node
   bytes with the last write, so matching text costs no allocation.
 - The tooltip sizes the name node to the English name, so a longer Chinese name wraps into lines
-  of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis` and grows the node to the
-  measured text. It runs after every write and on every reapply, because the game can reset both.
+  of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis`, grows the width to the
+  measured text, and sets the height to the measured line. The height is not grown: a taller box
+  keeps the extra space and draws the line at its bottom, over the item description. It runs after
+  every write and on every reapply, because the game can reset the size.
 - A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
   Native mode never shows nothing.
 - When the item changes, the handler forgets the saved text for the old node. When the setting is

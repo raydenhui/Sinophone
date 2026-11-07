@@ -204,7 +204,12 @@ public sealed unsafe class ItemNameHandler : IDisposable
 
         _tooltipNode = node;
         FitTooltipName(node);
-        _log.Debug("Native item name: {English} -> {Text}.", content.EnglishName, text);
+
+        var nameNode = (AtkTextNode*)node;
+        _log.Debug(
+            "Native item name: {English} -> {Text} (node at {X},{Y} {Width}x{Height}, flags {Flags}).",
+            content.EnglishName, text, nameNode->X, nameNode->Y, nameNode->Width,
+            nameNode->Height, nameNode->TextFlags);
         return true;
     }
 
@@ -213,6 +218,11 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// wraps into narrow lines of a few characters. The header draws one line, so the
     /// wrap comes off and the node grows to the text.
     /// </summary>
+    /// <remarks>
+    /// The height is set to the measured line, not grown. A node left taller than its
+    /// text keeps the extra height, and the text sits at the bottom of the box, a few
+    /// lines below the header, over the description.
+    /// </remarks>
     private static unsafe void FitTooltipName(nint address)
     {
         var node = (AtkTextNode*)address;
@@ -225,10 +235,11 @@ public sealed unsafe class ItemNameHandler : IDisposable
         ushort height = 0;
         node->GetTextDrawSize(&width, &height);
 
+        // The width only grows, so the name is never clipped.
         if (width > node->Width)
             node->Width = width;
 
-        if (height > node->Height)
+        if (height > 0)
             node->Height = height;
     }
 
