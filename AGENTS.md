@@ -15,7 +15,9 @@ Three ideas explain the whole plugin:
 1. **Data is built ahead of time.** `tools/Sinophone.DataPrep` turns datamining CSV files into
    gzipped JSON. Those files are embedded in the plugin assembly.
 2. **English text is the key.** At load, the plugin reads each row of the live game sheets and
-   maps the English text to the Chinese text. Lookup is a dictionary hit at runtime.
+   maps the English text to the Chinese text. Lookup is a dictionary hit at runtime. The finished
+   index is cached as `Sinophone.index.bin`, so a later start reads that file instead of indexing
+   again.
 3. **The game cannot draw Chinese.** Its fonts have no CJK glyphs, so the plugin draws the
    translation in its own ImGui window and loads a separate CJK font. A font mod replaces the
    game's font files and makes the game itself draw Chinese; the alpha native mode uses that to
@@ -173,7 +175,10 @@ per-frame paths allocation-free and do not re-index game sheets per frame.
 
 Keep startup load off the frame. Sheet reads run in slices from `Plugin.OnTick`, indexing runs on a
 worker task, and the font atlas builds asynchronously. The store is not swapped in until both are
-ready.
+ready. A second start reads the index cache instead of parsing and indexing, and a data download
+runs in the background while the current store keeps serving. The cache key covers every input the
+index depends on (variant, fallback, conversion, game data version, artifact identity), so a stale
+cache is rebuilt rather than trusted.
 
 Write through the component's `PluginLog`, not `IPluginLog`. It filters `Debug` and `Info`
 by the group the user picks in the settings **Logs** tab. Warnings and errors always show. A
@@ -319,7 +324,8 @@ premature interface.
   removes the names at once. Player characters are skipped.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation. A
   release build carries no data files, so the first load downloads about 60 MB from the `data`
-  release. Later loads only check for a new version.
+  release. Later loads fetch the manifest, download only when the version changed, and reindex in
+  the background. The old translation stays in use until the new index is ready.
 
 ## References
 
