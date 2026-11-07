@@ -160,6 +160,14 @@ public sealed class TranslationDataUpdater : IDisposable
     internal static IReadOnlyList<ChineseVariant> RequiredVariants(ChineseVariant variant, bool downloadBoth)
         => downloadBoth ? [variant, Other(variant)] : [variant];
 
+    /// <summary>
+    /// True on a fresh install that has to fetch its data. A release build carries
+    /// no embedded copy, so without this the plugin translates nothing until the
+    /// user finds the download button.
+    /// </summary>
+    internal static bool NeedsInitialDownload(string? lastDataVersion, bool missingFile, bool hasEmbeddedData)
+        => string.IsNullOrEmpty(lastDataVersion) && missingFile && !hasEmbeddedData;
+
     /// <summary>True when the file on disk is the published version and usable.</summary>
     internal static bool IsCurrent(
         string? installedVersion,

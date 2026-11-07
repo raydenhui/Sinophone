@@ -171,6 +171,10 @@ in-game checklist format. Native text changes also need
 Use structured logs at the right level, and never log inside `Draw` or `PreDraw`. Keep
 per-frame paths allocation-free and do not re-index game sheets per frame.
 
+Keep startup load off the frame. Sheet reads run in slices from `Plugin.OnTick`, indexing runs on a
+worker task, and the font atlas builds asynchronously. The store is not swapped in until both are
+ready.
+
 Write through the component's `PluginLog`, not `IPluginLog`. It filters `Debug` and `Info`
 by the group the user picks in the settings **Logs** tab. Warnings and errors always show. A
 new group needs an entry in `LogCategory`, `Configuration`, and the tab.
@@ -313,7 +317,9 @@ premature interface.
   name in brackets. A plate slot carries no object id, so the translation follows the name text;
   two visible objects with the same name both get the Chinese name. `RequestRedraw` applies and
   removes the names at once. Player characters are skipped.
-- **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
+- **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation. A
+  release build carries no data files, so the first load downloads about 60 MB from the `data`
+  release. Later loads only check for a new version.
 
 ## References
 
