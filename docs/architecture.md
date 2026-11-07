@@ -249,15 +249,18 @@ the English name to a second line when both names are too wide for the tooltip.
 
 The plugin reads artifacts from its config directory first and falls back to the copies embedded in
 the assembly. `TranslationDataUpdater` fills that directory from the `data` GitHub release, which
-`.github/workflows/data.yml` rebuilds weekly from the datamining CSVs.
+`.github/workflows/data.yml` rebuilds from the datamining CSVs. The workflow runs once a day at
+00:00 UTC and starts the build only when the CN, TC, or English dump commit moved since the
+published manifest, so an unchanged day costs a few seconds.
 
 - The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
   `Sinophone.tc.json.gz`. The base URL is hardcoded in `TranslationDataUpdater`; renaming the
   repository breaks every installed copy.
 - The manifest `version` is a hash of the translated sheets and script lines, not a date.
   `GeneratedAt` and `GameVersion` are left out, because they change on every build. The data
-  workflow compares the new version with the published one and skips the upload when they match,
-  so clients do not download again. `Configuration.LastDataVersion` records what is installed.
+  workflow compares the new version with the published one. When they match it replaces only the
+  manifest, which records the source commits, and leaves the data files alone, so clients do not
+  download again. `Configuration.LastDataVersion` records what is installed.
 - `Scripts` is optional. Old readers ignore it, and a missing section means no script lines, so
   the artifact format version stays at 1.
 - Both variants are downloaded by default. Turning off **Download both language variants**
