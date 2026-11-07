@@ -36,6 +36,18 @@ public sealed class SelectionDialogHandler : IDisposable
     private static readonly Regex EnglishItemLevel = new(@"\bItem level:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex QuestBattleLevel = new(@"<Sheet\(QuestBattle,IntegerParameter\(2\),3\)\s*/>", RegexOptions.CultureInvariant);
 
+    /// <summary>
+    /// A macro that renders its value from the expression inside the tag, such as
+    /// <c>&lt;Format(IntegerParameter(1),FF022C)/&gt;</c>. The tag itself has no text,
+    /// so the value must be substituted before the macro strip removes the tag.
+    /// </summary>
+    private static readonly Regex FormattedValue = new(
+        @"<(?:Format|Time|Digit)\(IntegerParameter\((\d+)\)[^<>]*/>",
+        RegexOptions.CultureInvariant);
+
+    /// <summary>UI icon placeholders from the Chinese client; they are not text.</summary>
+    private static readonly Regex PrivateUseCharacter = new(@"[\uE000-\uF8FF]", RegexOptions.CultureInvariant);
+
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
     private readonly PluginLog _log;
@@ -427,6 +439,54 @@ public sealed class SelectionDialogHandler : IDisposable
 
         var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
 
+        // Addon rows such as "Garden n: Patch n" use the first two integer
+        // parameters. The numbers in the live prompt are their fallback value.
+        var numbers = new List<string>();
+        var currentNumber = new StringBuilder();
+        foreach (var ch in liveEnglish)
+        {
+            if (char.IsDigit(ch))
+            {
+                currentNumber.Append(ch);
+            }
+            else if (currentNumber.Length > 0)
+            {
+                numbers.Add(currentNumber.ToString());
+                currentNumber.Clear();
+            }
+        }
+        if (currentNumber.Length > 0)
+            numbers.Add(currentNumber.ToString());
+
+        // A Format or Time macro has no text of its own: it renders the value of
+        // the expression inside the tag. Replace the whole tag, or the macro strip
+        // removes the value along with the tag.
+        var missingValue = false;
+        resolved = FormattedValue.Replace(resolved, match =>
+        {
+            if (!int.TryParse(match.Groups[1].Value, out var index))
+                return match.Value;
+
+            if (parameterIndices is not null && captures is not null)
+            {
+                var count = Math.Min(parameterIndices.Count, captures.Count);
+                for (var i = 0; i < count; i++)
+                {
+                    if (parameterIndices[i] == index)
+                        return captures[i].Trim();
+                }
+            }
+
+            if (index > 0 && index <= numbers.Count)
+                return numbers[index - 1];
+
+            missingValue = true;
+            return match.Value;
+        });
+
+        if (missingValue)
+            return string.Empty;
+
         if (parameterIndices is not null && captures is not null)
         {
             var count = Math.Min(parameterIndices.Count, captures.Count);
@@ -451,25 +511,6 @@ public sealed class SelectionDialogHandler : IDisposable
         if (itemLevel.Length > 0)
             resolved = Regex.Replace(resolved, @"IntegerParameter\(3\)", itemLevel);
 
-        // Addon rows such as "Garden n: Patch n" use the first two integer
-        // parameters. Fill them from the numbers in the live prompt.
-        var numbers = new List<string>();
-        var currentNumber = new StringBuilder();
-        foreach (var ch in liveEnglish)
-        {
-            if (char.IsDigit(ch))
-            {
-                currentNumber.Append(ch);
-            }
-            else if (currentNumber.Length > 0)
-            {
-                numbers.Add(currentNumber.ToString());
-                currentNumber.Clear();
-            }
-        }
-        if (currentNumber.Length > 0)
-            numbers.Add(currentNumber.ToString());
-
         for (var i = 0; i < numbers.Count; i++)
             resolved = resolved.Replace($"IntegerParameter({i + 1})", numbers[i], StringComparison.Ordinal);
         resolved = Regex.Replace(resolved, @"IntegerParameter(\d+)", string.Empty);
@@ -485,9 +526,9 @@ public sealed class SelectionDialogHandler : IDisposable
             return string.Empty;
         }
 
-        // These private-use characters are UI icons, not text.
-        resolved = resolved.Replace("", string.Empty, StringComparison.Ordinal)
-            .Replace("", string.Empty, StringComparison.Ordinal);
+        // Private-use characters are UI icons, not text. The English client font
+        // does not draw them.
+        resolved = PrivateUseCharacter.Replace(resolved, string.Empty);
 
         return MacroNormalizer.CleanForDisplay(resolved);
     }

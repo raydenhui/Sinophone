@@ -11,6 +11,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SeStringBuilder needs the pool assembly that the game runtime provides. -->
+    <Reference Include="Microsoft.Extensions.ObjectPool">
+      <HintPath>$(DalamudLibPath)Microsoft.Extensions.ObjectPool.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\fixtures\**\*" LinkBase="fixtures" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

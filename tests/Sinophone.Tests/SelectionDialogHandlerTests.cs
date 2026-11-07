@@ -104,6 +104,36 @@ public class SelectionDialogHandlerTests
         Assert.DoesNotContain("\n", resolved);
     }
 
+    [Fact]
+    public void ResolveAddonText_FillsFormattedValueFromCapture()
+    {
+        // Addon row 2379. The game draws the gil amount inside the Format macro,
+        // so the value has to replace the whole tag, not just its expression.
+        const string chinese = "金币管理　[现保管金币：<Format(IntegerParameter(1),FF022C)/>]";
+        const string live = "Entrust or withdraw gil. (Gil entrusted: 1,234)";
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            chinese, live, ["1,234"], parameterIndices: [1]);
+
+        Assert.Equal("金币管理　[现保管金币：1,234]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_FillsFormattedValueFromNumbers_WhenNoCapture()
+    {
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            "所持Gil：<Format(IntegerParameter(1),FF022C)/>", "Current Gil: 42");
+
+        Assert.Equal("所持Gil：42", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenFormattedValueIsMissing()
+    {
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(
+            "<Format(IntegerParameter(2),FF022C)/>", "No values here."));
+    }
+
     private static TranslationStore LoadStore(string json)
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,

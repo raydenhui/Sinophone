@@ -31,7 +31,16 @@ internal static class AddonParameterTemplateFactory
 
             switch (payload.MacroCode)
             {
+                // Every macro that renders a value. Format and ZeroPaddedValue in the
+                // Chinese dumps parse as Digit; Time renders a date or clock value.
                 case MacroCode.Num:
+                case MacroCode.Hex:
+                case MacroCode.Kilo:
+                case MacroCode.Byte:
+                case MacroCode.Sec:
+                case MacroCode.Time:
+                case MacroCode.Float:
+                case MacroCode.Digit:
                 case MacroCode.Ordinal:
                 case MacroCode.String:
                     if (TryGetParameterIndex(payload, out var index))
