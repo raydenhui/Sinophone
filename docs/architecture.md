@@ -25,7 +25,7 @@ src/Sinophone/
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
-    ItemNameHandler.cs    Watches the hovered item. Feeds the item name window.
+    ItemNameHandler.cs    Watches the hovered item. Feeds the item name window or the game tooltip.
   UI/
     OverlayWindow.cs      The translation overlay.
     ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.
@@ -200,6 +200,32 @@ names: there is no overlay window for them.
   English names back when the mode is turned off.
 - Player characters are skipped. Nameplates must be visible in the game settings; a hidden plate
   is left alone.
+
+### Item names
+
+`ItemNameHandler` reads the item under the mouse and shows its Chinese name in one of two modes.
+`ItemNameNativeMode` picks the mode. The English name comes from `Item`; the store's name lookup
+gives the Chinese.
+
+- **Overlay** (default). `ItemNameWindow` draws the name above the cursor, so the tooltip stays
+  as the game drew it.
+- **Native.** The handler writes the name into the game's own tooltip: `ItemDetail`, field
+  `ItemNameText`. The game then draws the Chinese with its own font, size, and color, so a font
+  mod is required. The write goes through `NativeTextWriter`, the same path the selection dialogs
+  use, so the English name is saved and can be put back.
+- The handler writes on `HoveredItemChanged` and again when the tooltip addon fires `PostSetup`
+  or `PostRefresh`. The hover can change before the addon has its new text, and a write that comes
+  first is replaced by the game's own English.
+- A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
+  Native mode never shows nothing.
+- When the item changes, the handler forgets the saved text for the old node. When the setting is
+  turned off, it puts the saved English name back. `PostHide` and `PreFinalize` forget the node
+  instead of writing it, because a freed node can belong to another addon by then.
+- The node address is checked against the live addon before a restore, so a stale address is never
+  written.
+
+The name is one line in both modes. `ShowOriginal` puts the English name in brackets after the
+Chinese name, the same shape the nameplates use; off shows Chinese only.
 
 ### Runtime data updates
 

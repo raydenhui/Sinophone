@@ -263,7 +263,7 @@ premature interface.
 - **Conversion is not exact.** The optional simplified/traditional layer uses OpenCC tables with
   one candidate per key. Converting back can pick a different variant, for example 為 becomes 为
   and then 爲. It is a reading aid, not a replacement for the official text of that variant.
-- **Event items.** The item name overlay reads the `Item` sheet. Event and key items live in
+- **Event items.** The item name surface reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
 - **Native text mode needs a font mod.** Alpha and off by default. The game only draws Chinese
@@ -273,9 +273,16 @@ premature interface.
   [README](README.md#font-setup).
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
-  at once. Nameplates follow `TargetNameShowEnglish` and the item name window follows
-  `ShowOriginal`; both put the English name with the Chinese name. Selection dialogs have their
-  own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
+  at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows
+  `ShowOriginal`; both put the English name with the Chinese name, in brackets on one line.
+  Selection dialogs have their own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
+- **Native item names.** `ItemNameNativeMode` writes the Chinese name into the game's own item
+  tooltip (`ItemDetail`, field `ItemNameText`) instead of drawing the overlay. It needs a font mod.
+  The name is written on `HoveredItemChanged` and again on the tooltip addon's `PostSetup` and
+  `PostRefresh`, because the hover can change before the addon has its new text. A tooltip that
+  has no name node falls back to the overlay, so native mode never shows nothing. The saved English
+  name goes back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead,
+  because the node may already belong to another addon.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
   target. It needs a font mod and nameplates visible in the game settings. The names change

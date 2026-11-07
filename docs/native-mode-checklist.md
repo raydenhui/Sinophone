@@ -45,6 +45,13 @@ Two runs are needed:
 | Two nearby objects with the same name | Note whether both plates show the Chinese name |
 | An object with a long name | The whole name fits on one line, not clipped, with the Chinese name readable |
 | Names seen from different camera angles | The same full name at every angle; the left and right sides never get cut off |
+| Hover an item with native item names on | Chinese name in the tooltip header; no overlay above the cursor |
+| Hover an item whose name has no translation | The English name stays; no stale Chinese from the previous item |
+| Move the mouse across several items quickly | Each tooltip shows the name of the item under the mouse |
+| Set the item name language to "Chinese and English" | The tooltip shows the Chinese name with the English name in brackets, on one line |
+| Turn native item names off while a tooltip is open | The English name comes back |
+| Hover an item the tooltip cannot show, such as one in a menu that draws its own name | The overlay appears instead of the tooltip being changed |
+| An item with a long English name | The whole name fits the tooltip header, nothing clipped, and the tooltip layout is unchanged |
 
 ## Done when
 
