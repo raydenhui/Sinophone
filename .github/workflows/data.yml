@@ -5,9 +5,10 @@ name: Data
 # users get updated translations without waiting for a plugin build.
 on:
   schedule:
-    # GitHub cron runs in UTC. The check job below skips the build when none of
-    # the three dumps changed since the published release.
-    - cron: "0 0 * * *"
+    # GitHub cron runs in UTC. 16:00 UTC is 00:00 in UTC+8. The check job below
+    # skips the build when none of the three dumps changed since the published
+    # release.
+    - cron: "0 16 * * *"
   workflow_dispatch:
 
 permissions:

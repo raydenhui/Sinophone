@@ -250,7 +250,7 @@ the English name to a second line when both names are too wide for the tooltip.
 The plugin reads artifacts from its config directory first and falls back to the copies embedded in
 the assembly. `TranslationDataUpdater` fills that directory from the `data` GitHub release, which
 `.github/workflows/data.yml` rebuilds from the datamining CSVs. The workflow runs once a day at
-00:00 UTC and starts the build only when the CN, TC, or English dump commit moved since the
+00:00 UTC+8 and starts the build only when the CN, TC, or English dump commit moved since the
 published manifest, so an unchanged day costs a few seconds.
 
 - The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
