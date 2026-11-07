@@ -137,6 +137,11 @@ translated. Turning the switch off calls `RestoreAll` so an open dialog gets the
 game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 `No.`, `OK`, and `Cancel`.
 
+An `Addon` prompt can hold a runtime value, such as the gil amount in the retainer menu. The store
+matches those rows as templates: the live English line fills the wildcards, and the Chinese macro
+is replaced with the same text. `Format` and `ZeroPaddedValue` keep the value the English line
+showed, including thousands separators, so the Chinese prompt shows the real amount.
+
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
   live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds
   only) before changing either constant.

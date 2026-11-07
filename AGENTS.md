@@ -36,6 +36,10 @@ dialogue lookup, overlay behavior, native text mode, and runtime data updates.
 The rule to keep in mind when changing the matcher: try ids before text, and let every
 id layer fail open. `DefaultTalk` row ids are packed, so use `EventId.Id`, not `EntryId`.
 
+Chinese `Addon` rows write runtime values as `<Format(IntegerParameter(n),...)/>` and
+`<Time(...)/>`. Lumina parses both as value macros. Substitute the whole tag with the value the
+English line showed. Replacing only the inner expression lets the macro strip remove the number.
+
 ## Commands
 
 The plugin targets `net10.0-windows7.0` and `win-x64`. It needs a local Dalamud install to
