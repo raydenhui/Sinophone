@@ -313,7 +313,9 @@ premature interface.
   name in brackets. A plate slot carries no object id, so the translation follows the name text;
   two visible objects with the same name both get the Chinese name. `RequestRedraw` applies and
   removes the names at once. Player characters are skipped.
-- **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation.
+- **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation. A
+  release build carries no data files, so the first load downloads about 60 MB from the `data`
+  release. Later loads only check for a new version.
 
 ## References
 

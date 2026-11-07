@@ -34,7 +34,7 @@ Sinophone 不在 Dalamud 官方插件清單中。請把它加入自訂插件來�
 2. 加入 `https://raw.githubusercontent.com/raydenhui/Sinophone/main/pluginmaster.json` 並儲存。
 3. 開啟插件安裝程式，搜尋 **Sinophone** 並安裝。
 
-首次使用時，執行 `/sinophone` 並點一下 **Download / update data**。翻譯資料另行下載，因此不必更新插件也能取得新的翻譯資料。
+第一次載入時會自動下載翻譯資料（約 60 MB），因此不必更新插件也能取得新的翻譯資料。若下載失敗，執行 `/sinophone` 並點一下 **Download / update data**。
 
 ## 字型設定
 

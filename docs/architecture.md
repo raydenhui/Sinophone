@@ -251,6 +251,12 @@ The plugin reads artifacts from its config directory first and falls back to the
 the assembly. `TranslationDataUpdater` fills that directory from the `data` GitHub release, which
 `.github/workflows/data.yml` rebuilds weekly from the datamining CSVs.
 
+A release build carries no embedded artifacts, because they are about 60 MB and not committed. A
+fresh install therefore has no data until the first download. `Plugin.Initialize` starts
+`StartUpdate` when no data file exists and the build has no embedded copy, and runs `StartCheck`
+only on later loads. Keep that order: a release that only checks leaves the plugin with nothing to
+show.
+
 - The release is tagged `data` and holds `manifest.json`, `Sinophone.cn.json.gz`, and
   `Sinophone.tc.json.gz`. The base URL is hardcoded in `TranslationDataUpdater`; renaming the
   repository breaks every installed copy.

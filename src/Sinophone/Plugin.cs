@@ -187,7 +187,26 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
 
         if (_configuration.CheckForDataUpdates)
-            _dataUpdater.StartCheck();
+        {
+            // A release build ships no translation data, so a fresh install must
+            // fetch it. Later loads only check for a newer version.
+            if (TranslationDataUpdater.NeedsInitialDownload(
+                    _configuration.LastDataVersion,
+                    _dataUpdater.IsMissingRequiredFile(),
+                    HasEmbeddedData()))
+            {
+                _log.Info("No translation data is installed; downloading it.");
+                _announceUpdate = true;
+                _updateWasBusy = true;
+                _dataUpdater.StartUpdate();
+                ChatGui.Print(
+                    "[Sinophone] Downloading translation data (about 60 MB). Translation starts when it finishes.");
+            }
+            else
+            {
+                _dataUpdater.StartCheck();
+            }
+        }
 
         if (!ChineseConverter.IsAvailable(_configuration.Conversion))
             _log.Warning("The conversion table for {Conversion} is missing; text will not be converted.",
@@ -364,6 +383,13 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         return $"Using downloaded data ({version}).";
+    }
+
+    /// <summary>True when this build carries a translation artifact inside the assembly.</summary>
+    private bool HasEmbeddedData()
+    {
+        using var stream = TranslationStore.OpenEmbeddedResource(_configuration.Variant);
+        return stream is not null;
     }
 
     /// <summary>

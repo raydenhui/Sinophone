@@ -38,8 +38,9 @@ Sinophone is not in the official Dalamud plugin list. Add it as a custom reposit
 2. Add `https://raw.githubusercontent.com/raydenhui/Sinophone/main/pluginmaster.json` and save.
 3. Open the plugin installer, search for **Sinophone**, and install it.
 
-On first use, run `/sinophone` and click **Download / update data**. Translation data is downloaded
-separately so it can be updated without a new plugin build.
+The first load downloads the translation data (about 60 MB) automatically, so it can be updated
+without a new plugin build. If the download fails, run `/sinophone` and click **Download / update
+data**.
 
 ## Font setup
 
