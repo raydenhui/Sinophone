@@ -285,13 +285,13 @@ premature interface.
   the same guarded per-frame write the Talk window uses. The tooltip sizes the name node to the
   English name, so the handler clears `WordWrap` and grows the width to the text; do not drop that
   step or a Chinese name wraps into lines of a few characters. The height goes back to the size
-  the game gave the English name, plus one line when the English name moved to a second line.
-  Any other height moves the line off the game's own place, under the item description or above
-  the original line. When both languages are wider than the tooltip window, the English name moves
-  to a second line. A write also saves the node's width and height, and the restore puts them
-  back, so the English name returns to the exact place it was drawn before. The saved English
-  name goes back when the setting is turned off; `PostHide` and `PreFinalize` drop it instead,
-  because the node may already belong to another addon.
+  the game gave the English name and stays there, also for a two-line name: the tooltip draws the
+  line at the bottom of the node, so an extra line stacks upward, and growing the height pushes
+  the English line down over the item description. When both languages are wider than the tooltip
+  window, the English name moves to a second line. A write also saves the node's width and height,
+  and the restore puts them back, so the English name returns to the exact place it was drawn
+  before. The saved English name goes back when the setting is turned off; `PostHide` and
+  `PreFinalize` drop it instead, because the node may already belong to another addon.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
   target. It needs a font mod and nameplates visible in the game settings. The names change

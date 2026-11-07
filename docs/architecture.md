@@ -222,13 +222,14 @@ gives the Chinese.
   bytes with the last write, so matching text costs no allocation.
 - The tooltip sizes the name node to the English name, so a longer Chinese name wraps into lines
   of a few characters. `FitTooltipName` clears `WordWrap` and `Ellipsis` and grows the width to the
-  measured text. The height goes back to what the game gave the English name, plus one line when
-  the English name moved to a second line. Any other height moves the line off the place the game
-  drew the original, either under it or above it. It runs after every write and on every reapply,
-  because the game can reset the size.
+  measured text. The height goes back to what the game gave the English name and stays there. It
+  runs after every write and on every reapply, because the game can reset the size.
 - The name is one line when it fits the tooltip. When the Chinese and English names are wider than
-  the space left in the tooltip window, the English name moves to a second line. The window width
-  comes from the addon's root node; before the addon is up, the name stays on one line.
+  the space left in the tooltip window, the English name moves to a second line. The height does
+  not change: the tooltip draws the line at the bottom of the node, so the Chinese line stacks
+  upward into the header and the English line keeps the place where the game drew it. Growing the
+  node instead pushes the English line down over the item description. The window width comes from
+  the addon's root node; before the addon is up, the name stays on one line.
 - A tooltip with no name node, such as one that has not been set up yet, falls back to the overlay.
   Native mode never shows nothing.
 - When the item changes, the handler forgets the saved text for the old node. When the setting is

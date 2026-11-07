@@ -56,9 +56,6 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// <summary>Lines the current tooltip name uses. Two when both languages do not fit on one.</summary>
     private int _tooltipLines = 1;
 
-    /// <summary>Height of one line in the tooltip font, for the two-line name.</summary>
-    private ushort _tooltipLineHeight;
-
     private bool _disposed;
 
     public ItemNameHandler(
@@ -208,13 +205,12 @@ public sealed unsafe class ItemNameHandler : IDisposable
             _nativeWriter.ForgetAt(ItemDetailAddon, _tooltipNode);
 
         var text = FormatItemName(content.ChineseName, content.EnglishName, _configuration.ShowOriginal);
-        var (textWidth, lineHeight) = MeasureText((AtkTextNode*)node, text);
+        var (textWidth, _) = MeasureText((AtkTextNode*)node, text);
         var available = AvailableWidth((AtkTextNode*)node);
 
         // The tooltip is not wide enough for both languages on one line, so the
         // English name goes on a second line instead of running past the window.
         _tooltipLines = available > 0 && textWidth > available ? 2 : 1;
-        _tooltipLineHeight = lineHeight;
         if (_tooltipLines == 2)
             text = FormatItemName(content.ChineseName, content.EnglishName, _configuration.ShowOriginal, twoLines: true);
 
@@ -238,9 +234,10 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// wrap comes off and the node grows to the text.
     /// </summary>
     /// <remarks>
-    /// The height goes back to what the game gave the English name, plus one line when
-    /// the English name moved to a second line. Any other height moves the line off the
-    /// place the game drew the original, either under it or above it.
+    /// The height goes back to what the game gave the English name, and keeps it when
+    /// the English name is on a second line. The tooltip draws the line at the bottom of
+    /// the node, so the two-line name stacks upward into the header instead of pushing
+    /// the English line down over the item description.
     /// </remarks>
     private void FitTooltipName(nint address)
     {
@@ -264,7 +261,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
         if (width > originalWidth)
             node->Width = width;
 
-        node->Height = (ushort)(originalHeight + ((_tooltipLines - 1) * _tooltipLineHeight));
+        node->Height = originalHeight;
     }
 
     /// <summary>Measures a candidate name without writing it into the node.</summary>
