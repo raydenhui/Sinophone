@@ -37,6 +37,14 @@ public sealed class SelectionDialogHandler : IDisposable
     private static readonly Regex QuestBattleLevel = new(@"<Sheet\(QuestBattle,IntegerParameter\(2\),3\)\s*/>", RegexOptions.CultureInvariant);
 
     /// <summary>
+    /// A name the Chinese row reads from another sheet, such as the retainer's class
+    /// or an item. The English line shows the name the game drew in that slot.
+    /// </summary>
+    private static readonly Regex SheetNameValue = new(
+        @"<\s*Sheet\([^<>]*\)\s*/>",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    /// <summary>
     /// A macro that renders its value from the expression inside the tag, such as
     /// <c>&lt;Format(IntegerParameter(1),FF022C)/&gt;</c>. The tag itself has no text,
     /// so the value must be substituted before the macro strip removes the tag.
@@ -466,6 +474,7 @@ public sealed class SelectionDialogHandler : IDisposable
         var itemLevel = EnglishItemLevel.Match(liveEnglish).Groups[1].Value;
 
         var resolved = ResolveItemMacros(chinese, liveEnglish, captures, store);
+        resolved = ResolveSheetNames(resolved, captures, parameterIndices, store);
 
         // A date or clock in the row is drawn from a SetTime macro. The game
         // converts the timestamp to the player's local time, and it does not pass
@@ -565,6 +574,53 @@ public sealed class SelectionDialogHandler : IDisposable
         resolved = PrivateUseCharacter.Replace(resolved, string.Empty);
 
         return MacroNormalizer.CleanForDisplay(resolved);
+    }
+
+    /// <summary>
+    /// Fills a name the Chinese row reads from another sheet. The English line
+    /// shows the name the game drew, so the store's name lookup translates it. A
+    /// name the store does not know keeps the English prompt.
+    /// </summary>
+    private static string ResolveSheetNames(
+        string chinese,
+        IReadOnlyList<string>? captures,
+        IReadOnlyList<int>? parameterIndices,
+        TranslationStore? store)
+    {
+        if (store is null
+            || captures is null
+            || !chinese.Contains("<Sheet(", StringComparison.OrdinalIgnoreCase))
+        {
+            return chinese;
+        }
+
+        // A capture with a parameter index fills an IntegerParameter slot, so it is
+        // not a name. The names are the captures the template drew from a Sheet.
+        var used = new bool[captures.Count];
+        for (var i = 0; i < captures.Count; i++)
+        {
+            used[i] = parameterIndices is not null
+                      && i < parameterIndices.Count
+                      && parameterIndices[i] > 0;
+        }
+
+        return SheetNameValue.Replace(chinese, match =>
+        {
+            for (var i = 0; i < captures.Count; i++)
+            {
+                if (used[i] || captures[i].Length == 0)
+                    continue;
+
+                if (store.TryGetName(captures[i], out var name)
+                    || store.TryGetAddonLabel(captures[i], out name))
+                {
+                    used[i] = true;
+                    return name;
+                }
+            }
+
+            return match.Value;
+        });
     }
 
     /// <summary>

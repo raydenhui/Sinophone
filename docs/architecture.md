@@ -148,6 +148,12 @@ fills the date and clock values and draws nothing, then reads them back as
 clock from the English line and fills the slots itself. A value it cannot read leaves the English
 line in place.
 
+A row can also draw a name from another sheet, such as the retainer's class in
+`Sheet(ClassJob,IntegerParameter(1),0)`. The English line shows the name the game chose, so the
+handler translates that name through the store's name and Addon label lookups. The class names
+come from the `Addon` sheet, which carries the client's own class list. A name the store does not
+know leaves the English line in place.
+
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
   live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds
   only) before changing either constant.

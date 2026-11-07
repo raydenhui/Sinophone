@@ -182,6 +182,38 @@ public class SelectionDialogHandlerTests
         Assert.Empty(SelectionDialogHandler.ResolveAddonText(VenturePrompt, "View venture report."));
     }
 
+    [Fact]
+    public void ResolveAddonText_FillsSheetNameFromTheEnglishLine()
+    {
+        // Addon row 2390. The row names the retainer's class through the ClassJob
+        // sheet, and the English line shows the name the game drew.
+        var store = LoadStore("""
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{"Addon":{"5":{"Text":["刻木匠"]}}}}
+            """);
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            "设置雇员职业　[<Value>IntegerParameter(2)</Value>级<Sheet(ClassJob,IntegerParameter(1),0)/>]",
+            "Reset retainer class. (Carpenter: Lv. 50)",
+            ["Carpenter", "50"], store, [-1, 2]);
+
+        Assert.Equal("设置雇员职业　[50级刻木匠]", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_ReturnsEmpty_WhenTheSheetNameIsUnknown()
+    {
+        var store = LoadStore("""
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{"Addon":{"3":{"Text":["是"]}}}}
+            """);
+
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(
+            "设置雇员职业　[<Value>IntegerParameter(2)</Value>级<Sheet(ClassJob,IntegerParameter(1),0)/>]",
+            "Reset retainer class. (Carpenter: Lv. 50)",
+            ["Carpenter", "50"], store, [-1, 2]));
+    }
+
     private const string VenturePrompt =
         "查看雇员探险情况　[～<Time(IntegerParameter(1))/>" +
         "<Value>TopLevelParameter(222)</Value>/<Value>TopLevelParameter(221)</Value>/" +
@@ -196,6 +228,7 @@ public class SelectionDialogHandlerTests
                 [1] = ["OK"],
                 [3] = ["Yes."],
                 [4] = ["No."],
+                [5] = ["Carpenter"],
             });
 
         var store = TranslationStore.Load(
