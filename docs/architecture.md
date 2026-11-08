@@ -141,7 +141,13 @@ game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 An `Addon` prompt can hold a runtime value, such as the gil amount in the retainer menu. The store
 matches those rows as templates: the live English line fills the wildcards, and the Chinese macro
 is replaced with the same text. `Format` and `ZeroPaddedValue` keep the value the English line
-showed, including thousands separators, so the Chinese prompt shows the real amount.
+showed, including thousands separators, so the Chinese prompt shows the real amount. The English
+client draws a name from another sheet with `EnNoun`, which the template builder treats as a
+wildcard like `Sheet`.
+
+More than one row can match a prompt. A row that draws a word with a conditional macro matches
+almost any text in that place. Templates are ordered so the one with the most literal text is
+tried first; it names the prompt most exactly.
 
 A date or clock prompt works the other way round. The Chinese row starts with a `Time` tag that
 fills the date and clock values and draws nothing, then reads them back as
