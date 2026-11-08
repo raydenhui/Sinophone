@@ -149,6 +149,12 @@ More than one row can match a prompt. A row that draws a word with a conditional
 almost any text in that place. Templates are ordered so the one with the most literal text is
 tried first; it names the prompt most exactly.
 
+The dialog is laid out for the line count of the English text. When the Chinese prompt has more
+lines, the handler joins them into one line and writes it only when the joined line measures no
+wider or taller than the node the game sized for the English text. Otherwise the extra line keeps
+its break and can reach over whatever sits below the prompt, such as the item icon in an exchange
+dialog.
+
 A date or clock prompt works the other way round. The Chinese row starts with a `Time` tag that
 fills the date and clock values and draws nothing, then reads them back as
 `TopLevelParameter(n)`. The game keeps those values to itself, so the handler reads the date and

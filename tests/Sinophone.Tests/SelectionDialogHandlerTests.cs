@@ -248,6 +248,79 @@ public class SelectionDialogHandlerTests
             ["Carpenter", "50"], store, [-1, 2]));
     }
 
+    [Fact]
+    public void FitPromptLines_JoinsTheLines_WhenTheJoinedLineFitsTheEnglishBox()
+    {
+        // Addon row 11194. The English prompt is one line, so the dialog is laid out
+        // for one line and the Chinese break would push the second line over the icon.
+        var fitted = SelectionDialogHandler.FitPromptLines(
+            "Exchange 1,820 MGC for the following item?",
+            "確定要用金碟點×1,820，\n換取以下道具嗎？",
+            344,
+            18,
+            _ => ((ushort)330, (ushort)18));
+
+        Assert.Equal("確定要用金碟點×1,820，換取以下道具嗎？", fitted);
+    }
+
+    [Fact]
+    public void FitPromptLines_JoinsTheLines_WhenTheTextUsesACarriageReturn()
+    {
+        var fitted = SelectionDialogHandler.FitPromptLines(
+            "Exchange 1,820 MGC for the following item?",
+            "確定要用金碟點×1,820，\r\n換取以下道具嗎？",
+            344,
+            18,
+            _ => ((ushort)330, (ushort)18));
+
+        Assert.Equal("確定要用金碟點×1,820，換取以下道具嗎？", fitted);
+    }
+
+    [Fact]
+    public void FitPromptLines_KeepsTheLines_WhenTheJoinedLineIsWiderThanTheBox()
+    {
+        var chinese = "確定要用金碟點×1,820，\n換取以下道具嗎？";
+
+        var fitted = SelectionDialogHandler.FitPromptLines(
+            "Exchange 1,820 MGC for the following item?",
+            chinese,
+            344,
+            18,
+            _ => ((ushort)400, (ushort)18));
+
+        Assert.Equal(chinese, fitted);
+    }
+
+    [Fact]
+    public void FitPromptLines_KeepsTheLines_WhenTheJoinedLineWouldWrap()
+    {
+        var chinese = "確定要用金碟點×1,820，\n換取以下道具嗎？";
+
+        var fitted = SelectionDialogHandler.FitPromptLines(
+            "Exchange 1,820 MGC for the following item?",
+            chinese,
+            344,
+            18,
+            _ => ((ushort)340, (ushort)36));
+
+        Assert.Equal(chinese, fitted);
+    }
+
+    [Fact]
+    public void FitPromptLines_KeepsTheLines_WhenTheEnglishHasAsManyLines()
+    {
+        var chinese = "第一行\n第二行";
+
+        var fitted = SelectionDialogHandler.FitPromptLines(
+            "First line\nSecond line",
+            chinese,
+            344,
+            36,
+            _ => ((ushort)200, (ushort)36));
+
+        Assert.Equal(chinese, fitted);
+    }
+
     private const string VenturePrompt =
         "查看雇员探险情况　[～<Time(IntegerParameter(1))/>" +
         "<Value>TopLevelParameter(222)</Value>/<Value>TopLevelParameter(221)</Value>/" +

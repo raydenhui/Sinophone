@@ -301,6 +301,11 @@ premature interface.
   at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows
   `ShowOriginal`; both put the English name with the Chinese name, in brackets on one line.
   Selection dialogs have their own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
+- **Selection dialog layout.** A selection dialog is laid out for the line count of the English
+  text. When the Chinese prompt has more lines, `SelectionDialogHandler` joins them into one line
+  and writes it only when the joined line measures no wider or taller than the node the game sized
+  for the English text. Otherwise the extra line can reach over whatever sits below the prompt,
+  such as the item icon in an exchange dialog.
 - **Native item names.** `ItemNameNativeMode` writes the Chinese name into the game's own item
   tooltip (`ItemDetail`, field `ItemNameText`) instead of drawing the overlay. It needs a font mod.
   The name is written on `HoveredItemChanged` and again on the tooltip addon's `PostSetup` and
