@@ -46,6 +46,11 @@ the number. A `Time` tag draws nothing: it fills the date and clock registers th
 `TopLevelParameter(n)`. Fill those from the date and clock the English line shows, and drop the
 `Time` tag.
 
+Several `Addon` templates can match one English line. A row that draws a word with a conditional
+macro matches almost any text in that place, so templates are ordered by literal text and the
+most specific one is tried first. The English client draws a name from another sheet with
+`EnNoun`; treat it as a wildcard like `Sheet`.
+
 The English line is the only source for a date. A SetTime prompt is built from the rendered
 English text, so a missing value stays English. The English client writes the date month first,
 and a number above 12 marks the day-first form.

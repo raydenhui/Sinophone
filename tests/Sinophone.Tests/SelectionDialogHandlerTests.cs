@@ -44,6 +44,40 @@ public class SelectionDialogHandlerTests
     }
 
     [Fact]
+    public void ResolveAddonText_FillsItemNameAndAmountForTheMultipleItemPrompt()
+    {
+        // Addon row 11194. The English client draws the amount and the item name
+        // with separate macros, so the template captures both.
+        var descriptors = new ISheetDescriptor[]
+        {
+            new FakeSheetDescriptor("Item", "Name", true, new Dictionary<uint, string[]>
+            {
+                [1] = ["MGC"],
+            }),
+        };
+
+        var json = """
+            {"FormatVersion":1,"Language":"CN","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{"Item":{"1":{"Name":["金碟点"]}}}}
+            """;
+
+        var store = TranslationStore.Load(
+            descriptors,
+            ChineseVariant.Simplified,
+            false,
+            _ => ToGzipStream(json),
+            new FakePluginLog());
+        Assert.NotNull(store);
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(
+            "确定要用<Sheet(Item,IntegerParameter(1),0)/>×<Format(IntegerParameter(2),FF022C)/>，\r\n换取以下道具吗？",
+            "Exchange 1,820 MGC for the following item?",
+            ["1,820", "MGC"], store, [2, -1]);
+
+        Assert.Equal("确定要用金碟点×1,820，\n换取以下道具吗？", resolved);
+    }
+
+    [Fact]
     public void TryTranslate_LeavesUnknownTextAlone()
     {
         var store = LoadStore("""

@@ -648,6 +648,39 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetAddonText_PrefersTheTemplateWithMoreLiteralText()
+    {
+        // Addon row 3290 fills the seal/seals word with a conditional macro, so
+        // its template matches row 11194's prompt too. The row that names the
+        // following item has more literal text and has to win.
+        var descriptor = new FakeSheetDescriptor("Addon", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [3290] = ["Exchange UNKNOWN UNKNOWN for UNKNOWN?"],
+                [11194] = ["Exchange UNKNOWN UNKNOWN for the following item?"],
+            });
+
+        var artifacts = Artifacts(
+            Artifact(
+                "CN",
+                ("Addon", "Text", 3290, "「<Sheet(Item,IntegerParameter(1),0)/>」×IntegerParameter(2)需要提交军票。要交换吗？"),
+                ("Addon", "Text", 11194, "确定要用<Sheet(Item,IntegerParameter(1),0)/>×IntegerParameter(2)，换取以下道具吗？")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetAddonText("Exchange 1,820 MGC for the following item?", out var chinese));
+        Assert.Contains("换取以下道具吗", chinese, StringComparison.Ordinal);
+        Assert.DoesNotContain("军票", chinese, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TryGetAddonText_IgnoresTemplateWithNoLiteralText()
     {
         var descriptor = new FakeSheetDescriptor("Addon", "Text", false,

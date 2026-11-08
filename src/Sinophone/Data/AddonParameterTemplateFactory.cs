@@ -54,10 +54,14 @@ internal static class AddonParameterTemplateFactory
                     indices.Add(TryGetParameterIndex(payload, out var index) ? index : -1);
                     break;
 
+                // EnNoun draws a name from another sheet, as Sheet does for the
+                // Chinese client. Addon row 11194 writes an item as
+                // "Exchange <Kilo> <EnNoun Item> for the following item?".
                 case MacroCode.If:
                 case MacroCode.Switch:
                 case MacroCode.Sheet:
                 case MacroCode.SheetSub:
+                case MacroCode.EnNoun:
                     builder.Append(ScriptTextTemplate.Wildcard);
                     indices.Add(-1);
                     break;

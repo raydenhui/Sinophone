@@ -514,7 +514,8 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>
     /// Ties a cached index to the inputs it was built from. A game patch changes the
     /// English text the index is keyed on, and a new download changes the artifact,
-    /// so either one makes the cache stale.
+    /// so either one makes the cache stale. The plugin build is part of the key
+    /// because an index change, such as a new match rule, only ships in a new build.
     /// </summary>
     private string BuildStoreCacheKey()
     {
@@ -525,6 +526,7 @@ public sealed class Plugin : IDalamudPlugin
             configuration.Variant.ToString(),
             configuration.UseFallbackVariant.ToString(),
             configuration.Conversion.ToString(),
+            typeof(TranslationStore).Assembly.ManifestModule.ModuleVersionId.ToString(),
             GetGameDataVersion(),
             _dataUpdater.SourceIdentity(ChineseVariant.Simplified),
             _dataUpdater.SourceIdentity(ChineseVariant.Traditional));
