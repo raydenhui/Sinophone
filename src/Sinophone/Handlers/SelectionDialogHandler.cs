@@ -216,11 +216,12 @@ public sealed class SelectionDialogHandler : IDisposable
                 continue;
             }
 
-            if (_nativeWriter.WriteAt(addonName, nodeAddress, chinese))
+            var fitted = FitPromptLines(node, source, chinese);
+            if (_nativeWriter.WriteAt(addonName, nodeAddress, fitted))
             {
                 Remember(addonName, nodeAddress);
                 _log.Debug("Selection dialog {Addon} node {NodeId}: {Source} -> {Chinese}",
-                    addonName, nodeId, source, chinese);
+                    addonName, nodeId, source, fitted);
             }
         }
     }
@@ -455,6 +456,72 @@ public sealed class SelectionDialogHandler : IDisposable
 
         chinese = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    /// A selection dialog is laid out for the line count of the English text. A
+    /// translation with more lines grows the text node past the box and down over
+    /// the controls below it, such as the item icon in an exchange prompt. Join the
+    /// lines when the joined line still fits the box the game sized for the English
+    /// text; keep them when it does not, since a wrapped line would overlap anyway.
+    /// </summary>
+    internal static string FitPromptLines(
+        string source,
+        string chinese,
+        ushort maxWidth,
+        ushort maxHeight,
+        Func<string, (ushort Width, ushort Height)> measure)
+    {
+        if (maxWidth == 0 || maxHeight == 0)
+            return chinese;
+
+        if (CountLines(chinese) <= CountLines(source))
+            return chinese;
+
+        var joined = JoinLines(chinese);
+        var (width, height) = measure(joined);
+        return width <= maxWidth && height <= maxHeight ? joined : chinese;
+    }
+
+    private static unsafe string FitPromptLines(AtkTextNode* node, string source, string chinese)
+        => FitPromptLines(source, chinese, node->Width, node->Height,
+            text => MeasureText(node, text));
+
+    private static unsafe (ushort Width, ushort Height) MeasureText(AtkTextNode* node, string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        var buffer = new byte[bytes.Length + 1];
+        bytes.CopyTo(buffer, 0);
+
+        fixed (byte* pointer = buffer)
+        {
+            ushort width = 0;
+            ushort height = 0;
+            node->GetTextDrawSize(&width, &height, pointer);
+            return (width, height);
+        }
+    }
+
+    private static int CountLines(string text)
+    {
+        var lines = 1;
+        foreach (var ch in text)
+        {
+            if (ch == '\n')
+                lines++;
+        }
+
+        return lines;
+    }
+
+    /// <summary>Joins the lines of a translated prompt into one, trimming each line.</summary>
+    private static string JoinLines(string text)
+    {
+        var builder = new StringBuilder(text.Length);
+        foreach (var line in text.Split('\n'))
+            builder.Append(line.Trim());
+
+        return builder.ToString();
     }
 
     /// <summary>
