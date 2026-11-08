@@ -662,6 +662,12 @@ public sealed partial class TranslationStore
         if (fallback is not null)
             store.Index(fallback, descriptors, extraction, dataLog);
 
+        // Several rows can match one prompt. A row that draws a word with a
+        // conditional macro matches almost any text in its place, so its template
+        // also matches prompts written for another row. The template with the most
+        // literal text names the prompt most exactly, so try it first.
+        store._addonTemplates.Sort(CompareAddonTemplates);
+
         stopwatch.Stop();
         dataLog.Info(
             "Loaded {Variant}{Fallback} translations: {Text:N0} dialogue, {Name:N0} names and {Script:N0} script lines " +
@@ -677,6 +683,38 @@ public sealed partial class TranslationStore
             store._scriptEntryCount - primaryScriptCount);
 
         return store;
+    }
+
+    /// <summary>
+    /// Orders Addon templates from the most literal text to the least. A template
+    /// with fewer wildcards wins a tie, because it allows less text to vary.
+    /// </summary>
+    private static int CompareAddonTemplates(
+        (string Template, string Chinese, int[]? ParameterIndices) left,
+        (string Template, string Chinese, int[]? ParameterIndices) right)
+    {
+        var literal = ScriptTextTemplate.LiteralLength(right.Template)
+            .CompareTo(ScriptTextTemplate.LiteralLength(left.Template));
+        if (literal != 0)
+            return literal;
+
+        var wildcards = CountWildcards(left.Template).CompareTo(CountWildcards(right.Template));
+        if (wildcards != 0)
+            return wildcards;
+
+        return string.CompareOrdinal(left.Template, right.Template);
+    }
+
+    private static int CountWildcards(string template)
+    {
+        var count = 0;
+        foreach (var ch in template)
+        {
+            if (ch == ScriptTextTemplate.Wildcard)
+                count++;
+        }
+
+        return count;
     }
 
     private static ChineseVariant Other(ChineseVariant variant)

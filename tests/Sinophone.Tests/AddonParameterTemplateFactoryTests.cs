@@ -27,6 +27,31 @@ public class AddonParameterTemplateFactoryTests
     }
 
     [Fact]
+    public void TryBuild_AddsWildcardForEnglishNoun()
+    {
+        // Addon row 11194. The English client draws the amount with Kilo and the
+        // item name with EnNoun, so the wildcard has to cover the noun too.
+        var builder = new SeStringBuilder();
+        builder.Append("Exchange ");
+        builder.BeginMacro(MacroCode.Kilo);
+        builder.AppendLocalNumberExpression(2);
+        builder.EndMacro();
+        builder.Append(" ");
+        builder.BeginMacro(MacroCode.EnNoun);
+        builder.AppendStringExpression("Item");
+        builder.EndMacro();
+        builder.Append(" for the following item?");
+
+        var text = builder.ToReadOnlySeString();
+
+        Assert.True(AddonParameterTemplateFactory.TryBuild(text.AsSpan(), out var template));
+        Assert.Equal(new[] { 2, -1 }, template.ParameterIndices);
+        Assert.True(ScriptTextTemplate.TryMatch(
+            template.Template, "Exchange 1,820 MGC for the following item?", out var captures));
+        Assert.Equal(new[] { "1,820", "MGC" }, captures);
+    }
+
+    [Fact]
     public void TryBuild_AddsWildcardForHeadWrappedValue()
     {
         // Addon row 2390. Head draws the class name the sheet expression returns,
