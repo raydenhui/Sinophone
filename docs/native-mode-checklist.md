@@ -19,6 +19,9 @@ Two runs are needed:
 | --- | --- |
 | Talk to an NPC with a short line | Chinese in the dialogue box, no overlay above it |
 | Talk to an NPC with a long line | Text wraps inside the box, nothing clipped |
+| `GimmickBill` row 66 at the Ktisis Hyperboreia sign | All eight Chinese lines stay inside the panel, top and bottom |
+| A line long enough that the Chinese needs more room than the English | The box grows for the Chinese, or the line shrinks to fit; it never draws outside the panel |
+| A long Chinese speaker name or title | The name stays inside the header |
 | Let a line finish revealing | Chinese stays after the reveal ends; it does not revert to English |
 | Talk to an NPC whose line has no translation | English line stays English; no Chinese from the previous line appears |
 | Speaker name | Chinese name in the name field |
@@ -28,6 +31,7 @@ Two runs are needed:
 | Change Chinese variant in settings | Next line uses the new variant |
 | Cutscene subtitle | Overlay still used; native mode does not cover subtitles yet |
 | Chat bubble from an NPC | Overlay still used; native mode does not cover bubbles yet |
+| A line the plugin cannot fit, such as one wider than the screen | The English line stays; no Chinese is drawn outside the box |
 | Line with oblique words | Note whether the English fragments stay on screen. If they do, open an issue |
 | Yes/No dialog | Prompt and button labels are Chinese; no overlay |
 | String selection dialog | Prompt and every option are Chinese; no overlay |

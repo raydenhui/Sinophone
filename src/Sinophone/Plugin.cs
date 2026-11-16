@@ -17,6 +17,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
     [PluginService] public static INamePlateGui NamePlateGui { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
+    [PluginService] public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
@@ -169,6 +170,7 @@ public sealed class Plugin : IDalamudPlugin
         _talkHandler = new TalkHandler(
             AddonLifecycle,
             Log,
+            GameInteropProvider,
             TargetManager,
             _configuration,
             () => _store,

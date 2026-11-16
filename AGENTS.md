@@ -295,7 +295,10 @@ premature interface.
   once its font files are replaced. TexTools and Penumbra both install the same modpack; the font
   comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
   mode shows the missing-glyph character and the plugin cannot tell. See
-  [README](README.en.md#font-setup).
+  [README](README.en.md#font-setup). The Chinese goes into the addon's `AtkValue` strings before
+  the game lays the box out, so the game sizes the box for the translation. A node written after
+  layout is the fallback and is shrunk to the room the game gave it; a translation that cannot fit
+  stays English instead of drawing outside the box.
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
   at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows
