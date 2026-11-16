@@ -55,6 +55,14 @@ public sealed partial class TranslationStore
     /// <summary>Script translations keyed by the dump's text key, when the game exposes it.</summary>
     private readonly Dictionary<string, string> _scriptKeyLookup = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Script lines that share one English key but have different Chinese, such as the
+    /// three different "You bastard!" lines. The key alone cannot tell them apart, so
+    /// the text lookup never answers from it. The candidates stay here so the speaker
+    /// name can still pick one.
+    /// </summary>
+    private readonly Dictionary<string, List<ScriptCandidate>> _ambiguousScriptKeys = new(StringComparer.Ordinal);
+
     private readonly Dictionary<(string Sheet, string Field), ISheetDescriptor> _descriptorByKey = new();
 
     private readonly Func<string, string> _displayResolver;
@@ -69,6 +77,9 @@ public sealed partial class TranslationStore
     private readonly PluginLog _log;
 
     private int _scriptEntryCount;
+
+    /// <summary>One line of a script key that more than one Chinese line shares.</summary>
+    private readonly record struct ScriptCandidate(string Display, string[] SpeakerTokens);
 
     private TranslationStore(
         ChineseVariant primaryVariant,
@@ -103,10 +114,13 @@ public sealed partial class TranslationStore
     /// <summary>Script-dump lines in the text lookup. Already counted in <see cref="TextEntryCount"/>.</summary>
     public int ScriptEntryCount => _scriptEntryCount;
 
+    /// <summary>Script English keys that map to more than one Chinese line.</summary>
+    internal int AmbiguousScriptKeyCount => _ambiguousScriptKeys.Count;
+
     internal int AddonTemplateCount => _addonTemplates.Count;
 
     public bool TryGetDialogue(string? englishText, out string chineseText)
-        => TryGetDialogue(englishText, default, out chineseText);
+        => TryGetDialogue(englishText, default, null, out chineseText);
 
     /// <summary>
     /// Resolves one line, trying the game's ids before the English text. A missing
@@ -114,6 +128,18 @@ public sealed partial class TranslationStore
     /// surface keeps the previous behaviour as a fallback.
     /// </summary>
     public bool TryGetDialogue(string? englishText, in DialogueContext context, out string chineseText)
+        => TryGetDialogue(englishText, in context, null, out chineseText);
+
+    /// <summary>
+    /// Resolves one line, trying the game's ids before the English text.
+    /// <paramref name="speakerName"/> is optional and only used to choose between
+    /// script lines that share one English key, such as a generic "You bastard!".
+    /// </summary>
+    public bool TryGetDialogue(
+        string? englishText,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         if (TryGetDialogueById(englishText, context, out chineseText))
             return true;
@@ -123,6 +149,9 @@ public sealed partial class TranslationStore
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0)
             return false;
+
+        if (TryLookupAmbiguousScript(key, speakerName, out chineseText))
+            return true;
 
         if (_textLookup.TryGetValue(key, out var stored))
         {
@@ -144,6 +173,136 @@ public sealed partial class TranslationStore
 
         chineseText = ResolveDisplay(match);
         return true;
+    }
+
+    /// <summary>
+    /// Answers a key that several script lines share by matching the speaker name
+    /// against the speaker token in each dump key, such as <c>..._JULLUS</c>. A key
+    /// with no name, or with more than one candidate for that name, stays unanswered
+    /// rather than guessing.
+    /// </summary>
+    private bool TryLookupAmbiguousScript(string key, string? speakerName, out string chineseText)
+    {
+        chineseText = string.Empty;
+
+        if (!_ambiguousScriptKeys.TryGetValue(key, out var candidates))
+            return false;
+
+        var words = SpeakerWords(speakerName);
+        if (words.Length == 0)
+            return false;
+
+        string? match = null;
+        foreach (var candidate in candidates)
+        {
+            if (!CandidateIsSpokenBy(candidate, words))
+                continue;
+
+            if (match is not null)
+                return false;
+
+            match = candidate.Display;
+        }
+
+        if (match is null)
+            return false;
+
+        chineseText = ResolveDisplay(match);
+        _log.Debug(
+            "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}.",
+            candidates.Count, speakerName ?? string.Empty);
+        return true;
+    }
+
+    /// <summary>
+    /// True when the dump key names the speaker, such as <c>TEXT_VOICEMAN_06005_000910_JULLUS</c>
+    /// for "Jullus". Keys are matched on whole tokens so a scene name cannot match.
+    /// </summary>
+    private static bool CandidateIsSpokenBy(ScriptCandidate candidate, string[] speakerWords)
+    {
+        foreach (var token in candidate.SpeakerTokens)
+        {
+            foreach (var word in speakerWords)
+            {
+                if (string.Equals(token, word, StringComparison.Ordinal))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The words of a speaker name that can appear in a dump key. Titles and short
+    /// words are dropped; "Jullus" and "Emet-Selch" both survive.
+    /// </summary>
+    private static string[] SpeakerWords(string? speakerName)
+    {
+        if (string.IsNullOrWhiteSpace(speakerName))
+            return [];
+
+        var words = new List<string>(3);
+
+        var start = -1;
+        for (var i = 0; i <= speakerName.Length; i++)
+        {
+            var isLetter = i < speakerName.Length && char.IsLetter(speakerName[i]);
+            if (isLetter)
+            {
+                if (start < 0)
+                    start = i;
+                continue;
+            }
+
+            if (start < 0)
+                continue;
+
+            if (i - start >= 4)
+                words.Add(speakerName[start..i].ToUpperInvariant());
+
+            start = -1;
+        }
+
+        return words.Count == 0 ? [] : words.ToArray();
+    }
+
+    /// <summary>
+    /// The words in a script key that can name a speaker. Digits and short tokens such
+    /// as <c>TEXT</c> are dropped so only real names remain.
+    /// </summary>
+    private static string[] KeySpeakerTokens(string? scriptKey)
+    {
+        if (string.IsNullOrEmpty(scriptKey))
+            return [];
+
+        var tokens = new List<string>(4);
+
+        var start = -1;
+        for (var i = 0; i <= scriptKey.Length; i++)
+        {
+            var isLetter = i < scriptKey.Length && char.IsLetter(scriptKey[i]);
+            if (isLetter)
+            {
+                if (start < 0)
+                    start = i;
+                continue;
+            }
+
+            if (start < 0)
+                continue;
+
+            var length = i - start;
+            if (length >= 4)
+            {
+                var token = scriptKey[start..i].ToUpperInvariant();
+                if (!string.Equals(token, "TEXT", StringComparison.Ordinal) && !tokens.Contains(token))
+                    tokens.Add(token);
+            }
+
+            start = -1;
+        }
+
+        return tokens.Count == 0 ? [] : tokens.ToArray();
     }
 
     /// <summary>
@@ -911,6 +1070,10 @@ public sealed partial class TranslationStore
     {
         var added = 0;
 
+        // Keys this artifact added, so a collision inside one artifact is told apart
+        // from the other variant simply owning the line.
+        var indexedInThisArtifact = new Dictionary<string, ScriptCandidate>(StringComparer.Ordinal);
+
         foreach (var (scriptKey, entry) in artifact.Scripts)
         {
             // Event speakers such as "Distant Echo" often exist only as a script
@@ -961,18 +1124,52 @@ public sealed partial class TranslationStore
             if (!string.IsNullOrWhiteSpace(scriptKey))
                 _scriptKeyLookup.TryAdd(scriptKey, display);
 
-            if (_textLookup.TryAdd(key, display))
+            if (_ambiguousScriptKeys.TryGetValue(key, out var known))
             {
-                added++;
-                _scriptEntryCount++;
+                AddScriptCandidate(known, scriptKey, display);
+                continue;
             }
-            else
+
+            if (indexedInThisArtifact.TryGetValue(key, out var first))
+            {
+                if (string.Equals(first.Display, display, StringComparison.Ordinal))
+                    continue;
+
+                // Two script lines share this English key with different Chinese. The
+                // key cannot tell them apart, so it must not answer either one. Keep
+                // both candidates so the speaker name can still choose.
+                _textLookup.Remove(key);
+                added--;
+                _scriptEntryCount--;
+
+                var candidates = new List<ScriptCandidate>(3) { first };
+                AddScriptCandidate(candidates, scriptKey, display);
+                _ambiguousScriptKeys[key] = candidates;
+
+                // The collapsed key would give the same wrong answer for the other
+                // wording of the line.
+                var collapsed = CollapseBranchWords(key);
+                if (!ReferenceEquals(collapsed, key)
+                    && _branchNeutralLookup.TryGetValue(collapsed, out var collapsedDisplay)
+                    && string.Equals(collapsedDisplay, first.Display, StringComparison.Ordinal))
+                {
+                    _branchNeutralLookup.Remove(collapsed);
+                }
+
+                continue;
+            }
+
+            if (!_textLookup.TryAdd(key, display))
             {
                 // The configured variant already owns this line. Its collapsed key is
                 // built, and the other variant's Chinese only conflicts with it, so
                 // the whole index would look ambiguous.
                 continue;
             }
+
+            added++;
+            _scriptEntryCount++;
+            indexedInThisArtifact[key] = new ScriptCandidate(display, KeySpeakerTokens(scriptKey));
 
             // The English dump holds one branch's wording, so keep a key with the
             // branch words collapsed for the others. A line that already matches
@@ -1000,7 +1197,32 @@ public sealed partial class TranslationStore
                 _ambiguousBranchKeys.Count);
         }
 
+        if (_ambiguousScriptKeys.Count > 0)
+        {
+            log.Debug(
+                "{Count:N0} script keys map to more than one line; the speaker name picks one.",
+                _ambiguousScriptKeys.Count);
+        }
+
         return added;
+    }
+
+    /// <summary>
+    /// Keeps one more line for an English key that several script lines share. A line
+    /// with the same Chinese as one already kept adds nothing.
+    /// </summary>
+    private static void AddScriptCandidate(
+        List<ScriptCandidate> candidates,
+        string? scriptKey,
+        string display)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (string.Equals(candidate.Display, display, StringComparison.Ordinal))
+                return;
+        }
+
+        candidates.Add(new ScriptCandidate(display, KeySpeakerTokens(scriptKey)));
     }
 
     /// <summary>

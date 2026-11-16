@@ -193,9 +193,9 @@ public sealed class TalkHandler : IDisposable
         if (string.IsNullOrWhiteSpace(englishText))
             return;
 
-        var englishName = _configuration.ShowSpeakerName
-            ? ReadStringValue(values, NameValueIndex, count)
-            : null;
+        // Read the name even when it is not shown: a line that several script lines
+        // share is matched by its speaker, such as three different "You bastard!".
+        var englishName = ReadStringValue(values, NameValueIndex, count);
 
         var content = Resolve(
             store,
@@ -375,9 +375,9 @@ public sealed class TalkHandler : IDisposable
             _log.Debug("{Addon} integer parameters: {Parameters}.", addonName, string.Join(", ", integerParameters));
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
-        var englishName = _configuration.ShowSpeakerName
-            ? ReadStringValue(values, NameValueIndex, count)
-            : null;
+        // Read the name even when it is not shown: a line that several script lines
+        // share is matched by its speaker, such as three different "You bastard!".
+        var englishName = ReadStringValue(values, NameValueIndex, count);
 
         _log.Debug("{Event} for {Addon}: {TextLength} text chars, name: {HasName}, text: {Text}",
             eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName),
@@ -541,7 +541,7 @@ public sealed class TalkHandler : IDisposable
         if (string.IsNullOrWhiteSpace(englishText))
             return null;
 
-        var hasText = store.TryGetDialogue(englishText, in context, out var chineseText);
+        var hasText = store.TryGetDialogue(englishText, in context, englishName, out var chineseText);
 
         if (!hasText && configuration.HideWhenNoTranslation)
             return null;

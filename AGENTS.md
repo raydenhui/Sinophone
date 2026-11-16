@@ -253,8 +253,10 @@ premature interface.
   a miss. Dialogue with a runtime id is tried by id first; when the game exposes no id, lookup
   falls back to this text match. Names are the exception: `ENpcResident` stores generic NPC names in lower case
   (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
-  case. Dialogue lookup stays case-sensitive. The English script dumps mark italics with one
-  asterisk and bold with two; the game draws that emphasis with a SeString macro, so
+  case. Dialogue lookup stays case-sensitive. When several script lines share one English line, the
+  speaker name picks the right one through the speaker token in the dump key (`..._JULLUS`); an
+  unnamed or unclear speaker leaves the line English instead of showing another scene's text.
+  The English script dumps mark italics with one asterisk and bold with two; the game draws that emphasis with a SeString macro, so
   `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
   from the text node before lookup. The dumps write client macros the datamining tool cannot
   name as `<Unknown60>0262</Unknown60>`. The payload is binary data, not text, so

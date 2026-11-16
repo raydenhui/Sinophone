@@ -98,6 +98,14 @@ Display resolves Grand Company parameters 52, 53, and 54 against the player's
 current company and rank. A line can contain one block per company, and only the
 current company block should render.
 
+Several script lines can share one English line. The dumps pair by text key, and a generic line such
+as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
+different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in
+`_ambiguousScriptKeys` and picks one only when the speaker name matches the speaker token in the dump
+key, such as `..._JULLUS` for "Jullus". A key with no name, or with more than one candidate for that
+name, stays unanswered and the line stays English. The id path is not affected: the game can still
+name the exact script key, which always wins.
+
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
 ids, scene data and Lua text pairs, so the mapping can be checked in game before it is

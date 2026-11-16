@@ -179,6 +179,17 @@ public class TranslationStoreTests
         return result;
     }
 
+    private static Dictionary<string, ScriptEntry> ScriptsWithKeys(
+        params (string Key, string English, string Text)[] entries)
+    {
+        var result = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal);
+
+        foreach (var (key, english, text) in entries)
+            result[key] = new ScriptEntry { English = english, Text = text };
+
+        return result;
+    }
+
     private static TranslationStore? Load(
         FakeSheetDescriptor descriptor,
         ChineseVariant variant,
@@ -584,6 +595,89 @@ public class TranslationStoreTests
         Assert.Equal(1, store.ScriptEntryCount);
         Assert.Equal(1, store.TextEntryCount);
     }
+
+    [Fact]
+    public void Lookup_DoesNotAnswer_WhenSeveralScriptLinesShareOneEnglishKey()
+    {
+        // Three real lines from the dumps: the same English, a different Chinese line
+        // for each speaker.
+        var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
+
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("You bastard!", out _));
+        Assert.Equal(1, store.AmbiguousScriptKeyCount);
+    }
+
+    [Fact]
+    public void Lookup_PicksTheScriptLineSpokenByTheNamedSpeaker()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("You bastard!", default, "Jullus", out var chinese));
+        Assert.Equal("芝諾斯……你這個混蛋！！", chinese);
+    }
+
+    [Fact]
+    public void Lookup_StaysUnanswered_WhenTheNameDoesNotMatchAScriptLine()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("You bastard!", default, "Y'shtola", out _));
+    }
+
+    [Fact]
+    public void Lookup_StaysUnanswered_WhenTwoScriptLinesNameTheSameSpeaker()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_00001_1_JULLUS", "You bastard!", "第一句"),
+            ("TEXT_VOICEMAN_00002_2_JULLUS", "You bastard!", "第二句"));
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("You bastard!", default, "Jullus", out _));
+    }
+
+    [Fact]
+    public void Lookup_AnswersByScriptKey_WhenTheEnglishKeyIsAmbiguous()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        var context = new DialogueContext(
+            null,
+            ["TEXT_VOICEMAN_06005_000910_JULLUS"]);
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("You bastard!", in context, out var chinese));
+        Assert.Equal("芝諾斯……你這個混蛋！！", chinese);
+    }
+
+    [Fact]
+    public void Lookup_StillAnswers_WhenTwoScriptLinesShareOneEnglishKeyAndTheSameChinese()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_ONE_0001", "See you later.", "再見。"),
+            ("TEXT_TWO_0002", "See you later.", "再見。"));
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("See you later.", out var chinese));
+        Assert.Equal("再見。", chinese);
+        Assert.Equal(0, store.AmbiguousScriptKeyCount);
+    }
+
+    private static Dictionary<string, ScriptEntry> DuplicateScripts()
+        => ScriptsWithKeys(
+            ("TEXT_VOICEMAN_05004_004230_THANCRED", "You bastard!", "愛梅特賽爾克……你！"),
+            ("TEXT_VOICEMAN_06005_000910_JULLUS", "You bastard!", "芝諾斯……你這個混蛋！！"),
+            ("TEXT_JOBPLD650_02573_ALDIS_000_052", "You bastard!", "你說什麼！"));
 
     [Fact]
     public void TryGetAddonText_MatchesUnknownPlaceholder()
@@ -1200,7 +1294,7 @@ public class TranslationStoreTests
     }
 
     [Fact]
-    public void TryGetDialogue_PrefersScriptKey_WhenEnglishTextAppearsInSeveralScripts()
+    public void TryGetDialogue_UsesScriptKey_WhenEnglishTextAppearsInSeveralScripts()
     {
         var scripts = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal)
         {
@@ -1216,8 +1310,8 @@ public class TranslationStoreTests
         Assert.True(store.TryGetDialogue("Same script line.", in context, out var byKey));
         Assert.Equal("乙", byKey);
 
-        Assert.True(store.TryGetDialogue("Same script line.", out var byText));
-        Assert.Equal("甲", byText);
+        // The English alone cannot tell the two lines apart, so it must not answer.
+        Assert.False(store.TryGetDialogue("Same script line.", out _));
     }
 
     [Fact]
