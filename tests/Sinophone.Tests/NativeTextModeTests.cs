@@ -44,4 +44,60 @@ public class NativeTextModeTests
     public void ShouldReapplyNativeText_IsFalse_ForSubtitles()
         => Assert.False(TalkHandler.ShouldReapplyNativeText(
             new Configuration { NativeTextMode = true }, "TalkSubtitle"));
+
+    [Fact]
+    public void IsLaidOutByHook_IsTrue_WhenTheValueAlreadyHoldsTheChineseLine()
+        => Assert.True(TalkHandler.IsLaidOutByHook("你好，旅行者。", "你好，旅行者。"));
+
+    [Fact]
+    public void IsLaidOutByHook_IsFalse_WhenTheValueIsTheEnglishLine()
+        => Assert.False(TalkHandler.IsLaidOutByHook("Hello, traveler.", "你好，旅行者。"));
+
+    [Fact]
+    public void IsLaidOutByHook_IsFalse_WhenNothingWasLaidOut()
+    {
+        Assert.False(TalkHandler.IsLaidOutByHook("Hello, traveler.", null));
+        Assert.False(TalkHandler.IsLaidOutByHook(null, "你好，旅行者。"));
+    }
+
+    [Fact]
+    public void ChooseFittingFontSize_KeepsTheStartingSize_WhenItAlreadyFits()
+    {
+        var measured = new List<byte>();
+
+        var fitted = NativeTextWriter.ChooseFittingFontSize(14, 10, 100, size =>
+        {
+            measured.Add(size);
+            return 90;
+        });
+
+        Assert.Equal((byte)14, fitted);
+        Assert.Equal([(byte)14], measured);
+    }
+
+    [Fact]
+    public void ChooseFittingFontSize_StepsDown_UntilTheTextFits()
+    {
+        // A smaller font wraps into fewer lines, so the height drops with the size.
+        static ushort Height(byte size) => (ushort)(size * 10);
+
+        var fitted = NativeTextWriter.ChooseFittingFontSize(14, 10, 115, Height);
+
+        Assert.Equal((byte)11, fitted);
+    }
+
+    [Fact]
+    public void ChooseFittingFontSize_ReturnsNull_WhenEvenTheSmallestSizeOverflows()
+        => Assert.Null(NativeTextWriter.ChooseFittingFontSize(14, 10, 5, static _ => 500));
+
+    [Fact]
+    public void ChooseFittingFontSize_UsesTheSmallestSize_WhenItIsTheOnlyFit()
+        => Assert.Equal(
+            (byte)10,
+            NativeTextWriter.ChooseFittingFontSize(
+                14, 10, 100, static size => (ushort)(size == 10 ? 90 : 200)));
+
+    [Fact]
+    public void ChooseFittingFontSize_ReturnsNull_WhenTheMinimumIsAboveTheStart()
+        => Assert.Null(NativeTextWriter.ChooseFittingFontSize(10, 14, 100, static _ => 10));
 }

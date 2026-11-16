@@ -30,11 +30,24 @@ public sealed unsafe class NativeTextWriter
     /// <summary>Node holding the speaker name in the <c>Talk</c> addon.</summary>
     public const uint TalkNameNodeId = 2;
 
+    /// <summary>
+    /// The smallest size a fitted line may use. Below this the text is too hard to read,
+    /// so the caller shows the game's own line instead.
+    /// </summary>
+    internal const byte MinimumFitFontSize = 10;
+
     private readonly IGameGui _gameGui;
     private readonly IDataManager _dataManager;
     private readonly PluginLog _log;
     private readonly Dictionary<(string Addon, uint NodeId), SavedText> _saved = [];
     private readonly Dictionary<(string Addon, nint Address), SavedText> _savedAt = [];
+
+    /// <summary>
+    /// The font size and leading the game first gave each node. The game applies them
+    /// from the addon template, so it may not reset them after a fitted line. Keeping
+    /// the first values stops each line from shrinking from the previous line's size.
+    /// </summary>
+    private readonly Dictionary<(string Addon, uint NodeId), (byte FontSize, byte LineSpacing)> _gameSizes = [];
 
     public NativeTextWriter(IGameGui gameGui, IDataManager dataManager, Configuration configuration, IPluginLog log)
     {
@@ -72,11 +85,22 @@ public sealed unsafe class NativeTextWriter
         // Save the game's text only when the node does not already hold our own text.
         // Otherwise a second write would save Chinese as the original.
         var key = (addonName, nodeId);
+        if (!_gameSizes.TryGetValue(key, out var gameSize))
+        {
+            gameSize = (node->FontSize, node->LineSpacing);
+            _gameSizes[key] = gameSize;
+        }
+
         _saved[key] = _saved.TryGetValue(key, out var saved)
                       && string.Equals(current, saved.Written, StringComparison.Ordinal)
-            ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Style = style, Reapplied = false }
+            ? saved with
+            {
+                Written = text, WrittenUtf8 = writtenUtf8, Style = style, Reapplied = false,
+                FitFontSize = null, FitLineSpacing = null,
+            }
             : new SavedText(current, text, writtenUtf8, style,
-                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height);
+                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height,
+                gameSize.FontSize, gameSize.LineSpacing);
 
         node->SetText(text);
         ApplyStyle(node, style);
@@ -85,6 +109,104 @@ public sealed unsafe class NativeTextWriter
         _log.Debug("Native text: wrote {Length} chars into {Addon} node {NodeId}.",
             text.Length, addonName, nodeId);
         return true;
+    }
+
+    /// <summary>
+    /// Writes a line, then shrinks it until it fits the room the game gave the node for
+    /// the original text. Returns false when the game's own line is left in place, so the
+    /// caller can fall back to the overlay. A node that grows past the space it was given
+    /// draws outside its window, which is what a long Chinese line does.
+    /// </summary>
+    public bool WriteFitted(string addonName, uint nodeId, string? text, UiTextStyle style = default)
+    {
+        if (!Write(addonName, nodeId, text, style))
+            return false;
+
+        var key = (addonName, nodeId);
+        if (!_saved.TryGetValue(key, out var saved)
+            || !string.Equals(saved.Written, text, StringComparison.Ordinal))
+        {
+            // The node already held this text, so there is no saved original to size
+            // against. Nothing was written, so nothing needs fitting.
+            return true;
+        }
+
+        return FitHeight(addonName, nodeId, saved.OriginalHeight);
+    }
+
+    /// <summary>
+    /// Shrinks the text in a node this writer filled until it fits
+    /// <paramref name="maxHeight"/>. Leading is tightened first, then the font size drops
+    /// one step at a time. Returns false, with the game's text put back, when it still
+    /// does not fit.
+    /// </summary>
+    private bool FitHeight(string addonName, uint nodeId, ushort maxHeight)
+    {
+        var key = (addonName, nodeId);
+        var node = GetNode(addonName, nodeId);
+        if (node is null || !_saved.TryGetValue(key, out var saved))
+            return false;
+
+        // Measure from the size the game gave the node, not from a size a previous
+        // fitted line left behind.
+        node->FontSize = saved.OriginalFontSize;
+        node->LineSpacing = 0;
+        node->ResizeNodeForCurrentText();
+
+        var address = (nint)node;
+        var fitted = ChooseFittingFontSize(node->FontSize, MinimumFitFontSize, maxHeight, size =>
+        {
+            var current = (AtkTextNode*)address;
+            current->FontSize = size;
+            current->ResizeNodeForCurrentText();
+            return current->Height;
+        });
+
+        if (fitted is not byte fontSize)
+        {
+            _log.Debug(
+                "Native text: {Addon} node {NodeId} needs more room than the game gave it; keeping the game text.",
+                addonName, nodeId);
+            Restore(addonName, nodeId);
+            return false;
+        }
+
+        node->FontSize = fontSize;
+        node->ResizeNodeForCurrentText();
+        _saved[key] = saved with { FitFontSize = fontSize, FitLineSpacing = node->LineSpacing };
+
+        if (fontSize < saved.OriginalFontSize || node->LineSpacing != saved.OriginalLineSpacing)
+        {
+            _log.Debug(
+                "Native text: fitted {Addon} node {NodeId} into {Height}px at font {FontSize} (from {Original}).",
+                addonName, nodeId, node->Height, fontSize, saved.OriginalFontSize);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Picks the largest font size at or below <paramref name="startFontSize"/> whose
+    /// measured height fits <paramref name="maxHeight"/>. Returns null when even the
+    /// smallest allowed size does not fit. The measuring is a callback, so the policy is
+    /// tested without a live node.
+    /// </summary>
+    internal static byte? ChooseFittingFontSize(
+        byte startFontSize,
+        byte minimumFontSize,
+        ushort maxHeight,
+        Func<byte, ushort> measureHeight)
+    {
+        for (var size = startFontSize; size >= minimumFontSize; size--)
+        {
+            if (measureHeight(size) <= maxHeight)
+                return size;
+
+            if (size == minimumFontSize)
+                break;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -110,7 +232,8 @@ public sealed unsafe class NativeTextWriter
                         && string.Equals(current, saved.Written, StringComparison.Ordinal)
             ? saved with { Written = text, WrittenUtf8 = writtenUtf8, Reapplied = false }
             : new SavedText(current, text, writtenUtf8, default,
-                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height);
+                node->TextColor, node->EdgeColor, node->TextFlags, node->Width, node->Height,
+                node->FontSize, node->LineSpacing);
 
         node->SetText(text);
         node->ResizeNodeForCurrentText();
@@ -187,10 +310,12 @@ public sealed unsafe class NativeTextWriter
         if (node->NodeText.AsSpan().SequenceEqual(saved.WrittenUtf8))
         {
             ApplyStyle(node, saved.Style);
+            ApplyFit(node, saved);
             return false;
         }
 
         node->SetText(saved.Written);
+        ApplyFit(node, saved);
         node->ResizeNodeForCurrentText();
 
         if (!saved.Reapplied)
@@ -226,6 +351,7 @@ public sealed unsafe class NativeTextWriter
 
         node->SetText(saved.Written);
         ApplyStyle(node, saved.Style);
+        ApplyFit(node, saved);
         node->ResizeNodeForCurrentText();
 
         if (!saved.Reapplied)
@@ -306,6 +432,8 @@ public sealed unsafe class NativeTextWriter
         node->TextColor = saved.OriginalTextColor;
         node->EdgeColor = saved.OriginalEdgeColor;
         node->TextFlags = saved.OriginalFlags;
+        node->FontSize = saved.OriginalFontSize;
+        node->LineSpacing = saved.OriginalLineSpacing;
         node->ResizeNodeForCurrentText();
 
         // The resize measures the text. Put the size the game had back, because a
@@ -343,6 +471,8 @@ public sealed unsafe class NativeTextWriter
         node->TextColor = saved.OriginalTextColor;
         node->EdgeColor = saved.OriginalEdgeColor;
         node->TextFlags = saved.OriginalFlags;
+        node->FontSize = saved.OriginalFontSize;
+        node->LineSpacing = saved.OriginalLineSpacing;
         node->ResizeNodeForCurrentText();
         node->Width = saved.OriginalWidth;
         node->Height = saved.OriginalHeight;
@@ -354,6 +484,16 @@ public sealed unsafe class NativeTextWriter
     {
         var addon = _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
         return addon is null ? null : addon->GetTextNodeById(nodeId);
+    }
+
+    /// <summary>Puts back the size and leading a fitted line needed, after the game redrew the node.</summary>
+    private static void ApplyFit(AtkTextNode* node, SavedText saved)
+    {
+        if (saved.FitFontSize is byte fontSize)
+            node->FontSize = fontSize;
+
+        if (saved.FitLineSpacing is byte lineSpacing)
+            node->LineSpacing = lineSpacing;
     }
 
     private void ApplyStyle(AtkTextNode* node, UiTextStyle style)
@@ -401,5 +541,9 @@ public sealed unsafe class NativeTextWriter
         TextFlags OriginalFlags,
         ushort OriginalWidth,
         ushort OriginalHeight,
-        bool Reapplied = false);
+        byte OriginalFontSize,
+        byte OriginalLineSpacing,
+        bool Reapplied = false,
+        byte? FitFontSize = null,
+        byte? FitLineSpacing = null);
 }

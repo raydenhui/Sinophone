@@ -253,8 +253,10 @@ premature interface.
   a miss. Dialogue with a runtime id is tried by id first; when the game exposes no id, lookup
   falls back to this text match. Names are the exception: `ENpcResident` stores generic NPC names in lower case
   (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
-  case. Dialogue lookup stays case-sensitive. The English script dumps mark italics with one
-  asterisk and bold with two; the game draws that emphasis with a SeString macro, so
+  case. Dialogue lookup stays case-sensitive. When several script lines share one English line, the
+  speaker name picks the right one through the speaker token in the dump key (`..._JULLUS`); an
+  unnamed or unclear speaker leaves the line English instead of showing another scene's text.
+  The English script dumps mark italics with one asterisk and bold with two; the game draws that emphasis with a SeString macro, so
   `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
   from the text node before lookup. The dumps write client macros the datamining tool cannot
   name as `<Unknown60>0262</Unknown60>`. The payload is binary data, not text, so
@@ -295,12 +297,17 @@ premature interface.
   once its font files are replaced. TexTools and Penumbra both install the same modpack; the font
   comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
   mode shows the missing-glyph character and the plugin cannot tell. See
-  [README](README.en.md#font-setup).
+  [README](README.en.md#font-setup). The Chinese goes into the addon's `AtkValue` strings before
+  the game lays the box out, so the game sizes the box for the translation. A node written after
+  layout is the fallback and is shrunk to the room the game gave it; a translation that cannot fit
+  stays English instead of drawing outside the box.
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
   at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows
   `ShowOriginal`; both put the English name with the Chinese name, in brackets on one line.
   Selection dialogs have their own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
+  The native Talk name field shows the Chinese name alone, because the game's name node is one line;
+  the English in brackets stays in the overlay, which can grow.
 - **Selection dialog layout.** A selection dialog is laid out for the line count of the English
   text. When the Chinese prompt has more lines, `SelectionDialogHandler` joins them into one line
   and writes it only when the joined line measures no wider or taller than the node the game sized

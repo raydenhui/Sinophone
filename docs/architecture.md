@@ -98,6 +98,14 @@ Display resolves Grand Company parameters 52, 53, and 54 against the player's
 current company and rank. A line can contain one block per company, and only the
 current company block should render.
 
+Several script lines can share one English line. The dumps pair by text key, and a generic line such
+as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
+different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in
+`_ambiguousScriptKeys` and picks one only when the speaker name matches the speaker token in the dump
+key, such as `..._JULLUS` for "Jullus". A key with no name, or with more than one candidate for that
+name, stays unanswered and the line stays English. The id path is not affected: the game can still
+name the exact script key, which always wins.
+
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
 ids, scene data and Lua text pairs, so the mapping can be checked in game before it is
@@ -124,9 +132,33 @@ events only.
 ### Native text mode
 
 Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialog from the overlay
-to the game's own dialogue box: `TalkHandler` resolves the line as usual, then `NativeTextWriter`
-writes the Chinese into the addon's text node. The Talk component labels this **Native (game
-dialogue box)** and warns that a font mod is required.
+to the game's own dialogue box. The Talk component labels this **Native (game dialogue box)** and
+warns that a font mod is required.
+
+The Chinese goes in before the game lays the window out. `TalkHandler` hooks the `Talk` addon's own
+`OnSetup` and `OnRefresh` (from `AddonTalk.VirtualTable`) and replaces the English strings in the
+`AtkValue` array with the translation, so the game measures, wraps, and sizes the dialogue box for
+the Chinese line. This is the same thing the Chinese client does, and it is the only way a long
+line stays inside the box: a node written after layout only makes the text node taller than the
+panel the game sized for English.
+
+`NativeTextWriter` is the fallback. It writes the Chinese into the addon's text node (node 2 is the
+speaker name, node 3 is the dialogue) when the hook is not in place, then `WriteFitted` shrinks the
+font, one step at a time down to `MinimumFitFontSize`, until the node fits the height the game gave
+it for the English line. If nothing fits, it restores the game's text and the line falls back to
+the overlay, so a long translation is never drawn outside the box. The `AtkValue` hook also skips
+the `PostRefresh` lookup: the values already hold Chinese, so a second pass would miss.
+
+The name field gets the Chinese name alone, with no English in brackets. The game's name node is a
+single line sized by the game, and the Chinese client shows the translated name alone there; the
+English in brackets is for the overlay, which can grow. An empty translation is never written into
+the values, because an empty string would blank the dialogue box. A debug log of the name, text,
+and box heights is written once per laid-out line, so a box taller than its text can be seen in the
+log instead of guessed at: a box that keeps the English height leaves blank space above a shorter
+translated line, because the box grows upward.
+
+Do not grow the dialogue panel from the plugin. The game recomputes it, and chasing the layout is
+the same fight that damaged the nameplate bake atlas.
 
 The selection dialogs (`SelectYesno`, `SelectString`, `SelectIconString`,
 `SelectOk`, and `CutSceneSelectString`) have their own switch,
@@ -168,8 +200,9 @@ come from the `Addon` sheet, which carries the client's own class list. A name t
 know leaves the English line in place.
 
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
-  live addon log. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds
-  only) before changing either constant.
+  live addon log. These are the fallback write targets, used when the `AtkValue` hook could not be
+  placed. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds only)
+  before changing either constant.
 - The game's font has no CJK glyphs. Without a font mod the line shows the missing-glyph character,
   so the settings section warns and links the README font setup. The plugin cannot detect the mod.
 - A write saves the game's text, colors, flags, and node size for that node first. `RestoreAll`

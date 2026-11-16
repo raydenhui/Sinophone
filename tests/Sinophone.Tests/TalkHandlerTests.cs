@@ -41,6 +41,26 @@ public class TalkHandlerTests
     public void FormatSpeakerName_ShowsBothNames(string? chinese, string? english, string expected)
         => Assert.Equal(expected, TalkHandler.FormatSpeakerName(chinese, english));
 
+    [Theory]
+    [InlineData("我們按照你的要求進行了調查。", "我們按照你的要求進行了調查。")]
+    [InlineData("第一行\n第二行", "第一行")]
+    [InlineData("\n第二行", "(blank line first)")]
+    [InlineData("", "(empty)")]
+    [InlineData(null, "(empty)")]
+    public void FirstLineOf_ReturnsTheFirstLine_ForLogs(string? text, string expected)
+        => Assert.Equal(expected, TalkHandler.FirstLineOf(text));
+
+    [Fact]
+    public void FirstLineOf_ShortensALongFirstLine()
+    {
+        var line = new string('あ', 40);
+
+        var first = TalkHandler.FirstLineOf($"{line}\nsecond");
+
+        Assert.EndsWith("...", first);
+        Assert.Equal(27, first.Length);
+    }
+
     private static byte[] BuildEmphasizedText()
     {
         var bytes = new List<byte>();
