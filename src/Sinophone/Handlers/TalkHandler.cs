@@ -29,6 +29,7 @@ public sealed class TalkHandler : IDisposable
     private Hook<TalkSetupDelegate>? _setupHook;
     private Hook<TalkRefreshDelegate>? _refreshHook;
     private string? _laidOutChineseText;
+    private bool _layoutLogPending;
     private bool _valueHookUnavailable;
     private bool _disposed;
 
@@ -204,18 +205,17 @@ public sealed class TalkHandler : IDisposable
             _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0),
             ReadIntegerParameters(values, count));
 
-        if (content is null)
+        // A line with no translation leaves the English in place. Writing an empty
+        // string would blank the dialogue box.
+        if (content is null || string.IsNullOrWhiteSpace(content.Value.ChineseText))
             return;
 
         values[TextValueIndex].SetManagedString(content.Value.ChineseText);
-        if (_configuration.ShowSpeakerName
-            && NameValueIndex < count
-            && !string.IsNullOrWhiteSpace(content.Value.ChineseName))
-        {
-            values[NameValueIndex].SetManagedString(content.Value.ChineseName);
-        }
+        if (NameValueIndex < count && !string.IsNullOrWhiteSpace(content.Value.NativeName))
+            values[NameValueIndex].SetManagedString(content.Value.NativeName);
 
         _laidOutChineseText = content.Value.ChineseText;
+        _layoutLogPending = true;
 
         // The game is about to draw this line itself, so the overlay and any text node
         // this writer changed for the previous line have to go.
@@ -223,8 +223,62 @@ public sealed class TalkHandler : IDisposable
         _overlay.Hide();
 
         _log.Debug(
-            "Native text: supplied the Chinese line in {Addon} AtkValues before layout ({Length} chars).",
-            TalkAddonName, content.Value.ChineseText.Length);
+            "Native text: supplied the Chinese line in {Addon} AtkValues before layout " +
+            "(name {NameLength} chars, text {Length} chars, first line: {FirstLine}).",
+            TalkAddonName, content.Value.NativeName.Length, content.Value.ChineseText.Length,
+            FirstLineOf(content.Value.ChineseText));
+    }
+
+    /// <summary>
+    /// The first line of a line, shortened for a log. An empty result means the text
+    /// starts with a line break, which draws as a blank first line.
+    /// </summary>
+    internal static string FirstLineOf(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "(empty)";
+
+        var end = text.IndexOfAny(['\r', '\n']);
+        var line = end < 0 ? text : text[..end];
+
+        if (line.Length == 0)
+            return "(blank line first)";
+
+        return line.Length > 24 ? string.Concat(line.AsSpan(0, 24), "...") : line;
+    }
+
+    /// <summary>
+    /// Logs the size of the name and text nodes next to the size of the dialogue box,
+    /// once for the line that was just laid out. A box much taller than its text leaves
+    /// blank space above the line.
+    /// </summary>
+    private unsafe void LogTalkLayout(AddonArgs args)
+    {
+        _layoutLogPending = false;
+
+        if (!_configuration.IsLogEnabled(LogCategory.NativeText))
+            return;
+
+        try
+        {
+            var addon = args.GetAddonPointer<AtkUnitBase>();
+            if (addon is null)
+                return;
+
+            var talk = (AddonTalk*)addon;
+            _log.Debug(
+                "Talk layout: name {NameHeight}px, text {TextHeight}px, text background {BackgroundHeight}px, " +
+                "window {WindowHeight}px, root {RootHeight}px.",
+                talk->AtkTextNode220 is null ? 0 : talk->AtkTextNode220->Height,
+                talk->AtkTextNode228 is null ? 0 : talk->AtkTextNode228->Height,
+                talk->AtkResNode230 is null ? 0 : talk->AtkResNode230->Height,
+                addon->WindowNode is null ? 0 : addon->WindowNode->AtkResNode.Height,
+                addon->RootNode is null ? 0 : addon->RootNode->Height);
+        }
+        catch (Exception ex)
+        {
+            _log.Debug(ex, "Talk layout: could not read the addon sizes.");
+        }
     }
 
     /// <summary>
@@ -254,6 +308,16 @@ public sealed class TalkHandler : IDisposable
         if (eventType is AddonEvent.PostUpdate or AddonEvent.PreDraw)
         {
             ReapplyNativeText(addonName);
+
+            // Once per line, after the game has laid the window out: the numbers say
+            // whether the box is taller than the text, which draws as a blank line at
+            // the top because the box grows upward.
+            if (_layoutLogPending && eventType is AddonEvent.PreDraw
+                && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+            {
+                LogTalkLayout(args);
+            }
+
             return;
         }
 
@@ -433,8 +497,8 @@ public sealed class TalkHandler : IDisposable
     /// </summary>
     private bool WriteNativeText(OverlayContent content)
     {
-        var wroteName = _configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(content.ChineseName)
-            ? _nativeWriter.WriteFitted(TalkAddonName, NativeTextWriter.TalkNameNodeId, content.ChineseName)
+        var wroteName = !string.IsNullOrWhiteSpace(content.NativeName)
+            ? _nativeWriter.WriteFitted(TalkAddonName, NativeTextWriter.TalkNameNodeId, content.NativeName)
             : ClearName();
 
         var wroteLine = _nativeWriter.WriteFitted(
@@ -493,7 +557,12 @@ public sealed class TalkHandler : IDisposable
         var styledText = MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters);
         store.TryGetStyle(styledText, out var style);
 
-        return new OverlayContent(styledText, speakerName, style);
+        // The game's own name field is one line and the Chinese client shows the
+        // translated name alone there. The English name in brackets is for the overlay,
+        // which can grow. An unknown name keeps the English one the game passed.
+        var nativeName = configuration.ShowSpeakerName ? chineseName?.Trim() ?? string.Empty : string.Empty;
+
+        return new OverlayContent(styledText, speakerName, style, nativeName);
     }
 
     /// <summary>Shows the Chinese name with the English name in parentheses.</summary>
@@ -519,7 +588,8 @@ public sealed class TalkHandler : IDisposable
     internal readonly record struct OverlayContent(
         string ChineseText,
         string ChineseName,
-        UiTextStyle Style = default);
+        UiTextStyle Style = default,
+        string NativeName = "");
 
     private static unsafe List<int> ReadIntegerParameters(AtkValue* values, uint count)
     {
