@@ -83,15 +83,20 @@ internal static class CjkLineWrapper
                 }
             }
 
-            if (fit < remaining.Length && NoLineStart.Contains(remaining[fit]) && fit > 1)
+            if (fit < remaining.Length && NoLineStart.Contains(remaining[fit]))
             {
-                // Keep the closing mark with the character before it by breaking one earlier.
-                fit--;
+                // A closing mark must not start the next line. Move the break left over the
+                // whole run of closing marks, so "」。", "……", and "」！" all stay together with
+                // the character they belong to. One character is not enough: the character
+                // before a full stop is often another closing mark.
+                while (fit > 1 && fit < remaining.Length && NoLineStart.Contains(remaining[fit]))
+                    fit--;
             }
             else if (NoLineEnd.Contains(remaining[fit - 1]) && fit < remaining.Length)
             {
-                // Keep the opening mark with the character after it by breaking one later.
-                fit++;
+                // An opening mark must not end the line, so take the next character with it.
+                while (fit < remaining.Length && NoLineEnd.Contains(remaining[fit - 1]))
+                    fit++;
             }
 
             fit = Math.Clamp(fit, 1, remaining.Length);

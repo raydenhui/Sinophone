@@ -27,6 +27,18 @@ public class CjkLineWrapperTests
         => Assert.Equal("一二三四「五\n六", CjkLineWrapper.Wrap("一二三四「五六", 5, Characters));
 
     [Fact]
+    public void Wrap_KeepsARunOfClosingMarksTogether()
+        => Assert.Equal(
+            "一二三四五六七八\n九」。",
+            CjkLineWrapper.Wrap("一二三四五六七八九」。", 10, Characters));
+
+    [Fact]
+    public void Wrap_KeepsAnEllipsisWithTheCharacterBeforeIt()
+        => Assert.Equal(
+            "一二三四五六七八\n九……",
+            CjkLineWrapper.Wrap("一二三四五六七八九……", 10, Characters));
+
+    [Fact]
     public void Wrap_KeepsExistingLineBreaks()
         => Assert.Equal("一二\n三四", CjkLineWrapper.Wrap("一二\n三四", 5, Characters));
 
