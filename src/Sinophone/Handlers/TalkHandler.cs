@@ -283,11 +283,16 @@ public sealed class TalkHandler : IDisposable
             return measuredWidth;
         }
 
-        var wrapped = CjkLineWrapper.Wrap(chineseText, width, Measure);
+        // Leave one glyph of slack. Our measurement and the game's layout can differ by a pixel or
+        // two at the line end, and a line that measured to the exact width is the one the game
+        // breaks again, which moves a closing mark onto the next line.
+        var wrapWidth = Math.Max(120, width - node->FontSize);
+
+        var wrapped = CjkLineWrapper.Wrap(chineseText, wrapWidth, Measure);
         if (!string.Equals(wrapped, chineseText, StringComparison.Ordinal))
         {
             _log.Debug("Talk layout hook: wrapped the line to {Width}px into {Lines} lines.",
-                width, wrapped.Count('\n') + 1);
+                wrapWidth, wrapped.Count('\n') + 1);
         }
 
         return wrapped;
