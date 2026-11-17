@@ -31,6 +31,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow _configWindow;
     private readonly TalkHandler _talkHandler;
     private readonly SelectionDialogHandler _selectionDialogHandler;
+    private readonly ChatBubbleHandler _chatBubbleHandler;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
 #if DEBUG
@@ -78,6 +79,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastItemNameNativeMode;
     private bool _lastItemNameShowEnglish;
     private bool _lastNativeTextMode;
+    private bool _lastShowInChatBubbles;
     private bool _lastShowInSelectionDialogs;
     private bool _lastSelectionYesNo;
     private bool _lastSelectionString;
@@ -120,6 +122,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
         _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
+        _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
         _lastSelectionString = _configuration.SelectionString;
@@ -180,6 +183,13 @@ public sealed class Plugin : IDalamudPlugin
         _selectionDialogHandler = new SelectionDialogHandler(
             AddonLifecycle,
             GameGui,
+            Log,
+            _configuration,
+            () => _store,
+            _nativeTextWriter);
+        _chatBubbleHandler = new ChatBubbleHandler(
+            AddonLifecycle,
+            GameInteropProvider,
             Log,
             _configuration,
             () => _store,
@@ -779,6 +789,7 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.ShowOriginal != _lastItemNameShowEnglish;
 
         var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
+        var chatBubbleSettingsChanged = _lastShowInChatBubbles != _configuration.ShowInChatBubbles;
         var selectionSettingsChanged = _lastShowInSelectionDialogs != _configuration.ShowInSelectionDialogs
                                        || _lastSelectionYesNo != _configuration.SelectionYesNo
                                        || _lastSelectionString != _configuration.SelectionString
@@ -798,6 +809,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
         _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
+        _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
         _lastSelectionString = _configuration.SelectionString;
@@ -815,6 +827,14 @@ public sealed class Plugin : IDalamudPlugin
             // a no-op when native mode wrote nothing.
             _talkHandler.RestoreNativeText();
             _overlay.Hide();
+        }
+
+        if (chatBubbleSettingsChanged || pluginDisabled)
+        {
+            // Put the game's own bubble text back now; the handler translates the next bubble
+            // when the setting is on.
+            _chatBubbleHandler.RestoreAll();
+            _log.Debug("Chat bubble settings changed; restored the game's text.");
         }
 
         if (selectionSettingsChanged || pluginDisabled)
@@ -878,6 +898,7 @@ public sealed class Plugin : IDalamudPlugin
         _nativeProbe.Dispose();
         _talkContextProbe.Dispose();
 #endif
+        _chatBubbleHandler.Dispose();
         _selectionDialogHandler.Dispose();
         _talkHandler.Dispose();
         _namePlateNameWriter.Disable();

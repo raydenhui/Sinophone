@@ -181,7 +181,8 @@ The overlay only covers the Talk window. More sheets alone will not show more te
 
 | Surface | Route | Status |
 | --- | --- | --- |
-| Talk, subtitles, chat bubbles | Overlay | Works |
+| Talk, subtitles | Overlay | Works |
+| NPC chat bubbles | `ChatBubbleHandler` changes the game's own bubble (yells before layout, default balloons in place) | Works, needs a font mod, off by default |
 | Nameplates | `NamePlateNameWriter` replaces each name in the game's own nameplate above every visible NPC or object | Works, needs a font mod |
 | Item tooltip | `ItemNameHandler` reads the hovered item, draws above the cursor | Works |
 | Inventory, shops, menus, chat | Native text replacement, then the CJK font mod | Planned as separate items |

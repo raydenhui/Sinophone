@@ -242,6 +242,12 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
+        if (ImGui.BeginTabItem("Chat bubbles"))
+        {
+            DrawChatBubbleComponentTab();
+            ImGui.EndTabItem();
+        }
+
         if (ImGui.BeginTabItem("Selection"))
         {
             DrawSelectionComponentTab();
@@ -350,6 +356,23 @@ public sealed class ConfigWindow : Window
             SliderFloat("Background opacity###talkOpacity", _configuration.TalkOverlayOpacity,
                 0f, 1f, "%.2f", v => _configuration.TalkOverlayOpacity = v);
         }
+    }
+
+    private void DrawChatBubbleComponentTab()
+    {
+        Checkbox("Translate NPC chat bubbles", _configuration.ShowInChatBubbles,
+            v => _configuration.ShowInChatBubbles = v);
+
+        ImGui.TextDisabled("The Chinese is written into the game's own bubble, above the NPC's head.");
+
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "Chat bubbles use the game's own font and need the font mod. " +
+            "The bubble layout is still being checked in game, so this is off by default.");
+        ImGui.PopStyleColor();
+
+        if (ImGui.Selectable("Open the font setup guide###bubbleFontGuide"))
+            Util.OpenLink(FontSetupUrl);
     }
 
     private void DrawSubtitleComponentTab()
@@ -848,6 +871,7 @@ public sealed class ConfigWindow : Window
         _configuration.DownloadBothVariants = defaults.DownloadBothVariants;
         _configuration.ShowInTalk = defaults.ShowInTalk;
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;
+        _configuration.ShowInChatBubbles = defaults.ShowInChatBubbles;
         _configuration.NativeTextMode = defaults.NativeTextMode;
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;
         _configuration.SpeakerNameColor = defaults.SpeakerNameColor;

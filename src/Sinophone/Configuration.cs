@@ -56,6 +56,13 @@ public sealed class Configuration : IPluginConfiguration
     public bool ShowInTalkSubtitle { get; set; } = true;
 
     /// <summary>
+    /// Translate the chat bubbles the game draws above an NPC's head. Native text only: the
+    /// game's own bubble is changed in place, with no overlay. Off by default because it needs
+    /// a CJK font mod, and because the bubble layout is still being checked in game.
+    /// </summary>
+    public bool ShowInChatBubbles { get; set; }
+
+    /// <summary>
     /// Alpha. Write the translation into the game's own dialogue box instead of drawing
     /// the overlay. Needs a font mod: without one the game font has no CJK glyphs and the
     /// line shows the missing-glyph character. Off by default.

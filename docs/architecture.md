@@ -233,6 +233,45 @@ know leaves the English line in place.
 - Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
   are checked in game. A failed write falls back to the overlay.
 
+### Chat bubbles
+
+`Configuration.ShowInChatBubbles` turns on chat bubble translation. Alpha and off by default, because
+the Chinese goes into the game's own bubble and needs the font mod. `ChatBubbleHandler` covers the two
+things that feed the `_MiniTalk` addon:
+
+- **Yells.** An `NpcYell` row whose output type has the balloon flag. The game starts the bubble
+  through `NpcYellBalloon.OpenBalloon`, so the handler hooks that call and replaces the text before
+  the bubble is measured. The game then sizes the bubble for the Chinese, and nothing has to be
+  reapplied. The row id comes from `NpcYell.Instance().YellInfo`, matched by the yell's own message,
+  so two yells that share an English line still resolve. A yell whose output type has only the
+  battle talk flag is not touched, so the two surfaces never fight over one line.
+- **Default balloons.** An `ENpcBase.Balloon` row. There is no function to hook, so the handler
+  translates the bubble's `TalkBubbleEntry.BubbleTextNode` in place. The original text and sizes are
+  kept and put back when the bubble ends, when the setting is turned off, and on unload.
+
+  Sizing is `BubbleLayout.GrowTo`, and it never touches the text node. The node's width and flags
+  are what the game wraps at; changing either makes the game write the line back with hard breaks,
+  and the next lookup then sees fragments instead of the line. Instead the background grows: the
+  nine-grid is the visible bubble and is larger than the text node by the padding the game drew, so
+  that difference is the padding to keep, and the nine-grid and the bubble's res node grow to the
+  text node's size plus that padding, in both width and height. Only ever grows; the sizes come back
+  with the game's text on `PostHide`, on the setting, and on unload.
+
+  The addon fills the text node itself, and it does that after `PostSetup`, so the node is empty
+  when the bubble starts. The handler therefore looks at the nodes on each draw: a hash of the
+  node's bytes is compared with the last text seen, and only a text it has not seen is looked up.
+  A line with no translation is remembered, so it is not retried on every frame. The same English
+  line coming back, which the game does while a balloon's text stream runs, is rewritten from the
+  saved Chinese; a different line landing in the same node drops the old translation and its sizes
+  first. A yell bubble is recognised by the bytes this handler passed to the balloon start, so its
+  node is never looked up as English and only has to be fitted. This is the same guarded per-frame
+  compare the Talk and item surfaces use, without the allocation a lookup would need.
+
+Bubbles carry no speaker name, so the name lookup and the shared-script-line speaker pick are not
+used here. The bubble geometry is logged once per translated bubble, because the bubble layout is
+the part that has to be checked in game. A bubble that the handler cannot translate keeps the
+English text; there is no overlay for this surface.
+
 ### Native nameplates
 
 `Configuration.ShowTargetName` turns on name translation in the game's own nameplates. Every
