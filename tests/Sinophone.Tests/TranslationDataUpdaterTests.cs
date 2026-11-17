@@ -162,6 +162,25 @@ public class TranslationDataUpdaterTests
     }
 
     [Fact]
+    public void SourceIdentity_ForEmbeddedData_IsTheArtifactContent_NotTheAssemblyBuild()
+    {
+        var configuration = new Configuration();
+        var first = new TranslationDataUpdater(configuration, Path.GetTempPath(), new FakePluginLog());
+        var second = new TranslationDataUpdater(configuration, Path.GetTempPath(), new FakePluginLog());
+
+        var identity = first.SourceIdentity(ChineseVariant.Simplified);
+
+        // A rebuild must not change the identity: the embedded bytes are the same, and a changed
+        // key costs a full reindex. The assembly identity is the thing that used to leak in here.
+        Assert.StartsWith("embedded:", identity, StringComparison.Ordinal);
+        Assert.Equal(identity, second.SourceIdentity(ChineseVariant.Simplified));
+        Assert.DoesNotContain(
+            typeof(TranslationStore).Assembly.ManifestModule.ModuleVersionId.ToString(),
+            identity,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void SourceIdentity_ChangesWhenTheInstalledFileChanges()
     {
         var directory = CreateTemporaryDirectory();

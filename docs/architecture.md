@@ -391,8 +391,11 @@ runs in the background; the store already in memory keeps serving until the new 
   rule above.
 - The finished index is cached in `Sinophone.index.bin` in the config directory. The next load reads
   that file instead of parsing the artifact, reading the live sheets, and indexing. A cache is used
-  only when its key matches: variant, fallback setting, conversion, game data version, and the
-  identity of each artifact (file size and write time, or the assembly id for the embedded copy).
+  only when its key matches: variant, fallback setting, conversion, game data version, the identity
+  of each artifact (file size and write time, or a SHA-256 of the embedded copy's bytes), and
+  `TranslationStore.IndexFormatVersion`. The format version is bumped by hand when the index
+  entries change, because the assembly identity changes on every build and would throw the cache
+  away after every plugin update.
   The key leaves out the player because conditional and `ObjectParameter` lines are resolved on
   each lookup. A miss is not an error: the store is rebuilt and the cache replaced.
 - Only one parse may be in flight. A settings change or a new data file replaces the pending task,

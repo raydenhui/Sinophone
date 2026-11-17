@@ -43,6 +43,9 @@ public sealed class TranslationDataUpdater : IDisposable
     private readonly PluginLog _log;
     private readonly object _gate = new();
 
+    /// <summary>Content hash of each embedded artifact, computed once per session.</summary>
+    private readonly Dictionary<ChineseVariant, string> _embeddedIdentity = [];
+
     private DataUpdateState _state = new(false, "Not checked yet.", 0f, false, null);
     private CancellationTokenSource? _cts;
     private volatile bool _reloadRequested;
@@ -115,7 +118,38 @@ public sealed class TranslationDataUpdater : IDisposable
             return $"{file.Length}:{file.LastWriteTimeUtc.Ticks}";
         }
 
-        return $"embedded:{typeof(TranslationStore).Assembly.ManifestModule.ModuleVersionId}";
+        return $"embedded:{EmbeddedIdentity(variant)}";
+    }
+
+    /// <summary>
+    /// Identifies the embedded artifact by a hash of its bytes. A plugin build that does not change
+    /// the data therefore keeps the index cache: the assembly identity would change on every build
+    /// and force a full reindex, which takes about 20 seconds.
+    /// </summary>
+    private string EmbeddedIdentity(ChineseVariant variant)
+    {
+        if (_embeddedIdentity.TryGetValue(variant, out var cached))
+            return cached;
+
+        string identity;
+
+        try
+        {
+            using var stream = TranslationStore.OpenEmbeddedResource(variant);
+            identity = stream is null
+                ? "missing"
+                : Convert.ToHexString(SHA256.HashData(stream));
+        }
+        catch (Exception ex)
+        {
+            // A unique value means the cache is rebuilt rather than trusted, which is the safe
+            // side when the artifact cannot be read.
+            _log.Warning(ex, "Could not hash the embedded {Variant} artifact; rebuilding the index.", variant);
+            identity = $"unreadable:{Guid.NewGuid():N}";
+        }
+
+        _embeddedIdentity[variant] = identity;
+        return identity;
     }
 
     /// <summary>True when a file the current settings need is not on disk.</summary>

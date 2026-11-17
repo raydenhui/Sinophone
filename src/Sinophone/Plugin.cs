@@ -539,7 +539,7 @@ public sealed class Plugin : IDalamudPlugin
             configuration.Variant.ToString(),
             configuration.UseFallbackVariant.ToString(),
             configuration.Conversion.ToString(),
-            typeof(TranslationStore).Assembly.ManifestModule.ModuleVersionId.ToString(),
+            TranslationStore.IndexFormatVersion.ToString(),
             GetGameDataVersion(),
             _dataUpdater.SourceIdentity(ChineseVariant.Simplified),
             _dataUpdater.SourceIdentity(ChineseVariant.Traditional));

@@ -16,6 +16,18 @@ public sealed partial class TranslationStore
     public const string ResourceCnSuffix = "Sinophone.cn.json.gz";
     public const string ResourceTcSuffix = "Sinophone.tc.json.gz";
 
+    /// <summary>
+    /// Version of the index this class builds. The index cache is keyed on it, so bump it when
+    /// the entries change: a new sheet or field in <see cref="SheetCatalog"/>, a change to
+    /// <see cref="MacroNormalizer.NormalizeKey"/>, the Addon templates, or the script indexes.
+    /// </summary>
+    /// <remarks>
+    /// The assembly identity is deliberately not part of the key. It changes on every build, which
+    /// threw the cache away after every plugin update and every dev reload, and a full reindex
+    /// costs about 20 seconds.
+    /// </remarks>
+    public const int IndexFormatVersion = 1;
+
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
     // case ("skywatcher") and the game shows them capitalised ("Skywatcher").
