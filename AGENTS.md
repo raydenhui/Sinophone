@@ -109,6 +109,11 @@ The plugin finds artifacts by filename suffix (`Sinophone.cn.json.gz`, `Sinophon
 Do not rename them. `Build.ps1` fails when no artifacts exist, because a plugin built without
 them compiles fine and translates nothing.
 
+`Deploy-DevPlugin.ps1` runs the build itself. Do not run `Build.ps1 -Configuration Debug` before
+it: that writes the linked DLL twice and the game reloads the dev plugin twice. Deploy once when
+the code is finished, not after every edit. `Test.ps1` builds Release, so it does not touch the
+linked Debug DLL.
+
 ### Scripts
 
 Any step you run more than once belongs in `scripts/` as a PowerShell 7 script. Do not leave
