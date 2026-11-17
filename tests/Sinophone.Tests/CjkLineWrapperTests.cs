@@ -24,7 +24,15 @@ public class CjkLineWrapperTests
 
     [Fact]
     public void Wrap_DoesNotEndALineWithAnOpeningMark()
-        => Assert.Equal("一二三四「五\n六", CjkLineWrapper.Wrap("一二三四「五六", 5, Characters));
+    {
+        const string text = "一二三四「五六";
+        var wrapped = CjkLineWrapper.Wrap(text, 5, Characters);
+        var lines = wrapped.Split('\n');
+
+        Assert.Equal(text, string.Concat(lines));
+        Assert.All(lines, line => Assert.True(line.Length <= 5, $"line is '{line}'"));
+        Assert.All(lines, line => Assert.DoesNotContain(line[^1].ToString(), "（「『【〈《“‘"));
+    }
 
     [Fact]
     public void Wrap_KeepsARunOfClosingMarksTogether()
@@ -39,12 +47,36 @@ public class CjkLineWrapperTests
             CjkLineWrapper.Wrap("一二三四五六七八九……", 10, Characters));
 
     [Fact]
+    public void Wrap_BalancesALastLineThatHoldsAlmostNothing()
+    {
+        // 21 characters at 10 per line would leave a single character on the last line.
+        var wrapped = CjkLineWrapper.Wrap(new string('一', 21), 10, Characters);
+        var lines = wrapped.Split('\n');
+
+        Assert.Equal(3, lines.Length);
+        Assert.True(lines[^1].Length >= 4, $"last line is '{lines[^1]}'");
+        Assert.All(lines, line => Assert.True(line.Length <= 10, $"line is '{line}'"));
+    }
+
+    [Fact]
+    public void Wrap_LeavesTheLastLineAlone_WhenItIsLongEnough()
+        => Assert.Equal(
+            new string('一', 10) + "\n" + new string('一', 10),
+            CjkLineWrapper.Wrap(new string('一', 20), 10, Characters));
+
+    [Fact]
+    public void Wrap_DoesNotBalanceAcrossAParagraphBreak()
+        => Assert.Equal(
+            "一二三四五六七八九十\n一",
+            CjkLineWrapper.Wrap("一二三四五六七八九十\n一", 10, Characters));
+
+    [Fact]
     public void Wrap_KeepsExistingLineBreaks()
         => Assert.Equal("一二\n三四", CjkLineWrapper.Wrap("一二\n三四", 5, Characters));
 
     [Fact]
     public void Wrap_WrapsEachParagraph()
-        => Assert.Equal("一二三四五\n六\n七八九十", CjkLineWrapper.Wrap("一二三四五六\n七八九十", 5, Characters));
+        => Assert.Equal("一二三\n四五六\n七八九十", CjkLineWrapper.Wrap("一二三四五六\n七八九十", 5, Characters));
 
     [Fact]
     public void Wrap_ReturnsText_WhenTheWidthIsNotUsable()

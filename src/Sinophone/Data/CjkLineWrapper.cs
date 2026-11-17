@@ -51,6 +51,7 @@ internal static class CjkLineWrapper
         int maxWidth,
         Func<string, int> measureWidth)
     {
+        var lines = new List<string>(4);
         var start = 0;
 
         while (start < paragraph.Length)
@@ -59,54 +60,120 @@ internal static class CjkLineWrapper
 
             if (measureWidth(remaining) <= maxWidth)
             {
-                builder.Append(remaining);
-                return;
+                lines.Add(remaining);
+                break;
             }
 
-            // Longest prefix that fits. Binary search keeps the number of game measurements
-            // small: a line of 50 characters costs about six.
-            var low = 1;
-            var high = remaining.Length - 1;
-            var fit = 1;
+            var fit = LongestFittingPrefix(remaining, maxWidth, measureWidth);
+            fit = KeepMarksWithTheirCharacter(remaining, fit);
 
-            while (low <= high)
-            {
-                var middle = (low + high) / 2;
-                if (measureWidth(remaining[..middle]) <= maxWidth)
-                {
-                    fit = middle;
-                    low = middle + 1;
-                }
-                else
-                {
-                    high = middle - 1;
-                }
-            }
-
-            if (fit < remaining.Length && NoLineStart.Contains(remaining[fit]))
-            {
-                // A closing mark must not start the next line. Move the break left over the
-                // whole run of closing marks, so "」。", "……", and "」！" all stay together with
-                // the character they belong to. One character is not enough: the character
-                // before a full stop is often another closing mark.
-                while (fit > 1 && fit < remaining.Length && NoLineStart.Contains(remaining[fit]))
-                    fit--;
-            }
-            else if (NoLineEnd.Contains(remaining[fit - 1]) && fit < remaining.Length)
-            {
-                // An opening mark must not end the line, so take the next character with it.
-                while (fit < remaining.Length && NoLineEnd.Contains(remaining[fit - 1]))
-                    fit++;
-            }
-
-            fit = Math.Clamp(fit, 1, remaining.Length);
-
-            builder.Append(remaining, 0, fit);
-
-            if (start + fit < paragraph.Length)
-                builder.Append('\n');
-
+            lines.Add(remaining[..fit]);
             start += fit;
         }
+
+        BalanceLastLines(lines, maxWidth, measureWidth);
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (index > 0)
+                builder.Append('\n');
+
+            builder.Append(lines[index]);
+        }
+    }
+
+    /// <summary>
+    /// Longest prefix of <paramref name="text"/> that fits. Binary search keeps the number of
+    /// game measurements small: a line of 50 characters costs about six.
+    /// </summary>
+    private static int LongestFittingPrefix(string text, int maxWidth, Func<string, int> measureWidth)
+    {
+        var low = 1;
+        var high = text.Length - 1;
+        var fit = 1;
+
+        while (low <= high)
+        {
+            var middle = (low + high) / 2;
+
+            if (measureWidth(text[..middle]) <= maxWidth)
+            {
+                fit = middle;
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle - 1;
+            }
+        }
+
+        return fit;
+    }
+
+    /// <summary>
+    /// Moves a break so no line starts with a closing mark and none ends with an opening mark.
+    /// The break moves over the whole run of marks, because "」。", "……" and "」！" are as bad as
+    /// a lone full stop.
+    /// </summary>
+    private static int KeepMarksWithTheirCharacter(string text, int fit)
+    {
+        if (fit < text.Length && NoLineStart.Contains(text[fit]))
+        {
+            while (fit > 1 && fit < text.Length && NoLineStart.Contains(text[fit]))
+                fit--;
+        }
+        else if (NoLineEnd.Contains(text[fit - 1]) && fit < text.Length)
+        {
+            while (fit < text.Length && NoLineEnd.Contains(text[fit - 1]))
+                fit++;
+        }
+
+        return Math.Clamp(fit, 1, text.Length);
+    }
+
+    /// <summary>
+    /// Re-splits the last two lines when the last one is much shorter than the width. A line that
+    /// keeps one character and its mark looks like a mistake, so the two lines are split near
+    /// their middle instead, as long as both still fit.
+    /// </summary>
+    private static void BalanceLastLines(List<string> lines, int maxWidth, Func<string, int> measureWidth)
+    {
+        if (lines.Count < 2)
+            return;
+
+        // A last line at a quarter of the width or more reads as intentional.
+        if (measureWidth(lines[^1]) * 4 >= maxWidth)
+            return;
+
+        var combined = lines[^2] + lines[^1];
+        var best = 0;
+        var bestDifference = int.MaxValue;
+
+        for (var cut = 1; cut < combined.Length; cut++)
+        {
+            if (NoLineStart.Contains(combined[cut]) || NoLineEnd.Contains(combined[cut - 1]))
+                continue;
+
+            var first = measureWidth(combined[..cut]);
+            if (first > maxWidth)
+                break;
+
+            var second = measureWidth(combined[cut..]);
+            if (second > maxWidth)
+                continue;
+
+            var difference = Math.Abs(first - second);
+            if (difference >= bestDifference)
+                continue;
+
+            best = cut;
+            bestDifference = difference;
+        }
+
+        if (best == 0)
+            return;
+
+        lines[^2] = combined[..best];
+        lines[^1] = combined[best..];
     }
 }
