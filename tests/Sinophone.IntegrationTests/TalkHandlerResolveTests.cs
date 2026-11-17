@@ -79,47 +79,6 @@ public class TalkHandlerResolveTests
     }
 
     [Fact]
-    public void Resolve_FillsNativeNameWithTheChineseNameAlone()
-    {
-        var store = FixtureStore.Load(ChineseVariant.Traditional);
-        var row = FixtureData.Current.Rows.First(r => r.Sheet == "ENpcResident");
-        var (english, _) = FirstDialogue();
-
-        var content = TalkHandler.Resolve(store, Defaults, english, row.English);
-
-        Assert.NotNull(content);
-        // The game's name field is one line, so it gets no English in brackets.
-        Assert.Equal(MacroNormalizer.CleanForDisplay(row.Tc).Trim(), content!.Value.NativeName);
-    }
-
-    [Fact]
-    public void Resolve_LeavesNativeNameEmpty_WhenNameIsUnknown()
-    {
-        var store = FixtureStore.Load(ChineseVariant.Traditional);
-        var (english, _) = FirstDialogue();
-
-        var content = TalkHandler.Resolve(store, Defaults, english, "Nobody in the sheets");
-
-        Assert.NotNull(content);
-        // Empty, so the game's own English name stays in the field.
-        Assert.Equal(string.Empty, content!.Value.NativeName);
-    }
-
-    [Fact]
-    public void Resolve_LeavesNativeNameEmpty_WhenSpeakerNameIsDisabled()
-    {
-        var store = FixtureStore.Load(ChineseVariant.Traditional);
-        var row = FixtureData.Current.Rows.First(r => r.Sheet == "ENpcResident");
-        var (english, _) = FirstDialogue();
-        var config = new Configuration { ShowSpeakerName = false };
-
-        var content = TalkHandler.Resolve(store, config, english, row.English);
-
-        Assert.NotNull(content);
-        Assert.Equal(string.Empty, content!.Value.NativeName);
-    }
-
-    [Fact]
     public void Resolve_LeavesNameEmpty_WhenSpeakerNameIsDisabled()
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);

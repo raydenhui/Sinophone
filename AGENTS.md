@@ -109,6 +109,11 @@ The plugin finds artifacts by filename suffix (`Sinophone.cn.json.gz`, `Sinophon
 Do not rename them. `Build.ps1` fails when no artifacts exist, because a plugin built without
 them compiles fine and translates nothing.
 
+`Deploy-DevPlugin.ps1` runs the build itself. Do not run `Build.ps1 -Configuration Debug` before
+it: that writes the linked DLL twice and the game reloads the dev plugin twice. Deploy once when
+the code is finished, not after every edit. `Test.ps1` builds Release, so it does not touch the
+linked Debug DLL.
+
 ### Scripts
 
 Any step you run more than once belongs in `scripts/` as a PowerShell 7 script. Do not leave
@@ -306,8 +311,8 @@ premature interface.
   at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows
   `ShowOriginal`; both put the English name with the Chinese name, in brackets on one line.
   Selection dialogs have their own switch, `ShowInSelectionDialogs`, independent of Talk native mode.
-  The native Talk name field shows the Chinese name alone, because the game's name node is one line;
-  the English in brackets stays in the overlay, which can grow.
+  The native Talk name field shows the Chinese name with the English name in brackets, the same
+  string the overlay uses. A masked name such as `???` stays masked.
 - **Selection dialog layout.** A selection dialog is laid out for the line count of the English
   text. When the Chinese prompt has more lines, `SelectionDialogHandler` joins them into one line
   and writes it only when the joined line measures no wider or taller than the node the game sized
