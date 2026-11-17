@@ -673,6 +673,23 @@ public class TranslationStoreTests
         Assert.Equal(0, store.AmbiguousScriptKeyCount);
     }
 
+    [Fact]
+    public void Lookup_PicksTheLineForATwoPartName_WhenTheKeyJoinsIt()
+    {
+        // The three real "Meteion..." lines. The key writes G'raha Tia as one token.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06004_006510_HERMES", "Meteion...", "梅蒂恩……我……"),
+            ("TEXT_VOICEMAN_06006_A6_000_001_NONE_VOICE", "Meteion...", "梅蒂恩！"),
+            ("TEXT_AKTKMF102_04440_GRAHATIA_000_049", "Meteion...", "梅蒂恩……"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("Meteion...", default, "G'raha Tia", out var chinese));
+        Assert.Equal("梅蒂恩……", chinese);
+    }
+
     private static Dictionary<string, ScriptEntry> DuplicateScripts()
         => ScriptsWithKeys(
             ("TEXT_VOICEMAN_05004_004230_THANCRED", "You bastard!", "愛梅特賽爾克……你！"),

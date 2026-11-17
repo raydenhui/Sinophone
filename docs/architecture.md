@@ -102,8 +102,9 @@ Several script lines can share one English line. The dumps pair by text key, and
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
 different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in
 `_ambiguousScriptKeys` and picks one only when the speaker name matches the speaker token in the dump
-key, such as `..._JULLUS` for "Jullus". A key with no name, or with more than one candidate for that
-name, stays unanswered and the line stays English. The id path is not affected: the game can still
+key, such as `..._JULLUS` for "Jullus". A two-part name is one token in the key (`..._GRAHATIA` for
+"G'raha Tia"), so the whole name without its punctuation is matched as well as each word. A key with
+no name, or with more than one candidate for that name, stays unanswered and the line stays English. The id path is not affected: the game can still
 name the exact script key, which always wins.
 
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
