@@ -211,8 +211,8 @@ public sealed class TalkHandler : IDisposable
             return;
 
         values[TextValueIndex].SetManagedString(content.Value.ChineseText);
-        if (NameValueIndex < count && !string.IsNullOrWhiteSpace(content.Value.NativeName))
-            values[NameValueIndex].SetManagedString(content.Value.NativeName);
+        if (NameValueIndex < count && !string.IsNullOrWhiteSpace(content.Value.ChineseName))
+            values[NameValueIndex].SetManagedString(content.Value.ChineseName);
 
         _laidOutChineseText = content.Value.ChineseText;
         _layoutLogPending = true;
@@ -225,7 +225,7 @@ public sealed class TalkHandler : IDisposable
         _log.Debug(
             "Native text: supplied the Chinese line in {Addon} AtkValues before layout " +
             "(name {NameLength} chars, text {Length} chars, first line: {FirstLine}).",
-            TalkAddonName, content.Value.NativeName.Length, content.Value.ChineseText.Length,
+            TalkAddonName, content.Value.ChineseName.Length, content.Value.ChineseText.Length,
             FirstLineOf(content.Value.ChineseText));
     }
 
@@ -497,8 +497,8 @@ public sealed class TalkHandler : IDisposable
     /// </summary>
     private bool WriteNativeText(OverlayContent content)
     {
-        var wroteName = !string.IsNullOrWhiteSpace(content.NativeName)
-            ? _nativeWriter.WriteFitted(TalkAddonName, NativeTextWriter.TalkNameNodeId, content.NativeName)
+        var wroteName = !string.IsNullOrWhiteSpace(content.ChineseName)
+            ? _nativeWriter.WriteFitted(TalkAddonName, NativeTextWriter.TalkNameNodeId, content.ChineseName)
             : ClearName();
 
         var wroteLine = _nativeWriter.WriteFitted(
@@ -557,12 +557,7 @@ public sealed class TalkHandler : IDisposable
         var styledText = MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters);
         store.TryGetStyle(styledText, out var style);
 
-        // The game's own name field is one line and the Chinese client shows the
-        // translated name alone there. The English name in brackets is for the overlay,
-        // which can grow. An unknown name keeps the English one the game passed.
-        var nativeName = configuration.ShowSpeakerName ? chineseName?.Trim() ?? string.Empty : string.Empty;
-
-        return new OverlayContent(styledText, speakerName, style, nativeName);
+        return new OverlayContent(styledText, speakerName, style);
     }
 
     /// <summary>Shows the Chinese name with the English name in parentheses.</summary>
@@ -588,8 +583,7 @@ public sealed class TalkHandler : IDisposable
     internal readonly record struct OverlayContent(
         string ChineseText,
         string ChineseName,
-        UiTextStyle Style = default,
-        string NativeName = "");
+        UiTextStyle Style = default);
 
     private static unsafe List<int> ReadIntegerParameters(AtkValue* values, uint count)
     {

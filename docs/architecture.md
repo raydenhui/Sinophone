@@ -149,13 +149,13 @@ it for the English line. If nothing fits, it restores the game's text and the li
 the overlay, so a long translation is never drawn outside the box. The `AtkValue` hook also skips
 the `PostRefresh` lookup: the values already hold Chinese, so a second pass would miss.
 
-The name field gets the Chinese name alone, with no English in brackets. The game's name node is a
-single line sized by the game, and the Chinese client shows the translated name alone there; the
-English in brackets is for the overlay, which can grow. An empty translation is never written into
-the values, because an empty string would blank the dialogue box. A debug log of the name, text,
-and box heights is written once per laid-out line, so a box taller than its text can be seen in the
-log instead of guessed at: a box that keeps the English height leaves blank space above a shorter
-translated line, because the box grows upward.
+The name field shows the Chinese name with the English name in brackets, the same shape the overlay
+and the nameplates use. `TalkHandler.FormatSpeakerName` builds that string, and a masked name such
+as `???` stays masked. An empty translation is never written into the values, because an empty
+string would blank the dialogue box. A debug log of the name, text, and box heights is written once
+per laid-out line, so a box taller than its text can be seen in the log instead of guessed at: a box
+that keeps the English height leaves blank space above a shorter translated line, because the box
+grows upward.
 
 Do not grow the dialogue panel from the plugin. The game recomputes it, and chasing the layout is
 the same fight that damaged the nameplate bake atlas.
