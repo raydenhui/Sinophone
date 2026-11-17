@@ -147,10 +147,20 @@ public sealed unsafe class NativeTextWriter
         if (node is null || !_saved.TryGetValue(key, out var saved))
             return false;
 
+        // The room the addon gives the line, not the node's own height. A node that has not
+        // been laid out yet reports one line, and fitting a long line into that draws the rest
+        // of its lines on top of each other.
+        var panelHeight = PanelHeight(addonName);
+        if (panelHeight > maxHeight)
+            maxHeight = panelHeight;
+
+        // A node without wrapping measures a long line as one line, while the game still wraps
+        // it inside the box. Wrapping is needed for the height to be the height the text needs.
+        node->TextFlags |= TextFlags.WordWrap;
+
         // Measure from the size the game gave the node, not from a size a previous
         // fitted line left behind.
         node->FontSize = saved.OriginalFontSize;
-        node->LineSpacing = 0;
         node->ResizeNodeForCurrentText();
 
         var address = (nint)node;
@@ -183,6 +193,24 @@ public sealed unsafe class NativeTextWriter
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Height of the addon's own window, which is the room a line has before it has to be
+    /// shrunk. Zero when the addon is not up.
+    /// </summary>
+    private ushort PanelHeight(string addonName)
+    {
+        var addon = _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
+        if (addon is null)
+            return 0;
+
+        var window = addon->WindowNode;
+        var height = window is not null ? window->AtkResNode.Height : (ushort)0;
+        if (height == 0 && addon->RootNode is not null)
+            height = addon->RootNode->Height;
+
+        return height;
     }
 
     /// <summary>
