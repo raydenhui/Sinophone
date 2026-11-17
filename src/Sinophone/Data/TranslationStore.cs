@@ -241,7 +241,8 @@ public sealed partial class TranslationStore
         if (string.IsNullOrWhiteSpace(speakerName))
             return [];
 
-        var words = new List<string>(3);
+        var words = new List<string>(4);
+        var whole = new StringBuilder(speakerName.Length);
 
         var start = -1;
         for (var i = 0; i <= speakerName.Length; i++)
@@ -249,8 +250,11 @@ public sealed partial class TranslationStore
             var isLetter = i < speakerName.Length && char.IsLetter(speakerName[i]);
             if (isLetter)
             {
+                whole.Append(char.ToUpperInvariant(speakerName[i]));
+
                 if (start < 0)
                     start = i;
+
                 continue;
             }
 
@@ -262,6 +266,13 @@ public sealed partial class TranslationStore
 
             start = -1;
         }
+
+        // A dump key writes a two-part name as one token: "G'raha Tia" is GRAHATIA. The
+        // apostrophe and the space are not part of the name, so the whole name without them is
+        // a candidate too.
+        var fullName = whole.ToString();
+        if (fullName.Length >= 4 && !words.Contains(fullName))
+            words.Add(fullName);
 
         return words.Count == 0 ? [] : words.ToArray();
     }
