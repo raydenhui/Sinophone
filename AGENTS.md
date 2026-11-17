@@ -114,6 +114,11 @@ it: that writes the linked DLL twice and the game reloads the dev plugin twice. 
 the code is finished, not after every edit. `Test.ps1` builds Release, so it does not touch the
 linked Debug DLL.
 
+Dalamud reloads a dev plugin by itself: `LocalDevPlugin` watches the DLL named in the dev plugin
+location with a 500 ms debounce and calls `ReloadAsync` on a write, so there is nothing to click.
+Every write of that DLL costs one unload and load. Build only when a step is finished, verify with
+`Test.ps1` (Release output, no reload), and do not deploy at all for a docs-only change.
+
 ### Scripts
 
 Any step you run more than once belongs in `scripts/` as a PowerShell 7 script. Do not leave
@@ -188,8 +193,10 @@ Keep startup load off the frame. Sheet reads run in slices from `Plugin.OnTick`,
 worker task, and the font atlas builds asynchronously. The store is not swapped in until both are
 ready. A second start reads the index cache instead of parsing and indexing, and a data download
 runs in the background while the current store keeps serving. The cache key covers every input the
-index depends on (variant, fallback, conversion, game data version, artifact identity), so a stale
-cache is rebuilt rather than trusted.
+index depends on (variant, fallback, conversion, game data version, artifact content, and
+`TranslationStore.IndexFormatVersion`), so a stale cache is rebuilt rather than trusted. Bump
+`IndexFormatVersion` when the indexed entries change; the assembly identity is deliberately not in
+the key, because it changes on every build and would force a full reindex after every update.
 
 Write through the component's `PluginLog`, not `IPluginLog`. It filters `Debug` and `Info`
 by the group the user picks in the settings **Logs** tab. Warnings and errors always show. A
