@@ -334,6 +334,20 @@ premature interface.
   and the restore puts them back, so the English name returns to the exact place it was drawn
   before. The saved English name goes back when the setting is turned off; `PostHide` and
   `PreFinalize` drop it instead, because the node may already belong to another addon.
+- **Chat bubbles.** `ShowInChatBubbles` puts Chinese into the game's own bubbles above NPCs. It needs
+  a font mod and is off by default while the bubble layout is checked in game. A yell bubble
+  (`NpcYell` with the balloon flag) is translated before the game measures it, by hooking
+  `NpcYellBalloon.OpenBalloon`, so the game sizes the bubble. A default balloon
+  (`ENpcBase.Balloon`) has no such call, so its text node is changed in place. The addon fills that
+  text after the bubble is set up, so the handler checks the nodes on each draw with a hash compare
+  and only looks up a text it has not seen; a line with no translation is remembered so it is not
+  retried every frame. Sizing is `BubbleLayout.GrowTo`, which never touches the text node: the node's
+  width and flags are what the game wraps at, and changing them makes the game rewrite the line with
+  hard breaks so later lookups see fragments. The visible bubble is the nine-grid, and its size minus
+  the text node's size is the padding to keep; the nine-grid and the bubble's res node grow to the
+  text plus that padding, in width and height, and the sizes come back when the setting is turned
+  off. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
+  so the bubble and battle talk surfaces never both write one line.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
   target. It needs a font mod and nameplates visible in the game settings. The names change

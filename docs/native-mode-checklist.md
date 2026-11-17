@@ -13,6 +13,13 @@ Two runs are needed:
   the mod, so this is the only warning the user gets.
 - **With the font mod installed.** Chinese should be readable. See the README font setup section.
 
+## Before a bubble run
+
+Chat bubbles keep the text and the node sizes a run leaves in them until the game restarts. A plugin
+reload does not reset them, so a bubble that an earlier build changed can show fragments, stale
+Chinese, or nothing even though the new build is fine. Restart the game after changing bubble code,
+and write down which build was running when a row failed.
+
 ## Checks
 
 | Check | Expected |
@@ -30,7 +37,15 @@ Two runs are needed:
 | Toggle native mode off | Game text returns immediately |
 | Change Chinese variant in settings | Next line uses the new variant |
 | Cutscene subtitle | Overlay still used; native mode does not cover subtitles yet |
-| Chat bubble from an NPC | Overlay still used; native mode does not cover bubbles yet |
+| Turn on chat bubble translation and talk near an NPC with a yell bubble | Chinese in the game's own bubble, above the speaker |
+| A yell bubble whose line has no translation | English stays; no Chinese from the previous bubble |
+| A long bubble line | Lines wrap inside the bubble; the background grows with the text, nothing clipped |
+| A bubble whose Chinese is wider than the English line, such as a 20+ character shout | The Chinese wraps inside the bubble; no text runs past the background on either side |
+| A yell bubble and a default balloon one after the other | Both are sized for the Chinese; neither keeps the English bubble size |
+| Two or three bubbles at once, such as several NPCs shouting | Each bubble keeps its own text; no bubble overlaps another |
+| An NPC default balloon (`ENpcBase.Balloon`), not a yell | Chinese in the bubble; note whether the background grew |
+| Turn chat bubbles off while a bubble is open | The English bubble text comes back |
+| A battle talk yell (enemy shout in a duty) with bubbles on | The bubble handler leaves it alone; battle talk is a separate setting |
 | A line the plugin cannot fit, such as one wider than the screen | The English line stays; no Chinese is drawn outside the box |
 | Line with oblique words | Note whether the English fragments stay on screen. If they do, open an issue |
 | Yes/No dialog | Prompt and button labels are Chinese; no overlay |

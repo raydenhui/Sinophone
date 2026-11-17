@@ -446,6 +446,16 @@ public sealed unsafe class NativeTextWriter
             saved.Original.Length, addonName, nodeId);
     }
 
+    /// <summary>Puts the game's own text back into every node of one addon this writer changed.</summary>
+    public void RestoreAddon(string addonName)
+    {
+        foreach (var key in _saved.Keys.Where(key => string.Equals(key.Addon, addonName, StringComparison.Ordinal)).ToArray())
+            Restore(key.Addon, key.NodeId);
+
+        foreach (var key in _savedAt.Keys.Where(key => string.Equals(key.Addon, addonName, StringComparison.Ordinal)).ToArray())
+            RestoreAt(key.Addon, key.Address);
+    }
+
     /// <summary>Puts the game's own text back into every node this writer changed.</summary>
     public void RestoreAll()
     {
