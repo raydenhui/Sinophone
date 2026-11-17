@@ -249,7 +249,11 @@ things that feed the `_MiniTalk` addon:
   battle talk flag is not touched, so the two surfaces never fight over one line.
 - **Default balloons.** An `ENpcBase.Balloon` row. There is no function to hook, so the handler
   translates the bubble's `TalkBubbleEntry.BubbleTextNode` in place. The original text and sizes are
-  kept and put back when the bubble ends, when the setting is turned off, and on unload.
+  kept and put back when the setting is turned off and on unload, but **not** on `PostHide`: a bubble
+  stream hides and shows the addon between lines, and restoring there put the English back only for
+  the next show to translate it again. Every one of those writes rebuilds the node's font cache,
+  which showed up as a hitch each time a bubble appeared or vanished. The next line's English text
+  replaces the Chinese on its own, so nothing stale is shown.
 
   Sizing is `BubbleLayout.GrowTo`, and it never touches the text node. The node's width and flags
   are what the game wraps at; changing either makes the game write the line back with hard breaks,
@@ -257,7 +261,7 @@ things that feed the `_MiniTalk` addon:
   nine-grid is the visible bubble and is larger than the text node by the padding the game drew, so
   that difference is the padding to keep, and the nine-grid and the bubble's res node grow to the
   text node's size plus that padding, in both width and height. Only ever grows; the sizes come back
-  with the game's text on `PostHide`, on the setting, and on unload.
+  with the game's text on the setting and on unload.
 
   The addon fills the text node itself, and it does that after `PostSetup`, so the node is empty
   when the bubble starts. The handler therefore looks at the nodes on each draw: a hash of the

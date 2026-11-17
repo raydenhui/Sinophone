@@ -357,7 +357,9 @@ premature interface.
   hard breaks so later lookups see fragments. The visible bubble is the nine-grid, and its size minus
   the text node's size is the padding to keep; the nine-grid and the bubble's res node grow to the
   text plus that padding, in width and height, and the sizes come back when the setting is turned
-  off. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
+  off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
+  restore plus the rewrite that follows rebuilds the node's font cache, which hitches every time a
+  bubble appears or vanishes. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
   so the bubble and battle talk surfaces never both write one line.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
