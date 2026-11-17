@@ -256,7 +256,13 @@ public sealed class ChatBubbleHandler : IDisposable
                 return;
 
             case AddonEvent.PostHide:
-                RestoreAll();
+                // A bubble stream hides and shows the addon between lines. Restoring here put the
+                // English back and the next show translated it again, and every one of those
+                // writes rebuilds the node's font cache, which showed up as a hitch each time a
+                // bubble appeared or vanished. Keep the translation: the same bubble reuses it,
+                // and a new line's English text replaces it by itself.
+                _log.Debug("Chat bubbles: {Addon} hidden; keeping the translation for its next show.",
+                    AddonName);
                 return;
 
             case AddonEvent.PreDraw:
@@ -353,8 +359,12 @@ public sealed class ChatBubbleHandler : IDisposable
 
             var layout = BubbleLayout.Capture(node, entry.BubbleNineGridNode, entry.BubbleResNode);
 
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
             if (!_nativeWriter.WriteAt(AddonName, address, chinese))
                 continue;
+
+            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
 
             _nodes[address] = new BubbleState
             {
@@ -370,10 +380,11 @@ public sealed class ChatBubbleHandler : IDisposable
 
             _log.Debug(
                 "Chat bubbles: translated a balloon in place ({Length} chars, text {TextW}x{TextH}, " +
-                "background {NineW}x{NineH}, bubble {BubbleW}x{BubbleH}).",
+                "background {NineW}x{NineH}, bubble {BubbleW}x{BubbleH}) in {Elapsed} ms.",
                 chinese.Length, node->Width, node->Height,
                 layout.NineGridWidth, layout.NineGridHeight,
-                layout.BubbleWidth, layout.BubbleHeight);
+                layout.BubbleWidth, layout.BubbleHeight,
+                (long)elapsed.TotalMilliseconds);
         }
     }
 
