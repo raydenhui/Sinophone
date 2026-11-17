@@ -144,10 +144,22 @@ panel the game sized for English.
 
 `NativeTextWriter` is the fallback. It writes the Chinese into the addon's text node (node 2 is the
 speaker name, node 3 is the dialogue) when the hook is not in place, then `WriteFitted` shrinks the
-font, one step at a time down to `MinimumFitFontSize`, until the node fits the height the game gave
-it for the English line. If nothing fits, it restores the game's text and the line falls back to
-the overlay, so a long translation is never drawn outside the box. The `AtkValue` hook also skips
-the `PostRefresh` lookup: the values already hold Chinese, so a second pass would miss.
+font, one step at a time down to `MinimumFitFontSize`, until the node fits the room the addon has.
+The budget is the panel's own height, not the node's, because a node that has not been laid out
+reports one line and fitting a long line into that draws the remaining lines on top of each other.
+The fit also turns `WordWrap` on first: without it the resize measures a long line as one line while
+the game still wraps it in the box, which is the same overlap. If nothing fits, it restores the
+game's text and the line falls back to the overlay, so a long translation is never drawn outside the
+box. The `AtkValue` hook also skips the `PostRefresh` lookup: the values already hold Chinese, so a
+second pass would miss.
+
+The line is wrapped to the Talk text area's width before the game reads the values, by
+`CjkLineWrapper`. The Chinese data is broken for the Chinese client's box, and with the CJK font the
+glyphs are a little wider, so the game breaks the last character of a data line onto the next
+rendered line; a closing mark such as the full stop then starts a line, which Chinese typesetting
+does not do. The wrapper measures each candidate line with the Talk text node's own font, wraps to
+that width, never starts a line with a closing mark and never ends one with an opening mark, and
+keeps the data's own paragraph breaks. A box that is not laid out yet leaves the line alone.
 
 The name field shows the Chinese name with the English name in brackets, the same shape the overlay
 and the nameplates use. `TalkHandler.FormatSpeakerName` builds that string, and a masked name such

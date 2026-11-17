@@ -17,6 +17,7 @@ public sealed class TalkHandler : IDisposable
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameInteropProvider _interop;
+    private readonly IGameGui _gameGui;
     private readonly PluginLog _log;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
@@ -41,6 +42,7 @@ public sealed class TalkHandler : IDisposable
         IAddonLifecycle addonLifecycle,
         IPluginLog log,
         IGameInteropProvider interop,
+        IGameGui gameGui,
         ITargetManager targetManager,
         Configuration configuration,
         Func<TranslationStore?> getStore,
@@ -49,6 +51,7 @@ public sealed class TalkHandler : IDisposable
     {
         _addonLifecycle = addonLifecycle;
         _interop = interop;
+        _gameGui = gameGui;
         _log = new PluginLog(log, configuration, LogCategory.Dialogue);
         _targetManager = targetManager;
         _configuration = configuration;
@@ -110,10 +113,18 @@ public sealed class TalkHandler : IDisposable
 
         try
         {
+            // The lifecycle args carry the addon for most events, but not all of them; the
+            // game object keeps the same addon and is always reachable by name.
             var addon = args.GetAddonPointer<AtkUnitBase>();
+            if (addon is null)
+                addon = _gameGui.GetAddonByName<AtkUnitBase>(TalkAddonName, 1);
+
             var table = addon is null ? null : ((AddonTalk*)addon)->VirtualTable;
             if (table is null)
+            {
+                _log.Debug("Talk layout hook: the addon is not reachable yet; will try again.");
                 return;
+            }
 
             var refreshAddress = (nint)table->OnRefresh;
             var setupAddress = (nint)table->OnSetup;
@@ -143,13 +154,13 @@ public sealed class TalkHandler : IDisposable
 
     private unsafe void OnTalkSetup(AddonTalk* addon, uint valueCount, AtkValue* values)
     {
-        TryLayOutTranslatedValues(values, valueCount);
+        TryLayOutTranslatedValues(addon, values, valueCount);
         _setupHook?.Original(addon, valueCount, values);
     }
 
     private unsafe bool OnTalkRefresh(AddonTalk* addon, uint valueCount, AtkValue* values)
     {
-        TryLayOutTranslatedValues(values, valueCount);
+        TryLayOutTranslatedValues(addon, values, valueCount);
         return _refreshHook?.Original(addon, valueCount, values) ?? false;
     }
 
@@ -157,11 +168,11 @@ public sealed class TalkHandler : IDisposable
     /// The detours run inside the game's own call, so a failure must leave the English
     /// text in place rather than throw through the game.
     /// </summary>
-    private unsafe void TryLayOutTranslatedValues(AtkValue* values, uint count)
+    private unsafe void TryLayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
     {
         try
         {
-            LayOutTranslatedValues(values, count);
+            LayOutTranslatedValues(addon, values, count);
         }
         catch (Exception ex)
         {
@@ -175,7 +186,7 @@ public sealed class TalkHandler : IDisposable
     /// once per line, before the game reads the values, so the game's own layout and
     /// wrapping apply to the Chinese. A line with no translation is left alone.
     /// </summary>
-    private unsafe void LayOutTranslatedValues(AtkValue* values, uint count)
+    private unsafe void LayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
     {
         _laidOutChineseText = null;
 
@@ -210,11 +221,13 @@ public sealed class TalkHandler : IDisposable
         if (content is null || string.IsNullOrWhiteSpace(content.Value.ChineseText))
             return;
 
-        values[TextValueIndex].SetManagedString(content.Value.ChineseText);
+        var chineseText = WrapForTalkBox(addon, content.Value.ChineseText);
+
+        values[TextValueIndex].SetManagedString(chineseText);
         if (NameValueIndex < count && !string.IsNullOrWhiteSpace(content.Value.ChineseName))
             values[NameValueIndex].SetManagedString(content.Value.ChineseName);
 
-        _laidOutChineseText = content.Value.ChineseText;
+        _laidOutChineseText = chineseText;
         _layoutLogPending = true;
 
         // The game is about to draw this line itself, so the overlay and any text node
@@ -225,8 +238,59 @@ public sealed class TalkHandler : IDisposable
         _log.Debug(
             "Native text: supplied the Chinese line in {Addon} AtkValues before layout " +
             "(name {NameLength} chars, text {Length} chars, first line: {FirstLine}).",
-            TalkAddonName, content.Value.ChineseName.Length, content.Value.ChineseText.Length,
-            FirstLineOf(content.Value.ChineseText));
+            TalkAddonName, content.Value.ChineseName.Length, chineseText.Length,
+            FirstLineOf(chineseText));
+    }
+
+    /// <summary>
+    /// Wraps the Chinese line to the width of the Talk text area before the game lays it out.
+    /// </summary>
+    /// <remarks>
+    /// The Chinese data is broken for the Chinese client's box. With the CJK font the rendered
+    /// glyphs are a little wider, so the game breaks the last character of a data line onto the
+    /// next rendered line, and a closing mark such as the full stop then starts a line.
+    /// <see cref="CjkLineWrapper"/> wraps the line to the box width first, keeping closing marks
+    /// off a line start, so the game has nothing left to break. A box that is not laid out yet
+    /// leaves the line as it is.
+    /// </remarks>
+    private unsafe string WrapForTalkBox(AddonTalk* addon, string chineseText)
+    {
+        if (addon is null || chineseText.Length == 0)
+            return chineseText;
+
+        var node = addon->AtkTextNode228;
+        if (node is null)
+            return chineseText;
+
+        var width = node->AtkResNode.Width;
+        if (width < 120)
+            width = node->Width;
+
+        if (width < 120)
+            return chineseText;
+
+        var address = (nint)node;
+
+        int Measure(string candidate)
+        {
+            var bytes = Encoding.UTF8.GetBytes(candidate);
+            ushort measuredWidth = 0;
+            ushort measuredHeight = 0;
+
+            fixed (byte* pointer = bytes)
+                ((AtkTextNode*)address)->GetTextDrawSize(&measuredWidth, &measuredHeight, pointer);
+
+            return measuredWidth;
+        }
+
+        var wrapped = CjkLineWrapper.Wrap(chineseText, width, Measure);
+        if (!string.Equals(wrapped, chineseText, StringComparison.Ordinal))
+        {
+            _log.Debug("Talk layout hook: wrapped the line to {Width}px into {Lines} lines.",
+                width, wrapped.Count('\n') + 1);
+        }
+
+        return wrapped;
     }
 
     /// <summary>

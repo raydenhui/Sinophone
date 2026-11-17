@@ -171,6 +171,7 @@ public sealed class Plugin : IDalamudPlugin
             AddonLifecycle,
             Log,
             GameInteropProvider,
+            GameGui,
             TargetManager,
             _configuration,
             () => _store,
