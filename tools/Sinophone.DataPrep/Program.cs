@@ -110,9 +110,10 @@ internal static class Program
         new("NpcYell", "Text", []) { Indices = [14] },
         new("InstanceContentTextData", "Text", ["Text"]),
         new("ContentTalk", "Text", ["Text"]),
-        // A SnipeTalk row holds three spoken lines in three columns (Text, Unknown0, Unknown1);
-        // the game shows any of them, so all three are translated.
-        new("SnipeTalk", "Text", ["Text", "Unknown0", "Unknown1"]),
+        // A SnipeTalk row holds three spoken lines; the game shows any of them. The CN/TC dumps
+        // call the columns 4, 5 and 6 (Text, then two unnamed ones); the English dump orders the
+        // same fields differently, so read the dumps by position.
+        new("SnipeTalk", "Text", []) { Indices = [4, 5, 6] },
         new("GuildleveAssignmentTalk", "Talk",
             ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]", "Talk[6]", "Talk[7]"]),
         new("CraftLeveTalk", "Talk", ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]"]),
