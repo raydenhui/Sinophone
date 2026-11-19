@@ -29,6 +29,7 @@ public sealed class TalkHandler : IDisposable
     private readonly Func<TranslationStore?> _getStore;
     private readonly OverlayWindow _overlay;
     private readonly NativeTextWriter _nativeWriter;
+    private readonly ChatLogRestorer _chatLogRestorer;
     private readonly TalkEventReader _eventReader;
     private readonly ITargetManager _targetManager;
 
@@ -60,7 +61,8 @@ public sealed class TalkHandler : IDisposable
         Configuration configuration,
         Func<TranslationStore?> getStore,
         OverlayWindow overlay,
-        NativeTextWriter nativeWriter)
+        NativeTextWriter nativeWriter,
+        ChatLogRestorer chatLogRestorer)
     {
         _addonLifecycle = addonLifecycle;
         _interop = interop;
@@ -71,6 +73,7 @@ public sealed class TalkHandler : IDisposable
         _getStore = getStore;
         _overlay = overlay;
         _nativeWriter = nativeWriter;
+        _chatLogRestorer = chatLogRestorer;
         _eventReader = new TalkEventReader(log, configuration, LogCategory.Dialogue);
         _onAddonEvent = OnAddonEvent;
 
@@ -291,6 +294,14 @@ public sealed class TalkHandler : IDisposable
             values[NameValueIndex].Type = AtkValueType.String;
             values[NameValueIndex].String = new CStringPointer((byte*)AllocateValueBuffer(chineseName));
         }
+
+        // The game logs NPC dialogue into the Story tab from the text it was given. Remember both
+        // forms and the name, so the log message can be put back to English.
+        _chatLogRestorer.Remember(chineseText, englishText);
+        _chatLogRestorer.Remember(content.Value.ChineseText, englishText);
+
+        if (hasName && !string.IsNullOrWhiteSpace(englishName))
+            _chatLogRestorer.Remember(chineseName, englishName);
 
         _laidOutChineseText = chineseText;
         _layoutLogPending = true;

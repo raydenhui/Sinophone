@@ -32,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TalkHandler _talkHandler;
     private readonly SelectionDialogHandler _selectionDialogHandler;
     private readonly ChatBubbleHandler _chatBubbleHandler;
+    private readonly ChatLogRestorer _chatLogRestorer;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
 #if DEBUG
@@ -140,6 +141,7 @@ public sealed class Plugin : IDalamudPlugin
         _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _log);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, _configuration, Log);
+        _chatLogRestorer = new ChatLogRestorer(ChatGui, _configuration, Log);
         _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if DEBUG
@@ -179,7 +181,8 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _overlay,
-            _nativeTextWriter);
+            _nativeTextWriter,
+            _chatLogRestorer);
         _selectionDialogHandler = new SelectionDialogHandler(
             AddonLifecycle,
             GameGui,
@@ -193,7 +196,8 @@ public sealed class Plugin : IDalamudPlugin
             Log,
             _configuration,
             () => _store,
-            _nativeTextWriter);
+            _nativeTextWriter,
+            _chatLogRestorer);
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
@@ -898,6 +902,7 @@ public sealed class Plugin : IDalamudPlugin
         _nativeProbe.Dispose();
         _talkContextProbe.Dispose();
 #endif
+        _chatLogRestorer.Dispose();
         _chatBubbleHandler.Dispose();
         _selectionDialogHandler.Dispose();
         _talkHandler.Dispose();
