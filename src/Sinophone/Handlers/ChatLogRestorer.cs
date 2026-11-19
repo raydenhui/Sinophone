@@ -1,4 +1,5 @@
 using Dalamud.Game.Chat;
+using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 
 namespace Sinophone.Handlers;
@@ -17,8 +18,12 @@ namespace Sinophone.Handlers;
 /// </remarks>
 public sealed class ChatLogRestorer : IDisposable
 {
-    /// <summary>How many lines are remembered. A log line arrives within a frame or two.</summary>
-    private const int History = 16;
+    /// <summary>
+    /// How many lines are remembered. The game can write a whole conversation to the Story tab at
+    /// once, several seconds after the lines were shown, so the window covers a dialogue, not just
+    /// the last line.
+    /// </summary>
+    private const int History = 64;
 
     private readonly IChatGui _chatGui;
     private readonly PluginLog _log;
@@ -43,6 +48,12 @@ public sealed class ChatLogRestorer : IDisposable
     internal bool TryGetEnglish(string? text, out string english)
         => _history.TryGetEnglish(text, out english);
 
+    /// <summary>True for the chat kinds the Story tab shows.</summary>
+    internal static bool IsStoryMessage(XivChatType kind)
+        => kind is XivChatType.NPCDialogue
+            or XivChatType.NPCDialogueAnnouncements
+            or XivChatType.SystemMessage;
+
     private void OnChatMessage(IHandleableChatMessage message)
     {
         if (_disposed)
@@ -53,17 +64,38 @@ public sealed class ChatLogRestorer : IDisposable
             if (message is not IMutableChatMessage mutable)
                 return;
 
-            if (TryGetEnglish(mutable.Message.TextValue, out var english))
+            // The message and its sender are both part of what the game logged: the line and the
+            // speaker name were translated. Handle them independently, or fixing the line would
+            // skip the name.
+            _history.FindReplacements(
+                mutable.Message.TextValue,
+                mutable.Sender.TextValue,
+                out var englishMessage,
+                out var englishSender);
+
+            if (englishMessage is not null)
+                mutable.Message = new SeStringBuilder().Append(englishMessage).Build();
+
+            if (englishSender is not null)
+                mutable.Sender = new SeStringBuilder().Append(englishSender).Build();
+
+            if (englishMessage is not null || englishSender is not null)
             {
-                mutable.Message = new SeStringBuilder().Append(english).Build();
-                _log.Debug("Chat log: put the English line back for a message the game logged from a translation.");
+                _log.Debug(
+                    "Chat log: put the English back for a message the game logged from a translation " +
+                    "(line {Line}, name {Name}).",
+                    englishMessage is not null, englishSender is not null);
                 return;
             }
 
-            if (TryGetEnglish(mutable.Sender.TextValue, out var sender))
+            // A story message that matched nothing is the one to look at when a line stays Chinese:
+            // it says which text arrived, and when, so the history window can be checked.
+            if (IsStoryMessage(mutable.LogKind))
             {
-                mutable.Sender = new SeStringBuilder().Append(sender).Build();
-                _log.Debug("Chat log: put the English speaker name back for a message the game logged from a translation.");
+                _log.Debug(
+                    "Chat log: unmatched {Kind} message ({Length} chars): {FirstLine}",
+                    mutable.LogKind, mutable.Message.TextValue.Length,
+                    TalkHandler.FirstLineOf(mutable.Message.TextValue));
             }
         }
         catch (Exception ex)
@@ -102,6 +134,17 @@ internal sealed class ChatLogHistory
         if (string.Equals(translated, original, StringComparison.Ordinal))
             return;
 
+        // The same line and the same speaker repeat through a conversation. Move the pair to the
+        // front instead of adding it again, so one line does not use several slots.
+        for (var node = _recent.First; node is not null; node = node.Next)
+        {
+            if (!string.Equals(node.Value.Chinese, translated, StringComparison.Ordinal))
+                continue;
+
+            _recent.Remove(node);
+            break;
+        }
+
         _recent.AddFirst((translated, original));
 
         while (_recent.Count > limit)
@@ -131,4 +174,18 @@ internal sealed class ChatLogHistory
     }
 
     public int Count => _recent.Count;
+
+    /// <summary>
+    /// Finds the English text for a message and its sender in one pass. Either may be null when
+    /// that part was not translated.
+    /// </summary>
+    public void FindReplacements(
+        string? message,
+        string? sender,
+        out string? englishMessage,
+        out string? englishSender)
+    {
+        englishMessage = TryGetEnglish(message, out var line) ? line : null;
+        englishSender = TryGetEnglish(sender, out var name) ? name : null;
+    }
 }

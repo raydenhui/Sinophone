@@ -314,7 +314,10 @@ premature interface.
   the game lays the box out, so the game sizes the box for the translation, and the caller's own
   values are put back right after the refresh returns, so other readers of those values see English.
   The chat log can still get a line the game builds from the addon's copy, so `ChatLogRestorer`
-  watches `IChatGui.ChatMessage` and puts the English line back for the last sixteen laid-out lines.
+  watches `IChatGui.ChatMessage` and puts the English line **and the speaker name** back for the last
+  sixty-four laid-out lines. The window is that large because the game can write a whole conversation
+  to the Story tab at once; a repeated line takes one slot. A story message that matches nothing is
+  logged with its kind and first line, so a missed line can be traced.
   Do not remove either step: together they keep the display Chinese and every log line English. The
   line is wrapped to
   the box width with `CjkLineWrapper` first, because the CJK glyphs are wider than the Chinese
