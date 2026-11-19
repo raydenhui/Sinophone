@@ -364,10 +364,12 @@ premature interface.
   and only looks up a text it has not seen; a line with no translation is remembered so it is not
   retried every frame. Sizing is `BubbleLayout.GrowTo`, which never touches the text node: the node's
   width and flags are what the game wraps at, and changing them makes the game rewrite the line with
-  hard breaks so later lookups see fragments. The visible bubble is the nine-grid, and its size minus
-  the text node's size is the padding to keep; the nine-grid and the bubble's res node grow to the
-  text plus that padding, in width and height, and the sizes come back when the setting is turned
-  off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
+  hard breaks so later lookups see fragments. The padding around the text belongs to the balloon texture, so
+  it comes from the nine-grid's own slice offsets (`LeftOffset` + `RightOffset`, `TopOffset` +
+  `BottomOffset`); measuring the background against the text node instead is wrong whenever the game
+  has not laid that background out for the line yet, and the bubble then grows far too big. The nine-grid
+  and the bubble's res node grow to the text plus that padding, in width and height, and the sizes
+  come back when the setting is turned off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
   restore plus the rewrite that follows rebuilds the node's font cache, which hitches every time a
   bubble appears or vanishes. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
   so the bubble and battle talk surfaces never both write one line.

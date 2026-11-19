@@ -282,9 +282,13 @@ things that feed the `_MiniTalk` addon:
   Sizing is `BubbleLayout.GrowTo`, and it never touches the text node. The node's width and flags
   are what the game wraps at; changing either makes the game write the line back with hard breaks,
   and the next lookup then sees fragments instead of the line. Instead the background grows: the
-  nine-grid is the visible bubble and is larger than the text node by the padding the game drew, so
-  that difference is the padding to keep, and the nine-grid and the bubble's res node grow to the
-  text node's size plus that padding, in both width and height. Only ever grows; the sizes come back
+  nine-grid is the visible bubble, and the room it keeps around the text is its own slice offsets
+  (`LeftOffset` + `RightOffset`, `TopOffset` + `BottomOffset`). The padding is a property of the
+  balloon texture, so it does not change from line to line. Measuring it as the background minus the
+  text node instead goes wrong when the game has not laid the background out for that line yet, since
+  the background still holds the previous line's size and the bubble grows far too big; that
+  measurement is only the fallback for a balloon whose offsets say nothing. The nine-grid and the
+  bubble's res node grow to the text node's size plus the padding, in both width and height. Only ever grows; the sizes come back
   with the game's text on the setting and on unload.
 
   The addon fills the text node itself, and it does that after `PostSetup`, so the node is empty
