@@ -168,20 +168,32 @@ public sealed class TalkHandler : IDisposable
     private unsafe void OnTalkSetup(AddonTalk* addon, uint valueCount, AtkValue* values)
     {
         var swapped = TryLayOutTranslatedValues(addon, values, valueCount);
-        _setupHook?.Original(addon, valueCount, values);
 
-        // The addon has copied the line by now. Put the caller's own values back, so everything
-        // that reads them after this call - the chat log's Story tab and any other plugin that
-        // reads the caller's data - sees the English line.
-        RestoreValues(values, swapped);
+        try
+        {
+            _setupHook?.Original(addon, valueCount, values);
+        }
+        finally
+        {
+            // The addon has copied the line by now. Put the caller's own values back, so
+            // everything that reads them after this call - the chat log's Story tab and any other
+            // plugin that reads the caller's data - sees the English line.
+            RestoreValues(values, swapped);
+        }
     }
 
     private unsafe bool OnTalkRefresh(AddonTalk* addon, uint valueCount, AtkValue* values)
     {
         var swapped = TryLayOutTranslatedValues(addon, values, valueCount);
-        var result = _refreshHook?.Original(addon, valueCount, values) ?? false;
-        RestoreValues(values, swapped);
-        return result;
+
+        try
+        {
+            return _refreshHook?.Original(addon, valueCount, values) ?? false;
+        }
+        finally
+        {
+            RestoreValues(values, swapped);
+        }
     }
 
     /// <summary>The caller's values, saved before the Chinese was put in.</summary>
