@@ -392,10 +392,12 @@ public sealed class ChatBubbleHandler : IDisposable
 
             _log.Debug(
                 "Chat bubbles: translated a balloon in place ({Length} chars, text {TextW}x{TextH}, " +
-                "background {NineW}x{NineH}, bubble {BubbleW}x{BubbleH}) in {Elapsed} ms.",
+                "background {NineW}x{NineH}, bubble {BubbleW}x{BubbleH}, padding {PadX}x{PadY} " +
+                "from {Source}) in {Elapsed} ms.",
                 chinese.Length, node->Width, node->Height,
                 layout.NineGridWidth, layout.NineGridHeight,
                 layout.BubbleWidth, layout.BubbleHeight,
+                layout.Padding.X, layout.Padding.Y, layout.PaddingSource,
                 (long)elapsed.TotalMilliseconds);
         }
     }
@@ -498,7 +500,7 @@ public sealed class ChatBubbleHandler : IDisposable
     /// game drew, so the difference between those two is the padding to keep. The bubble's res
     /// node is the text-sized content box and gives no padding of its own.
     /// </remarks>
-    private readonly record struct BubbleLayout(
+    internal readonly record struct BubbleLayout(
         nint NineGrid,
         nint Bubble,
         ushort TextWidth,
@@ -506,13 +508,22 @@ public sealed class ChatBubbleHandler : IDisposable
         ushort NineGridWidth,
         ushort NineGridHeight,
         ushort BubbleWidth,
-        ushort BubbleHeight)
+        ushort BubbleHeight,
+        (int X, int Y) Padding,
+        string PaddingSource)
     {
         public static unsafe BubbleLayout Capture(
             AtkTextNode* node,
             AtkNineGridNode* nineGrid,
             AtkResNode* bubble)
-            => new(
+        {
+            var (padding, source) = SelectPadding(
+                nineGrid is null ? 0 : nineGrid->LeftOffset + nineGrid->RightOffset,
+                nineGrid is null ? 0 : nineGrid->TopOffset + nineGrid->BottomOffset,
+                nineGrid is null ? 0 : (int)nineGrid->AtkResNode.Width - node->Width,
+                nineGrid is null ? 0 : (int)nineGrid->AtkResNode.Height - node->Height);
+
+            return new(
                 (nint)nineGrid,
                 (nint)bubble,
                 node->Width,
@@ -520,21 +531,40 @@ public sealed class ChatBubbleHandler : IDisposable
                 nineGrid is null ? (ushort)0 : nineGrid->AtkResNode.Width,
                 nineGrid is null ? (ushort)0 : nineGrid->AtkResNode.Height,
                 bubble is null ? (ushort)0 : bubble->Width,
-                bubble is null ? (ushort)0 : bubble->Height);
+                bubble is null ? (ushort)0 : bubble->Height,
+                padding,
+                source);
+        }
+
+        /// <summary>
+        /// The room a balloon keeps around its text, in width and height.
+        /// </summary>
+        /// <remarks>
+        /// The padding belongs to the balloon texture, so the nine-grid's own slice offsets give it
+        /// and do not change from line to line. Measuring the background against the text node
+        /// instead goes wrong when the game has not laid that background out for this line yet: the
+        /// background still holds the previous line's size, the difference is not padding, and the
+        /// bubble grows far too big. The measurement is only used when the offsets say nothing.
+        /// </remarks>
+        internal static ((int X, int Y) Padding, string Source) SelectPadding(
+            int offsetX, int offsetY, int measuredX, int measuredY)
+        {
+            if (offsetX > 0 && offsetY > 0 && offsetX < 256 && offsetY < 256)
+                return ((offsetX, offsetY), "the balloon borders");
+
+            return ((Math.Max(0, measuredX), Math.Max(0, measuredY)), "the measured background");
+        }
 
         /// <summary>
         /// Grows the background and the bubble to hold the text the node now has, plus the padding
-        /// the game drew. The text node itself is left alone: its width is what the game wraps at,
-        /// and changing it makes the game write the line back with hard breaks. Only ever grows, so
-        /// a shorter line keeps the game's layout.
+        /// the balloon keeps. The text node itself is left alone: its width is what the game wraps
+        /// at, and changing it makes the game write the line back with hard breaks. Only ever grows,
+        /// so a shorter line keeps the game's layout.
         /// </summary>
         public unsafe void GrowTo(AtkTextNode* node)
         {
-            var paddingX = Math.Max(0, (int)NineGridWidth - TextWidth);
-            var paddingY = Math.Max(0, (int)NineGridHeight - TextHeight);
-
-            var width = Clamp(node->Width + paddingX);
-            var height = Clamp(node->Height + paddingY);
+            var width = Clamp(node->Width + Padding.X);
+            var height = Clamp(node->Height + Padding.Y);
 
             if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
             {

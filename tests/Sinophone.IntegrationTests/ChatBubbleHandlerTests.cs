@@ -22,6 +22,32 @@ public class ChatBubbleHandlerTests
     }
 
     [Fact]
+    public void SelectPadding_UsesTheBalloonBorders_WhenTheyAreSet()
+    {
+        var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(76, 15, 116, 63);
+
+        Assert.Equal((76, 15), padding);
+        Assert.Contains("borders", source);
+    }
+
+    [Fact]
+    public void SelectPadding_FallsBackToTheMeasuredBackground_WhenTheBordersAreUnset()
+    {
+        var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(0, 0, 116, 63);
+
+        Assert.Equal((116, 63), padding);
+        Assert.Contains("measured", source);
+    }
+
+    [Fact]
+    public void SelectPadding_NeverReturnsANegativePadding()
+    {
+        var (padding, _) = ChatBubbleHandler.BubbleLayout.SelectPadding(0, 0, -40, -2);
+
+        Assert.Equal((0, 0), padding);
+    }
+
+    [Fact]
     public void Resolve_ReturnsTranslation_ForAKnownBubbleLine()
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);
