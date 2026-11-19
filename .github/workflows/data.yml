@@ -295,6 +295,36 @@ jobs:
           # Without this, the daily check sees the same moved commit every day
           # and rebuilds forever. The version is the content hash, so an
           # unchanged version never makes a client download the data files.
+          # A rebuild of unchanged data produces different bytes (the artifact carries its
+          # generation time), so its checksums do not describe the files that are published.
+          # Keep the published checksums in that case, or every client rejects the download.
+          if [[ "$DATA_CHANGED" != "true" ]]; then
+            published_cn=$(python3 -c "import json; print(json.load(open('published/manifest.json')).get('cnSha256', ''))")
+            published_tc=$(python3 -c "import json; print(json.load(open('published/manifest.json')).get('tcSha256', ''))")
+
+            if [[ -n "$published_cn" && -n "$published_tc" ]]; then
+              python3 - <<'PY'
+          import json
+
+          built = json.load(open("out/manifest.json", encoding="utf-8"))
+          published = json.load(open("published/manifest.json", encoding="utf-8"))
+
+          # The content is the same, so the version and the checksums of the files on the
+          # release stay as they are. Only the source commits are new.
+          for field in ("version", "formatVersion", "cnSha256", "tcSha256"):
+              if field in published:
+                  built[field] = published[field]
+
+          with open("out/manifest.json", "w", encoding="utf-8") as file:
+              json.dump(built, file, indent=2)
+              file.write("\n")
+          PY
+            else
+              echo "The published manifest has no checksums; publishing the data files too."
+              DATA_CHANGED=true
+            fi
+          fi
+
           if [[ "$DATA_CHANGED" == "true" ]]; then
             assets=(
               out/manifest.json
@@ -314,6 +344,44 @@ jobs:
               --latest=false \
               "${assets[@]}"
           fi
+
+      - name: Verify the published data
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Read through the API, not the download URL: the CDN can serve a cached copy and
+          # hide a mismatch for a few minutes.
+          mkdir -p verify
+          gh release download data --pattern manifest.json --dir verify --clobber
+          gh release download data --pattern "Sinophone.*.json.gz" --dir verify --clobber
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import sys
+
+          manifest = json.load(open("verify/manifest.json", encoding="utf-8"))
+          failed = False
+
+          for name, field in (
+              ("Sinophone.cn.json.gz", "cnSha256"),
+              ("Sinophone.tc.json.gz", "tcSha256"),
+          ):
+              expected = manifest.get(field, "")
+              actual = hashlib.sha256(open(f"verify/{name}", "rb").read()).hexdigest()
+
+              if expected != actual:
+                  print(f"::error::{name} does not match the manifest ({expected} != {actual}).")
+                  failed = True
+
+          if failed:
+              sys.exit(1)
+
+          print("The published manifest matches the published data files.")
+          PY
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
