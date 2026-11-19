@@ -23,7 +23,6 @@ how much text a sheet adds. They do not predict how many lines the game will hit
 | `NpcYell` | `Text` | Dialogue | Enemy and boss shouts |
 | `InstanceContentTextData` | `Text` | Dialogue | Dungeon and raid narration |
 | `ContentTalk` | `Text` | Dialogue | Duty NPC lines |
-| `SnipeTalk` | `Text`, `Unknown0`, `Unknown1` | Dialogue | Snipe event dialogue: a row holds three spoken lines |
 | `GuildleveAssignmentTalk` | `Talk[0..7]` | Dialogue | Guildleve NPC dialogue |
 | `CraftLeveTalk` | `Talk[0..5]` | Dialogue | Crafting leve dialogue |
 | `GoldSaucerTextData` | `Text` | Dialogue | Gold Saucer text |
@@ -63,6 +62,7 @@ fields, but its column order differs for some sheets, so do not copy its order.
 
 | Sheet | Text column | Rows | What it contains |
 | --- | --- | ---: | --- |
+| `SnipeTalk` | columns 4, 5, 6 | 76 | Snipe event dialogue: three spoken lines per row |
 | `GimmickTalk` | last column | 67 | Object interaction text |
 | `GimmickBill` | column 1 | 95 | Signboards and world text |
 | `GimmickYesNo` | columns 1, 2, 3 | 161 | Prompt, yes label, no label |

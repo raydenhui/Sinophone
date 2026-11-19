@@ -39,13 +39,14 @@ public class PositionalSheetTests : IDisposable
     [Fact]
     public void ProcessSheet_ReadsEverySnipeTalkLine_WhenARowHoldsThree()
     {
+        // The CN/TC dump layout: key, 0, 1, Name, and the three spoken lines in columns 4-6.
         Write("SnipeTalk",
-            "key,Text,Unknown0,Unknown1,Name,Unknown2,Unknown3",
-            "#,Text,Unknown0,Unknown1,Name,Unknown2,Unknown3",
-            "int32,str,str,str,uint32,byte,byte",
-            "40,\"Hmm... It's a little hard to see from here.\",\"And I can see through that window another pipe at the bottom...\",\"Ah! This must be for purifying water.\",20,61,1");
+            "key,0,1,2,3,4,5",
+            "#,,,Name,Text,,",
+            "int32,byte,byte,SnipeTalkName,str,str,str",
+            "40,61,1,20,\"Hmm... It's a little hard to see from here.\",\"And I can see through that window another pipe at the bottom...\",\"Ah! This must be for purifying water.\"");
 
-        var spec = new Program.SheetSpec("SnipeTalk", "Text", ["Text", "Unknown0", "Unknown1"]);
+        var spec = new Program.SheetSpec("SnipeTalk", "Text", []) { Indices = [4, 5, 6] };
         var rows = Program.ProcessSheet(spec, _directory);
 
         Assert.NotNull(rows);
