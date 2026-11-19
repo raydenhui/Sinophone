@@ -37,6 +37,26 @@ public class PositionalSheetTests : IDisposable
     }
 
     [Fact]
+    public void ProcessSheet_ReadsEverySnipeTalkLine_WhenARowHoldsThree()
+    {
+        Write("SnipeTalk",
+            "key,Text,Unknown0,Unknown1,Name,Unknown2,Unknown3",
+            "#,Text,Unknown0,Unknown1,Name,Unknown2,Unknown3",
+            "int32,str,str,str,uint32,byte,byte",
+            "40,\"Hmm... It's a little hard to see from here.\",\"And I can see through that window another pipe at the bottom...\",\"Ah! This must be for purifying water.\",20,61,1");
+
+        var spec = new Program.SheetSpec("SnipeTalk", "Text", ["Text", "Unknown0", "Unknown1"]);
+        var rows = Program.ProcessSheet(spec, _directory);
+
+        Assert.NotNull(rows);
+        Assert.True(rows!.TryGetValue("40", out var fields));
+        Assert.Equal(3, fields["Text"].Length);
+        Assert.StartsWith("Hmm...", fields["Text"][0], StringComparison.Ordinal);
+        Assert.StartsWith("And I can see", fields["Text"][1], StringComparison.Ordinal);
+        Assert.StartsWith("Ah! This must", fields["Text"][2], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProcessSheet_ReadsNpcYellTextAtItsActualColumn_WhenHeaderIsShifted()
     {
         Write("NpcYell", "key,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14",

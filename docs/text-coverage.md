@@ -23,7 +23,7 @@ how much text a sheet adds. They do not predict how many lines the game will hit
 | `NpcYell` | `Text` | Dialogue | Enemy and boss shouts |
 | `InstanceContentTextData` | `Text` | Dialogue | Dungeon and raid narration |
 | `ContentTalk` | `Text` | Dialogue | Duty NPC lines |
-| `SnipeTalk` | `Text` | Dialogue | Snipe event dialogue |
+| `SnipeTalk` | `Text`, `Unknown0`, `Unknown1` | Dialogue | Snipe event dialogue: a row holds three spoken lines |
 | `GuildleveAssignmentTalk` | `Talk[0..7]` | Dialogue | Guildleve NPC dialogue |
 | `CraftLeveTalk` | `Talk[0..5]` | Dialogue | Crafting leve dialogue |
 | `GoldSaucerTextData` | `Text` | Dialogue | Gold Saucer text |

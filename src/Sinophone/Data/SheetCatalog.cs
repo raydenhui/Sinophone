@@ -122,8 +122,10 @@ public static class SheetCatalog
             static row => ExtractSingle(row.Text));
         Add<ContentTalk>(dataManager, descriptors, "ContentTalk", "Text", false,
             static row => ExtractSingle(row.Text));
+        // A row holds three spoken lines (Text, Unknown0, Unknown1); indexing only the first
+        // left two thirds of the sheet's lines English.
         Add<SnipeTalk>(dataManager, descriptors, "SnipeTalk", "Text", false,
-            static row => ExtractSingle(row.Text));
+            static row => ExtractSlots(row.Text, row.Unknown0, row.Unknown1));
         Add<GuildleveAssignmentTalk>(dataManager, descriptors, "GuildleveAssignmentTalk", "Talk", false,
             static row => ExtractCollection(row.Talk));
         Add<CraftLeveTalk>(dataManager, descriptors, "CraftLeveTalk", "Talk", false,
@@ -231,6 +233,20 @@ public static class SheetCatalog
         => string.IsNullOrEmpty(value)
             ? Array.Empty<IReadOnlyList<string>>()
             : new IReadOnlyList<string>[] { new[] { value } };
+
+    /// <summary>
+    /// One slot per value, keeping the index of each even when it is empty, so a row id and slot
+    /// still line up with the artifact.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<string>> ExtractSlots(params ReadOnlySeString[] values)
+    {
+        var result = new IReadOnlyList<string>[values.Length];
+
+        for (var i = 0; i < values.Length; i++)
+            result[i] = SeStringVariants.Extract(values[i]);
+
+        return result;
+    }
 
     private static IReadOnlyList<IReadOnlyList<string>> ExtractCollection(Collection<ReadOnlySeString> values)
     {

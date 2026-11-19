@@ -110,7 +110,9 @@ internal static class Program
         new("NpcYell", "Text", []) { Indices = [14] },
         new("InstanceContentTextData", "Text", ["Text"]),
         new("ContentTalk", "Text", ["Text"]),
-        new("SnipeTalk", "Text", ["Text"]),
+        // A SnipeTalk row holds three spoken lines in three columns (Text, Unknown0, Unknown1);
+        // the game shows any of them, so all three are translated.
+        new("SnipeTalk", "Text", ["Text", "Unknown0", "Unknown1"]),
         new("GuildleveAssignmentTalk", "Talk",
             ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]", "Talk[6]", "Talk[7]"]),
         new("CraftLeveTalk", "Talk", ["Talk[0]", "Talk[1]", "Talk[2]", "Talk[3]", "Talk[4]", "Talk[5]"]),
