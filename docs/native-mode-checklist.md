@@ -28,6 +28,8 @@ and write down which build was running when a row failed.
 | Talk to an NPC with a long line | Text wraps inside the box, nothing clipped |
 | A long native Talk line that takes more than one line | The lines are spaced apart, not drawn on top of each other |
 | A line whose last character is a full stop, near the box width | The full stop stays with its sentence; no line starts with `。`, `，`, `；`, `：`, `？` or `！` |
+| A native Talk line, checked in the chat log's Story tab | Chinese in the dialogue box, the English line in the story log |
+| A yell bubble with the print-to-log flag | Chinese in the bubble, the English line in the chat log |
 | `GimmickBill` row 66 at the Ktisis Hyperboreia sign | All eight Chinese lines stay inside the panel, top and bottom |
 | A line long enough that the Chinese needs more room than the English | The box grows for the Chinese, or the line shrinks to fit; it never draws outside the panel |
 | A long Chinese speaker name or title | The name stays inside the header |
