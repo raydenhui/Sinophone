@@ -318,7 +318,9 @@ premature interface.
   sixty-four laid-out lines. The window is that large because the game can write a whole conversation
   to the Story tab at once; a repeated line takes one slot. A story message that matches nothing is
   logged with its kind and first line, so a missed line can be traced.
-  Do not remove either step: together they keep the display Chinese and every log line English. The
+  Do not remove either step: together they keep the display Chinese and every log line English.
+  `NativeTextSharesTranslation` turns both steps off for Talk, so other readers get Chinese instead;
+  changing it clears the chat restore history. The
   line is wrapped to
   the box width with `CjkLineWrapper` first, because the CJK glyphs are wider than the Chinese
   client's and the game would otherwise start a rendered line with a full stop or another closing

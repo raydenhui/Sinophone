@@ -103,6 +103,17 @@ public class ChatLogHistoryTests
     }
 
     [Fact]
+    public void Clear_DropsEveryRememberedLine()
+    {
+        var history = new ChatLogHistory();
+        history.Remember("你好。", "Hello.", 64);
+        history.Clear();
+
+        Assert.Equal(0, history.Count);
+        Assert.False(history.TryGetEnglish("你好。", out _));
+    }
+
+    [Fact]
     public void FindReplacements_RestoresBothTheLineAndTheSpeakerName()
     {
         var history = new ChatLogHistory();

@@ -69,6 +69,15 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public bool NativeTextMode { get; set; }
 
+    /// <summary>
+    /// Native Talk mode only. Off by default: the caller's <c>AtkValue</c> strings are put back
+    /// after the game has read them, so the chat log's Story tab, the game logic, and any other
+    /// plugin that reads those values see the English line while the dialogue box shows Chinese.
+    /// Turn it on to leave the Chinese in place, so everything that reads the line sees the
+    /// translation.
+    /// </summary>
+    public bool NativeTextSharesTranslation { get; set; }
+
     public bool ShowSpeakerName { get; set; } = true;
 
     /// <summary>Color of the speaker name line in the dialogue overlay.</summary>

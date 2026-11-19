@@ -80,6 +80,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastItemNameNativeMode;
     private bool _lastItemNameShowEnglish;
     private bool _lastNativeTextMode;
+    private bool _lastSharesTranslation;
     private bool _lastShowInChatBubbles;
     private bool _lastShowInSelectionDialogs;
     private bool _lastSelectionYesNo;
@@ -123,6 +124,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
         _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
+        _lastSharesTranslation = _configuration.NativeTextSharesTranslation;
         _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
@@ -793,6 +795,8 @@ public sealed class Plugin : IDalamudPlugin
                                || _configuration.ShowOriginal != _lastItemNameShowEnglish;
 
         var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
+        var sharesTranslationChanged =
+            _lastSharesTranslation != _configuration.NativeTextSharesTranslation;
         var chatBubbleSettingsChanged = _lastShowInChatBubbles != _configuration.ShowInChatBubbles;
         var selectionSettingsChanged = _lastShowInSelectionDialogs != _configuration.ShowInSelectionDialogs
                                        || _lastSelectionYesNo != _configuration.SelectionYesNo
@@ -813,6 +817,7 @@ public sealed class Plugin : IDalamudPlugin
         _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
         _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
+        _lastSharesTranslation = _configuration.NativeTextSharesTranslation;
         _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
@@ -822,6 +827,13 @@ public sealed class Plugin : IDalamudPlugin
         _lastSelectionCutScene = _configuration.SelectionCutScene;
         _lastFontSize = _configuration.FontSize;
         _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
+
+        if (sharesTranslationChanged)
+        {
+            // Lines laid out under the old choice must not be rewritten under the new one.
+            _chatLogRestorer.Clear();
+            _log.Debug("Native text sharing changed; the chat log history was cleared.");
+        }
 
         if (nativeTextModeChanged || pluginDisabled)
         {
