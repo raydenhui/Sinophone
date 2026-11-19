@@ -34,6 +34,7 @@ public sealed class ChatBubbleHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
+    private readonly ChatLogRestorer _chatLogRestorer;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
@@ -65,7 +66,8 @@ public sealed class ChatBubbleHandler : IDisposable
         IPluginLog log,
         Configuration configuration,
         Func<TranslationStore?> getStore,
-        NativeTextWriter nativeWriter)
+        NativeTextWriter nativeWriter,
+        ChatLogRestorer chatLogRestorer)
     {
         _addonLifecycle = addonLifecycle;
         _interop = interop;
@@ -73,6 +75,7 @@ public sealed class ChatBubbleHandler : IDisposable
         _configuration = configuration;
         _getStore = getStore;
         _nativeWriter = nativeWriter;
+        _chatLogRestorer = chatLogRestorer;
         _onAddonEvent = OnAddonEvent;
 
         _addonLifecycle.RegisterListener(AddonEvent.PostSetup, AddonName, _onAddonEvent);
@@ -177,7 +180,13 @@ public sealed class ChatBubbleHandler : IDisposable
             return null;
 
         var context = ReadYellContext(english, out var parameters);
-        return Resolve(store, _configuration, english, context, parameters);
+        var chinese = Resolve(store, _configuration, english, context, parameters);
+
+        // A yell with the print-to-log flag makes the game log the text it was given.
+        if (chinese is not null)
+            _chatLogRestorer.Remember(chinese, english);
+
+        return chinese;
     }
 
     /// <summary>
@@ -365,6 +374,9 @@ public sealed class ChatBubbleHandler : IDisposable
                 continue;
 
             var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
+
+            // The game may log a balloon line as it shows it.
+            _chatLogRestorer.Remember(chinese, english);
 
             _nodes[address] = new BubbleState
             {
