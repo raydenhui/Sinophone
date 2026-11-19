@@ -311,7 +311,9 @@ premature interface.
   comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
   mode shows the missing-glyph character and the plugin cannot tell. See
   [README](README.en.md#font-setup). The Chinese goes into the addon's `AtkValue` strings before
-  the game lays the box out, so the game sizes the box for the translation. The line is wrapped to
+  the game lays the box out, so the game sizes the box for the translation, and the caller's own
+  values are put back right after the refresh returns so the chat log and other readers of those
+  values still see English. The line is wrapped to
   the box width with `CjkLineWrapper` first, because the CJK glyphs are wider than the Chinese
   client's and the game would otherwise start a rendered line with a full stop or another closing
   mark. A node written after

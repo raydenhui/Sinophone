@@ -143,6 +143,13 @@ the Chinese line. This is the same thing the Chinese client does, and it is the 
 line stays inside the box: a node written after layout only makes the text node taller than the
 panel the game sized for English.
 
+The caller's `AtkValue` strings are put back inside the same hook call, right after the addon has read
+them. The addon copies the line, so the Chinese stays on screen, while everything that reads the
+caller's values afterwards - the chat log's Story tab, other plugins that see the caller's data -
+sees the English line. The Chinese is handed over as a plain `String` value pointing into a small
+ring of unmanaged buffers, so the game never owns the memory and a pointer it keeps stays valid for
+the last few lines.
+
 `NativeTextWriter` is the fallback. It writes the Chinese into the addon's text node (node 2 is the
 speaker name, node 3 is the dialogue) when the hook is not in place, then `WriteFitted` shrinks the
 font, one step at a time down to `MinimumFitFontSize`, until the node fits the room the addon has.

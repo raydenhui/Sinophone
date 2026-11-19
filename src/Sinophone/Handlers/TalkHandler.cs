@@ -1,5 +1,8 @@
+using System.Runtime.InteropServices;
+
 using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using InteropGenerator.Runtime;
 
 namespace Sinophone.Handlers;
 
@@ -14,6 +17,9 @@ public sealed class TalkHandler : IDisposable
 
     private const uint TextValueIndex = 0;
     private const uint NameValueIndex = 1;
+
+    /// <summary>How many handed-out string buffers stay alive, in case the addon keeps a pointer.</summary>
+    private const int ValueBufferHistory = 8;
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameInteropProvider _interop;
@@ -31,6 +37,13 @@ public sealed class TalkHandler : IDisposable
     private Hook<TalkRefreshDelegate>? _refreshHook;
     private string? _laidOutChineseText;
     private bool _layoutLogPending;
+
+    /// <summary>
+    /// The unmanaged UTF-8 buffers handed to the game as <c>AtkValue</c> strings. The addon copies
+    /// the text, but a buffer is kept for a few lines in case it keeps the pointer, so a stale
+    /// pointer never points at freed memory.
+    /// </summary>
+    private readonly Queue<nint> _valueBuffers = new();
     private bool _valueHookUnavailable;
     private bool _disposed;
 
@@ -154,30 +167,57 @@ public sealed class TalkHandler : IDisposable
 
     private unsafe void OnTalkSetup(AddonTalk* addon, uint valueCount, AtkValue* values)
     {
-        TryLayOutTranslatedValues(addon, values, valueCount);
+        var swapped = TryLayOutTranslatedValues(addon, values, valueCount);
         _setupHook?.Original(addon, valueCount, values);
+
+        // The addon has copied the line by now. Put the caller's own values back, so everything
+        // that reads them after this call - the chat log's Story tab and any other plugin that
+        // reads the caller's data - sees the English line.
+        RestoreValues(values, swapped);
     }
 
     private unsafe bool OnTalkRefresh(AddonTalk* addon, uint valueCount, AtkValue* values)
     {
-        TryLayOutTranslatedValues(addon, values, valueCount);
-        return _refreshHook?.Original(addon, valueCount, values) ?? false;
+        var swapped = TryLayOutTranslatedValues(addon, values, valueCount);
+        var result = _refreshHook?.Original(addon, valueCount, values) ?? false;
+        RestoreValues(values, swapped);
+        return result;
+    }
+
+    /// <summary>The caller's values, saved before the Chinese was put in.</summary>
+    private readonly record struct SwappedValues(bool Swapped, AtkValue Text, AtkValue Name, bool HasName);
+
+    /// <summary>Puts the caller's own values back once the game has read the Chinese.</summary>
+    private unsafe void RestoreValues(AtkValue* values, SwappedValues swapped)
+    {
+        if (!swapped.Swapped || values is null)
+            return;
+
+        values[TextValueIndex] = swapped.Text;
+
+        if (swapped.HasName)
+            values[NameValueIndex] = swapped.Name;
+
+        _log.Debug(
+            "Talk layout hook: put the caller's values back; the game passes {Type}.",
+            swapped.Text.Type);
     }
 
     /// <summary>
     /// The detours run inside the game's own call, so a failure must leave the English
     /// text in place rather than throw through the game.
     /// </summary>
-    private unsafe void TryLayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
+    private unsafe SwappedValues TryLayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
     {
         try
         {
-            LayOutTranslatedValues(addon, values, count);
+            return LayOutTranslatedValues(addon, values, count);
         }
         catch (Exception ex)
         {
             _laidOutChineseText = null;
             _log.Warning(ex, "Talk layout hook: could not translate the line; leaving the game text.");
+            return default;
         }
     }
 
@@ -186,23 +226,23 @@ public sealed class TalkHandler : IDisposable
     /// once per line, before the game reads the values, so the game's own layout and
     /// wrapping apply to the Chinese. A line with no translation is left alone.
     /// </summary>
-    private unsafe void LayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
+    private unsafe SwappedValues LayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
     {
         _laidOutChineseText = null;
 
         if (_disposed || values is null || count == 0)
-            return;
+            return default;
 
         if (!_configuration.Enabled || !_configuration.NativeTextMode || !_configuration.ShowInTalk)
-            return;
+            return default;
 
         var store = _getStore();
         if (store is null)
-            return;
+            return default;
 
         var englishText = ReadStringValue(values, TextValueIndex, count);
         if (string.IsNullOrWhiteSpace(englishText))
-            return;
+            return default;
 
         // Read the name even when it is not shown: a line that several script lines
         // share is matched by its speaker, such as three different "You bastard!".
@@ -219,13 +259,26 @@ public sealed class TalkHandler : IDisposable
         // A line with no translation leaves the English in place. Writing an empty
         // string would blank the dialogue box.
         if (content is null || string.IsNullOrWhiteSpace(content.Value.ChineseText))
-            return;
+            return default;
 
         var chineseText = WrapForTalkBox(addon, content.Value.ChineseText);
+        var chineseName = content.Value.ChineseName;
+        var hasName = NameValueIndex < count && !string.IsNullOrWhiteSpace(chineseName);
 
-        values[TextValueIndex].SetManagedString(chineseText);
-        if (NameValueIndex < count && !string.IsNullOrWhiteSpace(content.Value.ChineseName))
-            values[NameValueIndex].SetManagedString(content.Value.ChineseName);
+        // Save the caller's values before replacing them, so they can be put back after the game
+        // has copied the Chinese.
+        var swapped = new SwappedValues(true, values[TextValueIndex], hasName ? values[NameValueIndex] : default, hasName);
+
+        // A plain String value is caller-owned, so the game copies it and never frees it. The
+        // buffer stays alive for a few lines in case the addon keeps the pointer anyway.
+        values[TextValueIndex].Type = AtkValueType.String;
+        values[TextValueIndex].String = new CStringPointer((byte*)AllocateValueBuffer(chineseText));
+
+        if (hasName)
+        {
+            values[NameValueIndex].Type = AtkValueType.String;
+            values[NameValueIndex].String = new CStringPointer((byte*)AllocateValueBuffer(chineseName));
+        }
 
         _laidOutChineseText = chineseText;
         _layoutLogPending = true;
@@ -238,8 +291,30 @@ public sealed class TalkHandler : IDisposable
         _log.Debug(
             "Native text: supplied the Chinese line in {Addon} AtkValues before layout " +
             "(name {NameLength} chars, text {Length} chars, first line: {FirstLine}).",
-            TalkAddonName, content.Value.ChineseName.Length, chineseText.Length,
+            TalkAddonName, chineseName.Length, chineseText.Length,
             FirstLineOf(chineseText));
+
+        return swapped;
+    }
+
+    /// <summary>
+    /// Copies one string into unmanaged UTF-8 memory and keeps it for the last few lines. Returns
+    /// the pointer the <c>AtkValue</c> points at.
+    /// </summary>
+    private nint AllocateValueBuffer(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        var pointer = Marshal.AllocHGlobal(bytes.Length + 1);
+
+        Marshal.Copy(bytes, 0, pointer, bytes.Length);
+        Marshal.WriteByte(pointer, bytes.Length, 0);
+
+        _valueBuffers.Enqueue(pointer);
+
+        while (_valueBuffers.Count > ValueBufferHistory)
+            Marshal.FreeHGlobal(_valueBuffers.Dequeue());
+
+        return pointer;
     }
 
     /// <summary>
@@ -865,6 +940,10 @@ public sealed class TalkHandler : IDisposable
         _setupHook?.Dispose();
         _refreshHook = null;
         _setupHook = null;
+
+        while (_valueBuffers.Count > 0)
+            Marshal.FreeHGlobal(_valueBuffers.Dequeue());
+
         _nativeWriter.RestoreAll();
         _overlay.Hide();
     }
