@@ -1,4 +1,5 @@
 using Dalamud.Game.Chat;
+using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 
 namespace Sinophone.Handlers;
@@ -17,8 +18,12 @@ namespace Sinophone.Handlers;
 /// </remarks>
 public sealed class ChatLogRestorer : IDisposable
 {
-    /// <summary>How many lines are remembered. A log line arrives within a frame or two.</summary>
-    private const int History = 16;
+    /// <summary>
+    /// How many lines are remembered. The game can write a whole conversation to the Story tab at
+    /// once, several seconds after the lines were shown, so the window covers a dialogue, not just
+    /// the last line.
+    /// </summary>
+    private const int History = 64;
 
     private readonly IChatGui _chatGui;
     private readonly PluginLog _log;
@@ -42,6 +47,12 @@ public sealed class ChatLogRestorer : IDisposable
     /// <summary>Finds the English line for a translated string.</summary>
     internal bool TryGetEnglish(string? text, out string english)
         => _history.TryGetEnglish(text, out english);
+
+    /// <summary>True for the chat kinds the Story tab shows.</summary>
+    internal static bool IsStoryMessage(XivChatType kind)
+        => kind is XivChatType.NPCDialogue
+            or XivChatType.NPCDialogueAnnouncements
+            or XivChatType.SystemMessage;
 
     private void OnChatMessage(IHandleableChatMessage message)
     {
@@ -74,6 +85,17 @@ public sealed class ChatLogRestorer : IDisposable
                     "Chat log: put the English back for a message the game logged from a translation " +
                     "(line {Line}, name {Name}).",
                     englishMessage is not null, englishSender is not null);
+                return;
+            }
+
+            // A story message that matched nothing is the one to look at when a line stays Chinese:
+            // it says which text arrived, and when, so the history window can be checked.
+            if (IsStoryMessage(mutable.LogKind))
+            {
+                _log.Debug(
+                    "Chat log: unmatched {Kind} message ({Length} chars): {FirstLine}",
+                    mutable.LogKind, mutable.Message.TextValue.Length,
+                    TalkHandler.FirstLineOf(mutable.Message.TextValue));
             }
         }
         catch (Exception ex)
@@ -111,6 +133,17 @@ internal sealed class ChatLogHistory
 
         if (string.Equals(translated, original, StringComparison.Ordinal))
             return;
+
+        // The same line and the same speaker repeat through a conversation. Move the pair to the
+        // front instead of adding it again, so one line does not use several slots.
+        for (var node = _recent.First; node is not null; node = node.Next)
+        {
+            if (!string.Equals(node.Value.Chinese, translated, StringComparison.Ordinal))
+                continue;
+
+            _recent.Remove(node);
+            break;
+        }
 
         _recent.AddFirst((translated, original));
 

@@ -153,8 +153,11 @@ the last few lines.
 The game sometimes logs the text it was given: the chat log's Story tab logs NPC dialogue, and a yell
 bubble with the print-to-log flag logs the yell. Restoring the caller's values does not cover a line
 the game logs from the addon's own copy, so `ChatLogRestorer` listens to `IChatGui.ChatMessage` and
-swaps the message back to the English line when it matches one of the last sixteen lines the plugin
-laid out. The display stays Chinese and the chat log stays English; the speaker name is restored the
+swaps the message back to the English line and the speaker name when they match one of the last
+sixty-four lines the plugin laid out. The window is that large because the game can write a whole
+conversation to the Story tab at once, several seconds after the lines were shown; a line repeated in
+the conversation takes one slot, not one per appearance. A story message that matches nothing is
+logged at debug level with its kind and first line, which is how a missed line is traced. The display stays Chinese and the chat log stays English; the speaker name is restored the
 same way.
 
 `NativeTextWriter` is the fallback. It writes the Chinese into the addon's text node (node 2 is the

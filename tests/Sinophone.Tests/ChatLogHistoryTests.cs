@@ -73,6 +73,36 @@ public class ChatLogHistoryTests
     }
 
     [Fact]
+    public void Remember_KeepsOneSlot_ForARepeatedLine()
+    {
+        var history = new ChatLogHistory();
+        history.Remember("你好。", "Hello.", 4);
+
+        for (var i = 0; i < 6; i++)
+            history.Remember("你好。", "Hello.", 4);
+
+        Assert.Equal(1, history.Count);
+        Assert.True(history.TryGetEnglish("你好。", out var english));
+        Assert.Equal("Hello.", english);
+    }
+
+    [Fact]
+    public void Remember_KeepsTheSpeakerName_WhenManyLinesAreRemembered()
+    {
+        // A conversation writes its whole dialogue to the Story tab at once, so the window has to
+        // hold a dialogue, not just the last line.
+        var history = new ChatLogHistory();
+        history.Remember("歌鳴威 (Singingway)", "Singingway", 64);
+
+        for (var i = 0; i < 40; i++)
+            history.Remember($"第{i}句。", $"Line {i}.", 64);
+
+        Assert.True(history.TryGetEnglish("歌鳴威 (Singingway)", out var name));
+        Assert.Equal("Singingway", name);
+        Assert.True(history.TryGetEnglish("第39句。", out _));
+    }
+
+    [Fact]
     public void FindReplacements_RestoresBothTheLineAndTheSpeakerName()
     {
         var history = new ChatLogHistory();
