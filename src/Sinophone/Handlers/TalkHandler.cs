@@ -280,6 +280,27 @@ public sealed class TalkHandler : IDisposable
         var chineseName = content.Value.ChineseName;
         var hasName = NameValueIndex < count && !string.IsNullOrWhiteSpace(chineseName);
 
+        if (SharesTranslation(_configuration))
+        {
+            // The caller owns these values and frees them, so hand it managed strings and leave
+            // them in place: the game's log and anything else that reads the line see Chinese.
+            values[TextValueIndex].SetManagedString(chineseText);
+            if (hasName)
+                values[NameValueIndex].SetManagedString(chineseName);
+
+            _laidOutChineseText = chineseText;
+            _layoutLogPending = true;
+            ForgetNativeText(TalkAddonName);
+            _overlay.Hide();
+
+            _log.Debug(
+                "Talk layout hook: supplied the Chinese line and left it in place for other readers " +
+                "({Length} chars).",
+                chineseText.Length);
+
+            return default;
+        }
+
         // Save the caller's values before replacing them, so they can be put back after the game
         // has copied the Chinese.
         var swapped = new SwappedValues(true, values[TextValueIndex], hasName ? values[NameValueIndex] : default, hasName);
@@ -339,6 +360,13 @@ public sealed class TalkHandler : IDisposable
 
         return pointer;
     }
+
+    /// <summary>
+    /// True when the Chinese is left in the caller's values, so the game's log and other readers
+    /// see the translation instead of the English line.
+    /// </summary>
+    internal static bool SharesTranslation(Configuration configuration)
+        => configuration.NativeTextMode && configuration.NativeTextSharesTranslation;
 
     /// <summary>
     /// Wraps the Chinese line to the width of the Talk text area before the game lays it out.

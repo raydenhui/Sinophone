@@ -313,6 +313,27 @@ public sealed class ConfigWindow : Window
             "When off, an untranslated line falls back to the English text. " +
             "The overlay never shows both languages at once.");
 
+        if (_configuration.NativeTextMode)
+        {
+            Section("What other readers see");
+            ImGui.TextDisabled(
+                "The dialogue box always shows Chinese. This decides what the game's own log and " +
+                "other plugins read for the same line.");
+
+            if (ImGui.RadioButton("English original###shareEnglish", !_configuration.NativeTextSharesTranslation))
+            {
+                _configuration.NativeTextSharesTranslation = false;
+                _applySettings();
+            }
+
+            ImGui.SameLine();
+            if (ImGui.RadioButton("Chinese translation###shareChinese", _configuration.NativeTextSharesTranslation))
+            {
+                _configuration.NativeTextSharesTranslation = true;
+                _applySettings();
+            }
+        }
+
         Section("Overlay position");
         ImGui.BeginDisabled(_configuration.NativeTextMode);
         Checkbox("Lock overlay position", _configuration.LockOverlay,
@@ -873,6 +894,7 @@ public sealed class ConfigWindow : Window
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;
         _configuration.ShowInChatBubbles = defaults.ShowInChatBubbles;
         _configuration.NativeTextMode = defaults.NativeTextMode;
+        _configuration.NativeTextSharesTranslation = defaults.NativeTextSharesTranslation;
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;
         _configuration.SpeakerNameColor = defaults.SpeakerNameColor;
         _configuration.TranslatedTextColor = defaults.TranslatedTextColor;

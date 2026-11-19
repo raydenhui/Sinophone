@@ -150,6 +150,13 @@ sees the English line. The Chinese is handed over as a plain `String` value poin
 ring of unmanaged buffers, so the game never owns the memory and a pointer it keeps stays valid for
 the last few lines.
 
+`Configuration.NativeTextSharesTranslation` decides what other readers see for a Talk line. Off
+(default) it restores the caller's values and rewrites the chat log message, so the game's log and
+other plugins read English. On it leaves the Chinese in the caller's values and records nothing for
+the chat restore, so the game's log and other readers get the translation too. The overlay is not
+affected either way. Changing the choice clears the chat restore history, so a line laid out under
+the old choice is not rewritten under the new one.
+
 The game sometimes logs the text it was given: the chat log's Story tab logs NPC dialogue, and a yell
 bubble with the print-to-log flag logs the yell. Restoring the caller's values does not cover a line
 the game logs from the addon's own copy, so `ChatLogRestorer` listens to `IChatGui.ChatMessage` and

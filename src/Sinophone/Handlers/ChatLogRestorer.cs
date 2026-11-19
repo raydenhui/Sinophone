@@ -48,6 +48,12 @@ public sealed class ChatLogRestorer : IDisposable
     internal bool TryGetEnglish(string? text, out string english)
         => _history.TryGetEnglish(text, out english);
 
+    /// <summary>
+    /// Drops the remembered lines. Used when the setting that decides what other readers see
+    /// changes, so a line laid out under the old setting is not rewritten under the new one.
+    /// </summary>
+    public void Clear() => _history.Clear();
+
     /// <summary>True for the chat kinds the Story tab shows.</summary>
     internal static bool IsStoryMessage(XivChatType kind)
         => kind is XivChatType.NPCDialogue
@@ -188,4 +194,6 @@ internal sealed class ChatLogHistory
         englishMessage = TryGetEnglish(message, out var line) ? line : null;
         englishSender = TryGetEnglish(sender, out var name) ? name : null;
     }
+
+    public void Clear() => _recent.Clear();
 }

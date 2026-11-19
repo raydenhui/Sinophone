@@ -46,6 +46,21 @@ public class NativeTextModeTests
             new Configuration { NativeTextMode = true }, "TalkSubtitle"));
 
     [Fact]
+    public void SharesTranslation_IsFalse_ByDefault()
+        => Assert.False(TalkHandler.SharesTranslation(new Configuration { NativeTextMode = true }));
+
+    [Fact]
+    public void SharesTranslation_IsTrue_OnlyWhenNativeModeIsOn()
+    {
+        Assert.True(TalkHandler.SharesTranslation(
+            new Configuration { NativeTextMode = true, NativeTextSharesTranslation = true }));
+
+        // The overlay never writes the game's values, so the choice does not apply.
+        Assert.False(TalkHandler.SharesTranslation(
+            new Configuration { NativeTextMode = false, NativeTextSharesTranslation = true }));
+    }
+
+    [Fact]
     public void IsLaidOutByHook_IsTrue_WhenTheValueAlreadyHoldsTheChineseLine()
         => Assert.True(TalkHandler.IsLaidOutByHook("你好，旅行者。", "你好，旅行者。"));
 
