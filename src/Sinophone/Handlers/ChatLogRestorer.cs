@@ -53,17 +53,27 @@ public sealed class ChatLogRestorer : IDisposable
             if (message is not IMutableChatMessage mutable)
                 return;
 
-            if (TryGetEnglish(mutable.Message.TextValue, out var english))
-            {
-                mutable.Message = new SeStringBuilder().Append(english).Build();
-                _log.Debug("Chat log: put the English line back for a message the game logged from a translation.");
-                return;
-            }
+            // The message and its sender are both part of what the game logged: the line and the
+            // speaker name were translated. Handle them independently, or fixing the line would
+            // skip the name.
+            _history.FindReplacements(
+                mutable.Message.TextValue,
+                mutable.Sender.TextValue,
+                out var englishMessage,
+                out var englishSender);
 
-            if (TryGetEnglish(mutable.Sender.TextValue, out var sender))
+            if (englishMessage is not null)
+                mutable.Message = new SeStringBuilder().Append(englishMessage).Build();
+
+            if (englishSender is not null)
+                mutable.Sender = new SeStringBuilder().Append(englishSender).Build();
+
+            if (englishMessage is not null || englishSender is not null)
             {
-                mutable.Sender = new SeStringBuilder().Append(sender).Build();
-                _log.Debug("Chat log: put the English speaker name back for a message the game logged from a translation.");
+                _log.Debug(
+                    "Chat log: put the English back for a message the game logged from a translation " +
+                    "(line {Line}, name {Name}).",
+                    englishMessage is not null, englishSender is not null);
             }
         }
         catch (Exception ex)
@@ -131,4 +141,18 @@ internal sealed class ChatLogHistory
     }
 
     public int Count => _recent.Count;
+
+    /// <summary>
+    /// Finds the English text for a message and its sender in one pass. Either may be null when
+    /// that part was not translated.
+    /// </summary>
+    public void FindReplacements(
+        string? message,
+        string? sender,
+        out string? englishMessage,
+        out string? englishSender)
+    {
+        englishMessage = TryGetEnglish(message, out var line) ? line : null;
+        englishSender = TryGetEnglish(sender, out var name) ? name : null;
+    }
 }

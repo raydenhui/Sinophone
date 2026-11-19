@@ -73,6 +73,59 @@ public class ChatLogHistoryTests
     }
 
     [Fact]
+    public void FindReplacements_RestoresBothTheLineAndTheSpeakerName()
+    {
+        var history = new ChatLogHistory();
+        history.Remember("這棵「樹」看起來真不錯！", "That looks like the “trees”!", 16);
+        history.Remember("歌鳴威 (Singingway)", "Singingway", 16);
+
+        history.FindReplacements(
+            "這棵「樹」看起來真不錯！",
+            "歌鳴威 (Singingway)",
+            out var message,
+            out var sender);
+
+        Assert.Equal("That looks like the “trees”!", message);
+        Assert.Equal("Singingway", sender);
+    }
+
+    [Fact]
+    public void FindReplacements_FindsTheName_WhenOnlyTheNameWasTranslated()
+    {
+        var history = new ChatLogHistory();
+        history.Remember("歌鳴威 (Singingway)", "Singingway", 16);
+
+        history.FindReplacements("An English line.", "歌鳴威 (Singingway)", out var message, out var sender);
+
+        Assert.Null(message);
+        Assert.Equal("Singingway", sender);
+    }
+
+    [Fact]
+    public void FindReplacements_FindsTheLine_WhenOnlyTheLineWasTranslated()
+    {
+        var history = new ChatLogHistory();
+        history.Remember("你好。", "Hello.", 16);
+
+        history.FindReplacements("你好。", "Singingway", out var message, out var sender);
+
+        Assert.Equal("Hello.", message);
+        Assert.Null(sender);
+    }
+
+    [Fact]
+    public void FindReplacements_FindsNothing_ForAnUntranslatedMessage()
+    {
+        var history = new ChatLogHistory();
+        history.Remember("你好。", "Hello.", 16);
+
+        history.FindReplacements("Goodbye.", "Singingway", out var message, out var sender);
+
+        Assert.Null(message);
+        Assert.Null(sender);
+    }
+
+    [Fact]
     public void TryGetEnglish_UsesTheMostRecentPair_WhenTheChineseRepeats()
     {
         var history = new ChatLogHistory();
