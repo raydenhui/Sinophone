@@ -366,7 +366,11 @@ runs in the background; the store already in memory keeps serving until the new 
   `GeneratedAt` and `GameVersion` are left out, because they change on every build. The data
   workflow compares the new version with the published one. When they match it replaces only the
   manifest, which records the source commits, and leaves the data files alone, so clients do not
-  download again. `Configuration.LastDataVersion` records what is installed.
+  download again. That path keeps the **published checksums**: a rebuild produces different bytes
+  even when the content hash matches, because the artifact carries its generation time, so a freshly
+  built manifest would describe files that were never uploaded and every client would reject the
+  download. A verification step reads the manifest and the data files back through the API and fails
+  the job when a checksum disagrees. `Configuration.LastDataVersion` records what is installed.
 - `Scripts` is optional. Old readers ignore it, and a missing section means no script lines, so
   the artifact format version stays at 1.
 - Both variants are downloaded by default. Turning off **Download both language variants**
