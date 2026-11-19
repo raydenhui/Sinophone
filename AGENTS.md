@@ -169,6 +169,16 @@ Push a `vX.Y.Z` tag to release. `.github/workflows/release.yml` builds `latest.z
 Dalamud packager, attaches it to the release, and updates `pluginmaster.json` on `main` with the
 assembly version and a new `LastUpdate`.
 
+**List the changes from the last tag before you write the release.** Read the history, do not
+remember it: work merged since the last release may have been done in an earlier session.
+
+```sh
+git log --oneline "$(git describe --tags --abbrev=0)..main"
+```
+
+The bump pull request body must name every change users get, not only the ones from this session.
+0.2.5 shipped seven pull requests but the body named two, because the list came from memory.
+
 `pluginmaster.json` is the custom repository manifest users add in Dalamud. It must stay a
 JSON array, even when it has one plugin, or Dalamud cannot load the repository. Its download
 links point at `releases/latest/download/latest.zip`, so they do not change per release. Keep the `data` release
