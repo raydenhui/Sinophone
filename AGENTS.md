@@ -303,8 +303,13 @@ premature interface.
   `..._GRAHATIA` for a two-part name, so the whole name without punctuation is matched too), and a
   cutscene picks it through the number in a `VOICEMAN` key (`TEXT_VOICEMAN_06005_...` is scene
   6005, read from the number in `PlayCutSceneTask.CutscenePath` such as
-  `cut_scene/060/VoiceMan_06005`, and from `CutsceneId` when the path has no number). The task id
-  is not the scene number, so a cutscene id alone never matches a `VOICEMAN` key. A chocobokeep's greeting is the same English line
+  `cut_scene/060/VoiceMan_06005`). The task id is not the scene number, so a cutscene id alone
+  never matches a `VOICEMAN` key, and a path with no number leaves the scene at 0. A selection
+  dialog has no speaker and can outlive the cutscene task; every option in it comes from one
+  scene, so an option whose dump key names exactly one scene gives the scene for an ambiguous
+  sibling. If no option names one, the line stays English. A `Talk` line can also outlive the
+  cutscene task; the handler remembers the scene of an earlier line that names one and uses it
+  for a later shared line. The memory is cleared when the addon opens or closes. A chocobokeep's greeting is the same English line
   for a stand that just became usable and for every later visit, so `UIState.IsChocoboTaxiStandUnlocked`
   on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. An
   unnamed or unclear speaker leaves the line English instead of showing another scene's text.
@@ -447,8 +452,10 @@ premature interface.
   two visible objects with the same name both get the Chinese name. `RequestRedraw` applies and
   removes the names at once. Player characters are skipped.
 - **Data lag.** The CN and TC dumps trail the live game, so new lines may have no translation. A
-  release build carries no data files, so the first load downloads about 60 MB from the `data`
-  release. Later loads fetch the manifest, download only when the version changed, and reindex in
+  few rows were never localised and still hold Japanese, such as `BNpcName` 10416-10418
+  (`ステラ・ドラゴン`); rows 10426 and up hold the Chinese name for the same English. The store
+  prefers a row without kana when two rows share one English name. A release build carries no data
+  files, so the first load downloads about 60 MB from the `data` release. Later loads fetch the manifest, download only when the version changed, and reindex in
   the background; the old translation stays in use until the new index is ready. The data workflow
   checks the three dumps once a day at 00:00 UTC+8 and rebuilds only when one of them changed.
 

@@ -237,7 +237,10 @@ writes the Chinese back into the same node. There is no overlay for these
 surfaces. `IsSelectionDialogEnabled` selects which of the five dialogs are
 translated. Turning the switch off calls `RestoreAll` so an open dialog gets the
 game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
-`No.`, `OK`, and `Cancel`.
+`No.`, `OK`, and `Cancel`. A cutscene choice is a `VOICEMAN` script line, and one
+English option can sit in several scenes. The handler takes the scene from the live
+cutscene task, or, when that task is gone, from another option in the same dialog
+whose script key names exactly one scene.
 
 An `Addon` prompt can hold a runtime value, such as the gil amount in the retainer menu. The store
 matches those rows as templates: the live English line fills the wildcards, and the Chinese macro

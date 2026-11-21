@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 2;
+    private const int CacheFormatVersion = 3;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 
@@ -210,6 +210,7 @@ public sealed partial class TranslationStore
         }
 
         WriteStrings(writer, _scriptKeyLookup);
+        WriteScriptScenes(writer);
         WriteAmbiguousCandidates(writer);
     }
 
@@ -268,6 +269,25 @@ public sealed partial class TranslationStore
 
             _ambiguousScriptKeys.Add(key, candidates);
         }
+    }
+
+    private void WriteScriptScenes(BinaryWriter writer)
+    {
+        writer.Write(_scriptSceneLookup.Count);
+
+        foreach (var (key, scene) in _scriptSceneLookup)
+        {
+            writer.Write(key);
+            writer.Write(scene);
+        }
+    }
+
+    private void ReadScriptScenes(BinaryReader reader)
+    {
+        var count = reader.ReadInt32();
+
+        for (var i = 0; i < count; i++)
+            _scriptSceneLookup.Add(reader.ReadString(), reader.ReadUInt32());
     }
 
     private void ReadCacheBody(BinaryReader reader)
@@ -330,6 +350,7 @@ public sealed partial class TranslationStore
         }
 
         ReadStrings(reader, _scriptKeyLookup);
+        ReadScriptScenes(reader);
         ReadAmbiguousCandidates(reader);
     }
 

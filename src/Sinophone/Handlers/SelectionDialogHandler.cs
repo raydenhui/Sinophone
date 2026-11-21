@@ -219,6 +219,16 @@ public sealed class SelectionDialogHandler : IDisposable
         if (traceNodes)
             _log.Debug("CutSceneSelectString scan: {Count} text nodes.", _nodes.Count);
 
+        // The live cutscene task is not always there when the options appear, but every option
+        // comes from the same scene. One unambiguous option can name the scene for the rest.
+        var dialogCutscene = ReadDialogCutscene(store);
+        if (dialogCutscene != 0)
+        {
+            _log.Debug(
+                "Selection dialog {Addon}: using scene {Scene} from the dialog text.",
+                addonName, dialogCutscene);
+        }
+
         foreach (var nodeAddress in _nodes)
         {
             var node = (AtkTextNode*)nodeAddress;
@@ -244,7 +254,11 @@ public sealed class SelectionDialogHandler : IDisposable
             if (traceNodes)
                 _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
-            if (!TryTranslate(store, source, _eventReader.ReadContext(source), out var chinese))
+            var context = _eventReader.ReadContext(source);
+            if (context.CutsceneId == 0 && dialogCutscene != 0)
+                context = context with { CutsceneId = dialogCutscene };
+
+            if (!TryTranslate(store, source, context, out var chinese))
             {
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
@@ -276,6 +290,42 @@ public sealed class SelectionDialogHandler : IDisposable
                     addonName, nodeId, source, fitted);
             }
         }
+    }
+
+    private unsafe uint ReadDialogCutscene(TranslationStore store)
+    {
+        var sources = new List<string>(_nodes.Count);
+
+        foreach (var nodeAddress in _nodes)
+        {
+            var source = TalkHandler.ExtractPlainText(((AtkTextNode*)nodeAddress)->NodeText.AsSpan());
+            if (!string.IsNullOrWhiteSpace(source) && HasLatinLetter(source))
+                sources.Add(source);
+        }
+
+        return DialogCutscene(store, sources);
+    }
+
+    /// <summary>
+    /// The scene every text in one dialog belongs to, or 0 when they name different scenes or
+    /// none. Options from two scenes are not narrowed, because one of them would be wrong.
+    /// </summary>
+    internal static uint DialogCutscene(TranslationStore store, IEnumerable<string> texts)
+    {
+        uint scene = 0;
+
+        foreach (var text in texts)
+        {
+            if (!store.TryGetCutsceneId(text, out var candidate))
+                continue;
+
+            if (scene == 0)
+                scene = candidate;
+            else if (scene != candidate)
+                return 0;
+        }
+
+        return scene;
     }
 
     private unsafe AtkUnitBase* GetAddon(string addonName)
