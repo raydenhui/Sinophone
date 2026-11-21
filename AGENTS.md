@@ -309,11 +309,15 @@ premature interface.
   from the text node before lookup. The dumps write client macros the datamining tool cannot
   name as `<Unknown60>0262</Unknown60>`. The payload is binary data, not text, so
   `CleanForDisplay` drops the whole pair instead of leaving `0262` in the line.
-  The dumps write a sound a character makes as a lowercase word in angle brackets, such as
-  `<squeal>`, and the game draws it as it stands. `NormalizeKey` keeps those, because stripping
-  them left a line that holds only sounds with an empty key, so a balloon that says
-  `<squeal> <squeal>` never matched. A key that holds only sound markers and punctuation is
-  answered even when several script lines share it, because every candidate says the same thing.
+  The dumps write a sound a character makes as a lowercase description in angle brackets, such as
+  `<squeal>` or `<moist noises>`, and the game draws it as it stands. `NormalizeKey` keeps those,
+  because stripping them left a line that holds only sounds with an empty key, so a balloon that
+  says `<squeal> <squeal>` never matched. Spaces and hyphens are part of a description, and a
+  capital is allowed once the tag holds a space, because a description can name a creature
+  (`<Laladile smile>`); a single capitalised word or a slash still means a macro. A key that holds
+  only sound markers and
+  punctuation is answered even when several script lines share it, because every candidate says
+  the same thing.
 - **Conditionals.** A sheet row with an `If` macro gets one key per branch, so the line the game
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
   branch. `TranslationStore` keeps a second script index with the branch words collapsed:

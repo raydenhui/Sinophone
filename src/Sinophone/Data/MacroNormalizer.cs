@@ -81,22 +81,51 @@ public static partial class MacroNormalizer
     }
 
     /// <summary>
-    /// True for a lowercase word such as <c>squeal</c>. Real macros carry a capital, digits, a
-    /// bracket, or a slash (<c>&lt;Sheet(...)/&gt;</c>, <c>&lt;Highlight&gt;</c>), so they are not
-    /// matched; <c>&lt;br&gt;</c> is a lowercase macro but has already been replaced by a space.
+    /// True for a lowercase sound description such as <c>squeal</c> or <c>moist noises</c>. Real
+    /// macros carry a capital, digits, a bracket, or a slash (<c>&lt;Sheet(...)/&gt;</c>,
+    /// <c>&lt;Highlight&gt;</c>), so they are not matched; <c>&lt;br&gt;</c> is a lowercase macro
+    /// but has already been replaced by a space.
     /// </summary>
     internal static bool IsSoundMarker(ReadOnlySpan<char> inner)
     {
-        if (inner.Length < 2)
-            return false;
+        var letters = 0;
+        var capital = false;
+        var space = false;
 
         foreach (var character in inner)
         {
-            if (character is < 'a' or > 'z')
-                return false;
+            if (character is >= 'a' and <= 'z')
+            {
+                letters++;
+                continue;
+            }
+
+            if (character is >= 'A' and <= 'Z')
+            {
+                letters++;
+                capital = true;
+                continue;
+            }
+
+            // A description can hold spaces and hyphens: <heavy breathing>, <ka-klunk>.
+            if (character == '-')
+                continue;
+
+            if (character == ' ')
+            {
+                space = true;
+                continue;
+            }
+
+            return false;
         }
 
-        return true;
+        if (letters < 2)
+            return false;
+
+        // A capital on its own is a macro name (<Highlight>). A description may name a creature
+        // (<Laladile smile>), so a capital is allowed once the tag holds a space.
+        return !capital || space;
     }
 
     /// <summary>
