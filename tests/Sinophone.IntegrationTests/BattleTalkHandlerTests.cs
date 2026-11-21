@@ -81,11 +81,12 @@ public class BattleTalkHandlerTests
             [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
 
         Assert.NotNull(store);
+        // Battle talk can put the player's name in the name field; the dump alias wins.
         var content = BattleTalkHandler.Resolve(
             store,
             Enabled,
             "(-Voice from the Past-)If you need a push, I'll be right there behind you.",
-            "Voice from the Past");
+            "Nedyar Sol");
 
         Assert.NotNull(content);
         Assert.Equal("如果你決定前進，就由我來支援你。", content.Value.ChineseText);
