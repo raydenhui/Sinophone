@@ -1,0 +1,29 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Sinophone.Coverage</RootNamespace>
+    <AssemblyName>Sinophone.Coverage</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sinophone\Sinophone.csproj" />
+  </ItemGroup>
+
+  <!-- A plugin gets Dalamud from the game; this tool runs alone, so the assemblies the plugin
+       references are referenced here too. That puts them in the deps file, which is what the
+       runtime probes; a plain file copy next to the exe is not enough. -->
+  <ItemGroup>
+    <Reference Include="$(DalamudLibPath)Dalamud*.dll">
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="$(DalamudLibPath)Serilog*.dll">
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

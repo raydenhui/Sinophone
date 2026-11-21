@@ -53,6 +53,41 @@ hand-edit `rows.json` or the `.json.gz` files.
   `NormalizeKey_StripsLineBreakMacros` failed on first run and exposed a real bug: `<br>` was
   deleted instead of becoming a space. Fix the code, not the test.
 
+### Coverage suite
+
+`tools/Sinophone.Coverage` measures how much of each component's text the plugin can translate,
+against the real artifacts rather than the fixture. It is an evaluation run, not part of
+`scripts/Test.ps1`; run it when you want the numbers, after a data update, or before a release:
+
+```sh
+pwsh -File scripts/Test-Coverage.ps1                  # tc, using the plugin's own artifacts
+pwsh -File scripts/Test-Coverage.ps1 -Variant cn      # simplified data
+pwsh -File scripts/Test-Coverage.ps1 -Gate previous-coverage.json
+```
+
+It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
+
+- Loads the English side of each sheet from the xivapi/ffxiv-datamining CSVs, downloaded once and
+  cached, so the store can be built without the game. `tools/Sinophone.Coverage/Coverage/Sources.cs`
+  says which sheet feeds which component; a sheet that gains a handler has to gain a line there or
+  the report counts it under "shown by nobody".
+- Enumerates every English string a component can show: every row, slot, and conditional branch,
+  plus every script-dump key.
+- Runs each one through that component's own `Resolve`, not a copy of it. The display half is not
+  measured: no node, overlay, or font is involved.
+- Reports two numbers per component. **Text** is the lookup as a miss sees it, with the line alone.
+  **Id** adds the row id the game sometimes passes, which is what separates two lines that share one
+  English string.
+- Feeds dynamic values with game data: `IntegerParameter` gets several vectors, `Player` gets a
+  real name, a conditional is measured once per branch, and an empty or letterless label is skipped
+  because it carries no text to translate. The report breaks the numbers down by those categories,
+  so a miss class shows up as a batch rather than a line.
+
+Two limits are deliberate. Runtime-built text ("You obtained 3 × …") has no source row to
+enumerate; `Runner.RuntimeCases` is the empty hook for it. And the run pairs the dumps the artifact
+was built from, so it measures the matcher, not the live client's version skew: the report prints
+the artifact's game version, and a dump newer than the artifact will show up as misses.
+
 ### In-game testing
 
 Some behavior can only be checked in the game: overlay position, font rendering, and how the
