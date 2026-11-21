@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Dalamud.Hooking;
@@ -38,12 +39,16 @@ public sealed class BattleTalkHandler : IDisposable
     private const int ShowBattleTalkImageIndex = 199;
     private const int ShowBattleTalkSoundIndex = 201;
 
+    private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameInteropProvider _interop;
     private readonly PluginLog _log;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
 
     private readonly List<nint> _buffers = new(BuffersKept + 1);
+
+    /// <summary>Set by any show hook, so the box can report whether the call was seen.</summary>
+    private long _lastShowTimestamp;
 
     private Hook<ShowBattleTalkDelegate>? _plainHook;
     private Hook<ShowBattleTalkImageDelegate>? _imageHook;
@@ -76,18 +81,46 @@ public sealed class BattleTalkHandler : IDisposable
         byte style);
 
     public BattleTalkHandler(
+        IAddonLifecycle addonLifecycle,
         IGameInteropProvider interop,
         IPluginLog log,
         Configuration configuration,
         Func<TranslationStore?> getStore)
     {
+        _addonLifecycle = addonLifecycle;
         _interop = interop;
         _log = new PluginLog(log, configuration, LogCategory.Dialogue);
         _configuration = configuration;
         _getStore = getStore;
 
         InstallHooks();
+
+        // The box opens after the show call. This line says which half failed: no hook, a hook
+        // that never fires, a setting that is off, or a lookup that misses.
+        _addonLifecycle.RegisterListener(AddonEvent.PostSetup, BattleTalkAddonName, OnBattleTalkSetup);
+        _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, BattleTalkAddonName, OnBattleTalkFinalize);
     }
+
+    private const string BattleTalkAddonName = "_BattleTalk";
+
+    private void OnBattleTalkSetup(AddonEvent type, AddonArgs args)
+    {
+        if (!IsConfigured())
+            return;
+
+        var sinceShow = _lastShowTimestamp == 0
+            ? -1
+            : (int)Stopwatch.GetElapsedTime(_lastShowTimestamp).TotalMilliseconds;
+
+        _log.Debug(
+            "Battle talk: the box is up; hooks installed: {Hooked}, show call seen: {Seen} " +
+            "({Since} ms ago), translated so far: {Count}.",
+            _plainHook is not null, _lastShowTimestamp != 0, sinceShow, TranslatedLineCount);
+    }
+
+    private void OnBattleTalkFinalize(AddonEvent type, AddonArgs args) => ForgetBuffers();
+
+    private bool IsConfigured() => _configuration.Enabled && _configuration.ShowInBattleTalk;
 
     /// <summary>Number of battle talk lines this handler replaced.</summary>
     public int TranslatedLineCount { get; private set; }
@@ -168,6 +201,8 @@ public sealed class BattleTalkHandler : IDisposable
         if (hook is null)
             return;
 
+        _lastShowTimestamp = Stopwatch.GetTimestamp();
+
         try
         {
             if (TryTranslate(name, text, out var chineseName, out var chineseText))
@@ -198,6 +233,8 @@ public sealed class BattleTalkHandler : IDisposable
         if (hook is null)
             return;
 
+        _lastShowTimestamp = Stopwatch.GetTimestamp();
+
         try
         {
             if (TryTranslate(name, text, out var chineseName, out var chineseText))
@@ -225,6 +262,8 @@ public sealed class BattleTalkHandler : IDisposable
         var hook = _soundHook;
         if (hook is null)
             return;
+
+        _lastShowTimestamp = Stopwatch.GetTimestamp();
 
         try
         {
@@ -381,7 +420,7 @@ public sealed class BattleTalkHandler : IDisposable
     }
 
     private bool IsEnabled()
-        => !_disposed && _configuration.Enabled && _configuration.ShowInBattleTalk;
+        => !_disposed && IsConfigured();
 
     /// <summary>
     /// Copies text into unmanaged UTF-8 memory and keeps it for the next few lines. The game copies
@@ -422,8 +461,14 @@ public sealed class BattleTalkHandler : IDisposable
             return;
 
         _disposed = true;
+        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, BattleTalkAddonName, OnBattleTalkSetup);
+        _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, BattleTalkAddonName, OnBattleTalkFinalize);
         DisposeHooks();
+        ForgetBuffers();
+    }
 
+    private void ForgetBuffers()
+    {
         foreach (var pointer in _buffers)
             Marshal.FreeHGlobal(pointer);
 

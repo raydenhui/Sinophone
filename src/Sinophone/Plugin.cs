@@ -202,6 +202,7 @@ public sealed class Plugin : IDalamudPlugin
             _nativeTextWriter,
             _chatLogRestorer);
         _battleTalkHandler = new BattleTalkHandler(
+            AddonLifecycle,
             GameInteropProvider,
             Log,
             _configuration,
