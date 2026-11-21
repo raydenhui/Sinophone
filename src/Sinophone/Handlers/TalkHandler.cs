@@ -40,6 +40,13 @@ public sealed class TalkHandler : IDisposable
     private bool _layoutLogPending;
 
     /// <summary>
+    /// The cutscene scene learned from the lines of the open addon. A cutscene task is not
+    /// always reachable while its lines are on screen, but every line in one scene names the
+    /// same scene, so a unique line can qualify the ambiguous ones that follow.
+    /// </summary>
+    private readonly Dictionary<string, uint> _dialogScenes = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// The unmanaged UTF-8 buffers handed to the game as <c>AtkValue</c> strings. The addon copies
     /// the text, but a buffer is kept for a few lines in case it keeps the pointer, so a stale
     /// pointer never points at freed memory.
@@ -263,12 +270,18 @@ public sealed class TalkHandler : IDisposable
         // share is matched by its speaker, such as three different "You bastard!".
         var englishName = ReadStringValue(values, NameValueIndex, count);
 
+        var context = WithRememberedScene(
+            store,
+            TalkAddonName,
+            englishText,
+            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0));
+
         var content = Resolve(
             store,
             _configuration,
             englishText,
             englishName,
-            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0),
+            context,
             ReadIntegerParameters(values, count));
 
         // A line with no translation leaves the English in place. Writing an empty
@@ -491,6 +504,12 @@ public sealed class TalkHandler : IDisposable
 
         var addonName = args.AddonName;
 
+        if (eventType == AddonEvent.PostSetup
+            || eventType is AddonEvent.PostClose or AddonEvent.PreFinalize)
+        {
+            _dialogScenes.Remove(addonName);
+        }
+
         // Install only while the addon is alive. A closing addon can already be freed,
         // and its vtable is not safe to read then.
         if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
@@ -591,6 +610,8 @@ public sealed class TalkHandler : IDisposable
         var context = string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
             ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0)
             : default;
+
+        context = WithRememberedScene(store, addonName, englishText, context);
 
         var content = Resolve(store, _configuration, englishText, englishName, context, integerParameters);
 
@@ -719,6 +740,40 @@ public sealed class TalkHandler : IDisposable
 
     /// <summary>Puts the game's own text back into every node native mode changed.</summary>
     public void RestoreNativeText() => _nativeWriter.RestoreAll();
+
+    /// <summary>
+    /// Qualifies a line with the cutscene scene. The live task wins when it is readable. Otherwise
+    /// a line that names exactly one scene teaches the scene, and a later line that several scenes
+    /// share uses it. The memory lasts for one open addon and is cleared at setup and close.
+    /// </summary>
+    private DialogueContext WithRememberedScene(
+        TranslationStore store,
+        string addonName,
+        string? englishText,
+        DialogueContext context)
+    {
+        if (context.CutsceneId != 0)
+        {
+            _dialogScenes[addonName] = context.CutsceneId;
+            return context;
+        }
+
+        if (store.TryGetCutsceneId(englishText, out var scene))
+        {
+            _dialogScenes[addonName] = scene;
+            return context with { CutsceneId = scene };
+        }
+
+        if (_dialogScenes.TryGetValue(addonName, out var remembered) && remembered != 0)
+        {
+            _log.Debug(
+                "{Addon}: using scene {Scene} remembered from an earlier line for {Text}.",
+                addonName, remembered, englishText ?? string.Empty);
+            return context with { CutsceneId = remembered };
+        }
+
+        return context;
+    }
 
     /// <summary>
     /// Decides what the overlay should show for one dialogue line. Pure apart from

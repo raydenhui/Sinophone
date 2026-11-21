@@ -44,6 +44,33 @@ public class SelectionDialogHandlerTests
     }
 
     [Fact]
+    public void DialogCutscene_NamesTheScene_FromAnUnambiguousOption()
+    {
+        // One option is unique to cutscene 6006. The other is shared, so the scene from the
+        // first option has to pick the right line for the second.
+        var json = """
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{},"Scripts":{
+               "TEXT_VOICEMAN_06006_A6_000_001_NONE_VOICE":{"English":"Meteion...","Text":"梅蒂恩！"},
+               "TEXT_VOICEMAN_06006_A6_000_002_NONE_VOICE":{"English":"It's her...the bringer of despair.","Text":"她就是絕望的載體"},
+               "TEXT_VOICEMAN_06004_006510_HERMES":{"English":"Meteion...","Text":"梅蒂恩……我……"},
+               "TEXT_AKTKMF102_04440_GRAHATIA_000_049":{"English":"Meteion...","Text":"梅蒂恩……"}}}
+            """;
+
+        var store = TranslationStore.Load(
+            [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
+        Assert.NotNull(store);
+
+        var scene = SelectionDialogHandler.DialogCutscene(
+            store, ["Meteion...", "It's her...the bringer of despair."]);
+
+        Assert.Equal(6006u, scene);
+        Assert.True(SelectionDialogHandler.TryTranslate(
+            store, "Meteion...", new DialogueContext(CutsceneId: scene), out var chinese));
+        Assert.Equal("梅蒂恩！", chinese);
+    }
+
+    [Fact]
     public void ResolveAddonText_FillsItemNameAndAmountForTheMultipleItemPrompt()
     {
         // Addon row 11194. The English client draws the amount and the item name

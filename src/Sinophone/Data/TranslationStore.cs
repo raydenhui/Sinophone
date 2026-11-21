@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 6;
+    public const int IndexFormatVersion = 7;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
@@ -74,6 +74,16 @@ public sealed partial class TranslationStore
     /// name can still pick one.
     /// </summary>
     private readonly Dictionary<string, List<ScriptCandidate>> _ambiguousScriptKeys = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The cutscene number an English script line belongs to, when every key that holds the
+    /// line names the same scene. A selection dialog's options come from one cutscene, so a
+    /// single unambiguous option can name the scene for its ambiguous siblings.
+    /// </summary>
+    private readonly Dictionary<string, uint> _scriptSceneLookup = new(StringComparer.Ordinal);
+
+    /// <summary>Lines that a cutscene key and a key outside a cutscene both hold, so no scene.</summary>
+    private readonly HashSet<string> _scriptSceneConflicts = new(StringComparer.Ordinal);
 
     private readonly Dictionary<(string Sheet, string Field), ISheetDescriptor> _descriptorByKey = new();
 
@@ -216,6 +226,22 @@ public sealed partial class TranslationStore
 
         chineseText = ResolveDisplay(match);
         return true;
+    }
+
+    /// <summary>
+    /// The cutscene number every script line that holds this English text belongs to, or 0
+    /// when the line is not from exactly one cutscene. A selection dialog's options all come
+    /// from the cutscene it sits in, so one option can name the scene for another.
+    /// </summary>
+    public bool TryGetCutsceneId(string? englishText, out uint cutsceneId)
+    {
+        cutsceneId = 0;
+
+        var key = MacroNormalizer.NormalizeKey(englishText);
+        if (key.Length == 0)
+            return false;
+
+        return _scriptSceneLookup.TryGetValue(key, out cutsceneId);
     }
 
     /// <summary>
@@ -386,6 +412,88 @@ public sealed partial class TranslationStore
     /// <summary>True when any of the candidate's dump keys is the line for this cutscene.</summary>
     private static bool HoldsCutscene(ScriptCandidate candidate, uint cutsceneId)
         => Array.Exists(candidate.Keys, key => CutsceneIdOf(key) == cutsceneId);
+
+    /// <summary>
+    /// True when a line still holds Japanese kana. A few rows in the CN and TC dumps were never
+    /// localised, and their name is Japanese. The middle dot and long-vowel mark are excluded,
+    /// because Chinese names use them too ("拜克・拉各").
+    /// </summary>
+    private static bool HasJapaneseKana(string text)
+    {
+        foreach (var character in text)
+        {
+            if (character is >= '\u3041' and <= '\u3096'
+                or >= '\u3099' and <= '\u309F'
+                or >= '\u30A1' and <= '\u30FA'
+                or >= '\u30FD' and <= '\u30FE')
+            {
+                return true;
+            }
+
+            if (character is >= '\uFF66' and <= '\uFF9D' && character != '\uFF70')
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Records the scene one script key names, and drops the line when another key disagrees or
+    /// sits outside a cutscene. The artifact is scanned first so the order of its keys does not
+    /// decide the answer.
+    /// </summary>
+    private static void NoteScriptScene(
+        Dictionary<string, uint> scenes,
+        HashSet<string> conflicts,
+        string key,
+        string scriptKey)
+    {
+        if (conflicts.Contains(key))
+            return;
+
+        var scene = CutsceneIdOf(scriptKey);
+        if (!scenes.TryGetValue(key, out var known))
+        {
+            scenes[key] = scene;
+            return;
+        }
+
+        if (known == scene)
+            return;
+
+        scenes.Remove(key);
+        conflicts.Add(key);
+    }
+
+    /// <summary>Adds the scenes this artifact agreed on to the lookup the handler reads.</summary>
+    private void MergeScriptScenes(
+        Dictionary<string, uint> scenes,
+        HashSet<string> conflicts)
+    {
+        foreach (var (key, scene) in scenes)
+        {
+            if (scene == 0 || _scriptSceneConflicts.Contains(key))
+                continue;
+
+            if (_scriptSceneLookup.TryGetValue(key, out var known))
+            {
+                if (known == scene)
+                    continue;
+
+                _scriptSceneLookup.Remove(key);
+                _scriptSceneConflicts.Add(key);
+                continue;
+            }
+
+            _scriptSceneLookup[key] = scene;
+        }
+
+        foreach (var key in conflicts)
+        {
+            if (_scriptSceneLookup.Remove(key))
+                _scriptSceneConflicts.Add(key);
+        }
+    }
 
     /// <summary>
     /// The cutscene number in a <c>VOICEMAN</c> dump key: <c>TEXT_VOICEMAN_06005_003840_THANCRED</c>
@@ -1271,7 +1379,17 @@ public sealed partial class TranslationStore
                             continue;
 
                         if (target.TryAdd(key, display))
+                        {
                             indexedSlots++;
+                        }
+                        else if (HasJapaneseKana(target[key]) && !HasJapaneseKana(display))
+                        {
+                            // The CN and TC dumps leave a few rows in Japanese. Another row
+                            // with the same English name can hold the localised one, so the
+                            // kana row must not win just because its id comes first.
+                            target[key] = display;
+                            log.Debug("Replaced a Japanese row with a Chinese one for {Text}.", key);
+                        }
 
                         // A sheet row can branch on the player's gender too, as "Ah, Master
                         // Player" does against "Ah, Mistress Player". Keep a key with the
@@ -1293,7 +1411,12 @@ public sealed partial class TranslationStore
                         if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
                             && !descriptor.IsNameSheet)
                         {
-                            _addonLookup.TryAdd(key, display);
+                            if (!_addonLookup.TryAdd(key, display)
+                                && HasJapaneseKana(_addonLookup[key])
+                                && !HasJapaneseKana(display))
+                            {
+                                _addonLookup[key] = display;
+                            }
 
                             if (extracted.ParameterTemplate is { } parameterTemplate
                                 // "Enter ?" is only 7 literal characters and would match
@@ -1380,6 +1503,11 @@ public sealed partial class TranslationStore
         // from the other variant simply owning the line.
         var indexedInThisArtifact = new Dictionary<string, ScriptCandidate>(StringComparer.Ordinal);
 
+        // The scene each English line belongs to, from every key in this artifact. A line with
+        // a key outside a cutscene, or keys from two cutscenes, cannot name one scene.
+        var scenesInThisArtifact = new Dictionary<string, uint>(StringComparer.Ordinal);
+        var sceneConflicts = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var (scriptKey, entry) in artifact.Scripts)
         {
             // Event speakers such as "Distant Echo" often exist only as a script
@@ -1411,6 +1539,8 @@ public sealed partial class TranslationStore
             var display = PrepareDisplay(entry.Text);
             if (display.Length == 0)
                 continue;
+
+            NoteScriptScene(scenesInThisArtifact, sceneConflicts, key, scriptKey);
 
             RegisterStyle(display, entry.Text);
 
@@ -1491,6 +1621,8 @@ public sealed partial class TranslationStore
                 _ambiguousBranchKeys.Add(neutral);
             }
         }
+
+        MergeScriptScenes(scenesInThisArtifact, sceneConflicts);
 
         if (_branchNeutralLookup.Count > 0)
         {

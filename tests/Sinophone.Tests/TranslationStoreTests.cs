@@ -462,6 +462,23 @@ public class TranslationStoreTests
         Assert.False(store.TryGetDialogue("Mother Miounne", out _));
     }
 
+    [Fact]
+    public void TryGetName_PrefersTheChineseRow_OverAJapaneseDuplicate()
+    {
+        // The CN and TC dumps leave rows 10416-10418 in Japanese. Row 10426 has the same
+        // English name and the localised one, so the kana row must not win by row order.
+        var descriptor = NameSheet((10416, "stellar dragon"), (10426, "stellar dragon"));
+        var artifacts = Artifacts(null, Artifact("TC",
+            (NameSheetName, NameFieldName, 10416, "ステラ・ドラゴン"),
+            (NameSheetName, NameFieldName, 10426, "星宇巨龍")));
+
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetName("Stellar Dragon", out var name));
+        Assert.Equal("星宇巨龍", name);
+    }
+
     [Theory]
     [InlineData("skywatcher", "Skywatcher")]
     [InlineData("Skywatcher", "skywatcher")]
@@ -874,6 +891,40 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetCutsceneId_NamesOneScene_OnlyWhenEveryKeyAgrees()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_A6_000_001_NONE_VOICE", "Meteion...", "梅蒂恩！"),
+            ("TEXT_VOICEMAN_06006_A6_000_002_NONE_VOICE", "It's her...the bringer of despair.", "她就是絕望的載體"),
+            ("TEXT_VOICEMAN_06004_006510_HERMES", "Meteion...", "梅蒂恩……我……"),
+            ("TEXT_AKTKMF102_04440_GRAHATIA_000_049", "Meteion...", "梅蒂恩……"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetCutsceneId("It's her...the bringer of despair.", out var scene));
+        Assert.Equal(6006u, scene);
+
+        // One line sits in two cutscenes and a quest, so its text cannot name a scene.
+        Assert.False(store.TryGetCutsceneId("Meteion...", out _));
+    }
+
+    [Fact]
+    public void TryGetCutsceneId_DropsALineThatAlsoSitsOutsideACutscene()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_000010_THANCRED", "Hold the line.", "守住！"),
+            ("TEXT_AKTKMF102_000010_THANCRED", "Hold the line.", "守住！"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetCutsceneId("Hold the line.", out _));
+    }
+
+    [Fact]
     public void CutsceneIdOf_ReadsTheCutsceneNumberFromAVoiceManKey()
     {
         Assert.Equal(6005u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_06005_003840_THANCRED"));
@@ -1032,6 +1083,35 @@ public class TranslationStoreTests
             Assert.False(loaded.TryGetDialogue("You bastard!", out _));
             Assert.True(loaded.TryGetDialogue("You bastard!", default, "Jullus", out var chinese));
             Assert.Equal("芝諾斯……你這個混蛋！！", chinese);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_KeepsTheSceneOfAScriptLine()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_A6_000_002_NONE_VOICE", "It's her...the bringer of despair.", "她就是絕望的載體"));
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-index-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Dialogue);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "inputs", store, log);
+
+            Assert.True(TranslationStore.TryLoadCache(
+                path, "inputs", [], log, key => key, null, out var loaded));
+
+            Assert.NotNull(loaded);
+            Assert.True(loaded.TryGetCutsceneId("It's her...the bringer of despair.", out var scene));
+            Assert.Equal(6006u, scene);
         }
         finally
         {
