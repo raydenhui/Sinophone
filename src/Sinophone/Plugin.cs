@@ -481,10 +481,22 @@ public sealed class Plugin : IDalamudPlugin
     /// background and only raises a flag. A parsed artifact is also finished here,
     /// because reading the live sheets has to happen on the game thread.
     /// </summary>
+    private DateTime _lastBattleTalkHookAttempt = DateTime.MinValue;
+
     private void OnTick()
     {
         AdvanceStoreLoad();
         AnnounceUpdateResult();
+
+        // The plugin can load before the UI module exists, and nothing else retries. A battle talk
+        // line that arrives first would stay English for the whole session otherwise.
+        if (_configuration.Enabled
+            && _configuration.ShowInBattleTalk
+            && DateTime.UtcNow - _lastBattleTalkHookAttempt > TimeSpan.FromSeconds(5))
+        {
+            _lastBattleTalkHookAttempt = DateTime.UtcNow;
+            _battleTalkHandler.EnsureHooks();
+        }
 
         if (!_dataUpdater.ConsumeReloadRequest())
             return;
