@@ -116,6 +116,15 @@ and travels in `DialogueContext.CutsceneId`; 0 means no cutscene, and every read
 0 so the lookup behaves as before. Each candidate keeps the dump keys that hold its Chinese
 (`ScriptCandidate.Keys`), because a line used by two cutscenes needs both keys to be told apart.
 
+A chocobokeep's greeting is a third case with the same shape. The question
+(`..._CHOCOBOTAXI_01`) and the announcement for a stand that has just become usable
+(`..._CHOCOBOTAXI_UNLOCK_01`) are one English line, so the text cannot pick one.
+`UIState.IsChocoboTaxiStandUnlocked(EventId.Id)` can: a `ChocoboTaxiStand` handler's `EventId.Id` is
+already the sheet row, and the bit is set once the stand is usable. The reader passes that state in
+`DialogueContext.ChocoboTaxiStandUnlocked`, and the ambiguous step keeps the candidate whose key
+carries `_UNLOCK` only for a locked stand. No stand handler, more than one stand, a row outside the
+sheet, or a read failure leaves it null and the line stays English.
+
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
 ids, scene data and Lua text pairs, so the mapping can be checked in game before it is

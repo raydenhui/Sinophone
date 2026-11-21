@@ -1,4 +1,5 @@
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.Interop;
 using EventHandler = FFXIVClientStructs.FFXIV.Client.Game.Event.EventHandler;
 
@@ -55,8 +56,72 @@ internal sealed class TalkEventReader
         return new DialogueContext(
             selectedRow,
             scriptKeys.Count == 0 ? null : scriptKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-            cutsceneId);
+            cutsceneId,
+            ReadChocoboTaxiStandUnlocked(handlers));
     }
+
+    /// <summary>
+    /// The chocobo taxi stand's unlock state, or null when no stand drives the line. A stand that
+    /// is not unlocked yet greets the player with the "here you can use the service" line instead
+    /// of the question, and the English text is the same for both.
+    /// </summary>
+    /// <remarks>
+    /// The stand row id is the handler's <c>EventId.Id</c>: event ids pack as
+    /// <c>(content &lt;&lt; 16) | entry</c> and the content is <c>0x12</c>, which is the sheet base.
+    /// The bit array covers that whole sheet, so an id outside it is not read.
+    /// </remarks>
+    private unsafe bool? ReadChocoboTaxiStandUnlocked(List<TalkHandlerSnapshot> handlers)
+    {
+        uint standId = 0;
+        var stands = 0;
+
+        foreach (var handler in handlers)
+        {
+            if ((EventHandlerContent)handler.ContentId != EventHandlerContent.ChocoboTaxiStand)
+                continue;
+
+            stands++;
+            standId = handler.EventId;
+        }
+
+        if (stands != 1)
+        {
+            if (stands > 1)
+                _log.Debug("Talk event has {Count} chocobo taxi stands; keeping the line unqualified.", stands);
+
+            return null;
+        }
+
+        if (standId is < ChocoboTaxiStandFirstRow or > ChocoboTaxiStandLastRow)
+        {
+            _log.Debug(
+                "Talk event: taxi stand row {RowId} is outside the unlock table; keeping the line unqualified.",
+                standId);
+            return null;
+        }
+
+        try
+        {
+            var uiState = UIState.Instance();
+            if (uiState is null)
+                return null;
+
+            var unlocked = uiState->IsChocoboTaxiStandUnlocked(standId);
+            _log.Debug("Talk event: chocobo taxi stand {RowId} is {State}.", standId, unlocked ? "unlocked" : "locked");
+            return unlocked;
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Talk event reader: could not read the taxi stand state; keeping the line unqualified.");
+            return null;
+        }
+    }
+
+    /// <summary>First row of the <c>ChocoboTaxiStand</c> sheet, which is also its event content.</summary>
+    private const uint ChocoboTaxiStandFirstRow = 0x120000;
+
+    /// <summary>Last row of the <c>ChocoboTaxiStand</c> sheet: the base plus its last index.</summary>
+    private const uint ChocoboTaxiStandLastRow = 0x120000 + 92;
 
     /// <summary>
     /// The cutscene the game is playing, or 0 when it plays none. A <c>VOICEMAN</c> dump key
