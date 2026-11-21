@@ -26,9 +26,16 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 7;
+    public const int IndexFormatVersion = 8;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Keys added by a sheet row, such as <c>NpcYell</c>. A script line with the same English
+    /// text is a different line; the sheet text stays as the text fallback while the script
+    /// candidates can still be chosen by their speaker, scene, or script family.
+    /// </summary>
+    private readonly HashSet<string> _sheetTextKeys = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
     // case ("skywatcher") and the game shows them capitalised ("Skywatcher").
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
@@ -361,15 +368,19 @@ public sealed partial class TranslationStore
             return true;
         }
 
-        // The line stays English. Name the dump keys, because a report of a missing line cannot
-        // say which scenes collided from a count alone.
-        _log.Debug(
-            "Dialogue line has {Count} script candidates and none was chosen ({Speaker}, cutscene " +
-            "{CutsceneId}): {Keys}.",
-            candidates.Count,
-            speakerName ?? string.Empty,
-            cutsceneId,
-            string.Join(", ", candidates.Select(Describe)));
+        // A sheet row may still answer this key by text after the script candidates fail.
+        if (!_textLookup.ContainsKey(key))
+        {
+            // The line stays English. Name the dump keys, because a report of a missing line
+            // cannot say which scenes collided from a count alone.
+            _log.Debug(
+                "Dialogue line has {Count} script candidates and none was chosen ({Speaker}, cutscene " +
+                "{CutsceneId}): {Keys}.",
+                candidates.Count,
+                speakerName ?? string.Empty,
+                cutsceneId,
+                string.Join(", ", candidates.Select(Describe)));
+        }
 
         return false;
     }
@@ -1500,6 +1511,8 @@ public sealed partial class TranslationStore
                         if (target.TryAdd(key, display))
                         {
                             indexedSlots++;
+                            if (ReferenceEquals(target, _textLookup))
+                                _sheetTextKeys.Add(key);
                         }
                         else if (HasJapaneseKana(target[key]) && !HasJapaneseKana(display))
                         {
@@ -1716,9 +1729,28 @@ public sealed partial class TranslationStore
 
             if (!_textLookup.TryAdd(key, display))
             {
-                // The configured variant already owns this line. Its collapsed key is
-                // built, and the other variant's Chinese only conflicts with it, so
-                // the whole index would look ambiguous.
+                if (_sheetTextKeys.Contains(key)
+                    && !string.Equals(_textLookup[key], display, StringComparison.Ordinal))
+                {
+                    // A sheet row owns this English text, but a script line also uses it and
+                    // says something else. Keep the sheet text as the text fallback and let
+                    // the script candidates be selected by their own identity.
+                    if (_ambiguousScriptKeys.TryGetValue(key, out var sheetCandidates))
+                    {
+                        AddScriptCandidate(sheetCandidates, scriptKey, display);
+                    }
+                    else
+                    {
+                        _ambiguousScriptKeys[key] = [new ScriptCandidate(
+                            display,
+                            KeySpeakerTokens(scriptKey),
+                            string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey])];
+                    }
+                }
+
+                // Otherwise the configured variant already owns this line. Its collapsed key
+                // is built, and the other variant's Chinese only conflicts with it, so the
+                // whole index would look ambiguous.
                 continue;
             }
 

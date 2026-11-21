@@ -948,6 +948,41 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_PrefersTheScriptLine_WhenASheetRowSharesItsEnglish()
+    {
+        // NpcYell row 13169 has the same English text but a different, unrelated Chinese line.
+        // The sheet text stays as the text fallback, while the speaker picks the script line.
+        var descriptor = new FakeSheetDescriptor("NpcYell", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [13169] = ["Did you find anything?"],
+            });
+
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_005320_ALPHINAUD", "Did you find anything?", "啊，是你們。\n有什麼發現嗎？"),
+            ("TEXT_HEAVNA702_01664_ESTINIEN_000_092", "Did you find anything?", "有什麼發現嗎？"));
+
+        var json = Artifact("TC", scripts,
+            ("NpcYell", "Text", 13169, "艾佈雷爾諾……\n有什麼收穫嗎？"));
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(json),
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        // Without a speaker the sheet text is the old fallback.
+        Assert.True(store.TryGetDialogue("Did you find anything?", out var fallback));
+        Assert.Equal("艾佈雷爾諾……\n有什麼收穫嗎？", fallback);
+
+        var context = new DialogueContext(CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue("Did you find anything?", in context, "Alphinaud", out var chinese));
+        Assert.Equal("啊，是你們。\n有什麼發現嗎？", chinese);
+    }
+
+    [Fact]
     public void Lookup_UsesATrackedQuestHint_ToPickTheQuestVariant()
     {
         // The same portal prompt exists in three quest scripts. The tracked quest names the
