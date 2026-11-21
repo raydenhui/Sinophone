@@ -9,11 +9,14 @@ public readonly record struct DialogueRowId(string Sheet, uint RowId, string Fie
 
 /// <summary>
 /// Identifiers the game exposes for the line being shown. A lookup tries these
-/// before falling back to normalized English text. Every field is optional so a
-/// surface without an id keeps working exactly as before.
+/// before falling back to normalized English text. <see cref="ScriptKeyHints"/> carries
+/// script names that can narrow a line several scripts share, without being an exact key
+/// for this line. Every field is optional so a surface without an id keeps working
+/// exactly as before.
 /// </summary>
 public readonly record struct DialogueContext(
     DialogueRowId? Row = null,
     IReadOnlyList<string>? ScriptKeys = null,
     uint CutsceneId = 0,
-    bool? ChocoboTaxiStandUnlocked = null);
+    bool? ChocoboTaxiStandUnlocked = null,
+    IReadOnlyList<string>? ScriptKeyHints = null);

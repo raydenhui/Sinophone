@@ -103,18 +103,24 @@ current company block should render.
 Several script lines can share one English line. The dumps pair by text key, and a generic line such
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
 different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in
-`_ambiguousScriptKeys` and narrows them in two steps. First the speaker name against the speaker
-token in the dump key, such as `..._JULLUS` for "Jullus"; a two-part name is one token in the key
-(`..._GRAHATIA` for "G'raha Tia"), so the whole name without its punctuation is matched as well as
-each word. Then, when the line is from a cutscene, the cutscene number the game is playing against
-the number in a `VOICEMAN` key: `TEXT_VOICEMAN_06005_003840_THANCRED` is cutscene 6005. A key with no
-name and no cutscene, or with more than one candidate left, stays unanswered and the line stays
-English. The id path is not affected: the game can still name the exact script key, which always
-wins.
+`_ambiguousScriptKeys` and narrows them by the speaker name, the cutscene number, and the event
+script hints. The hints come from a Lua handler key, the tracked quest ids in
+`UIState.QuestTodoList`, a sibling option, or a fallback scan of every Lua handler when the active
+filter finds no key. The speaker name is matched against the speaker token in the dump key, such as
+`..._JULLUS` for "Jullus"; a two-part name is one token in the key (`..._GRAHATIA` for "G'raha
+Tia"), so the whole name without its punctuation is matched as well as each word. The cutscene
+number the game is playing is matched against the number in a `VOICEMAN` key:
+`TEXT_VOICEMAN_06005_003840_THANCRED` is cutscene 6005. A key with no name and no cutscene, or
+with more than one candidate left, stays unanswered and the line stays English. One exception:
+when every remaining candidate belongs to the one cutscene that is playing, the first branch
+answers. A cutscene can hold two versions of one line for different player progress, and the
+addon exposes no flag for that choice. The id path is not affected: the game can still name the
+exact script key, which always wins.
 
 The cutscene number comes from the path in `PlayCutSceneTask.CutscenePath` (`cut_scene/060/
-VoiceMan_06005` is scene 6005), or from its `CutsceneId` when the path has no number; the task is
-the one with `EventSceneTaskType.PlayCutScene` under
+VoiceMan_06005` is scene 6005); a path with no number leaves the scene at 0, because the cutscene
+row id is not a `VOICEMAN` number. The task is the one with
+`EventSceneTaskType.PlayCutScene` under
 `EventFramework.EventSceneModule.TaskManager.Tasks`. The task id is the cutscene row, which is not
 the number a `VOICEMAN` key carries, so the path is what to read. It is read on the addon event
 and travels in `DialogueContext.CutsceneId`; 0 means no cutscene, and every read failure leaves it at
@@ -240,7 +246,9 @@ game's text back. The `Addon` sheet supplies short UI labels such as `Yes.`,
 `No.`, `OK`, and `Cancel`. A cutscene choice is a `VOICEMAN` script line, and one
 English option can sit in several scenes. The handler takes the scene from the live
 cutscene task, or, when that task is gone, from another option in the same dialog
-whose script key names exactly one scene.
+whose script key names exactly one scene. When one English option is used by many
+event scripts, the handler also collects the active Lua handler's `LuaKey` and the
+script keys the dialog exposes, and the store keeps candidates from the same script.
 
 An `Addon` prompt can hold a runtime value, such as the gil amount in the retainer menu. The store
 matches those rows as templates: the live English line fills the wildcards, and the Chinese macro

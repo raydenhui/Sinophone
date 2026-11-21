@@ -307,9 +307,16 @@ premature interface.
   never matches a `VOICEMAN` key, and a path with no number leaves the scene at 0. A selection
   dialog has no speaker and can outlive the cutscene task; every option in it comes from one
   scene, so an option whose dump key names exactly one scene gives the scene for an ambiguous
-  sibling. If no option names one, the line stays English. A `Talk` line can also outlive the
-  cutscene task; the handler remembers the scene of an earlier line that names one and uses it
-  for a later shared line. The memory is cleared when the addon opens or closes. A chocobokeep's greeting is the same English line
+  sibling. If no option names one, the line stays English. A dialog option can also be reused by
+  many event scripts; the selection handler passes the active Lua handler's `LuaKey` and the script
+  keys the dialog exposes, and the store keeps candidates from the same script family. The tracked
+  quest ids from `UIState.QuestTodoList` and a fallback scan of every Lua handler also feed those
+  hints, because the active handler filter can miss the quest that opened the menu. A `Talk`
+  line can also outlive the cutscene task; the handler remembers the scene of an earlier line that
+  names one and uses it for a later shared line. The memory is cleared when the addon opens or
+  closes. Two cutscene branches can also reuse one English line with the same speaker; both belong
+  to the playing scene and the addon exposes no branch flag, so the store uses the first (default)
+  branch instead of leaving the line English. A chocobokeep's greeting is the same English line
   for a stand that just became usable and for every later visit, so `UIState.IsChocoboTaxiStandUnlocked`
   on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. An
   unnamed or unclear speaker leaves the line English instead of showing another scene's text.

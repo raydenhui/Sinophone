@@ -271,6 +271,25 @@ public sealed partial class TranslationStore
                 narrowed = spoken;
         }
 
+        // The event script that produced a selection dialog is a stronger hint than the
+        // English text alone. One of its keys, or a key from a sibling option, names the
+        // script family the answer must come from.
+        if (context.ScriptKeyHints is { Count: > 0 } hints)
+        {
+            var hinted = narrowed.FindAll(candidate => CandidateMatchesAnyHint(candidate, hints));
+            if (hinted.Count > 0)
+            {
+                if (hinted.Count < narrowed.Count)
+                {
+                    _log.Debug(
+                        "Dialogue narrowed {Count} shared script lines to {Matched} by the event script {Hints}.",
+                        narrowed.Count, hinted.Count, string.Join(", ", hints));
+                }
+
+                narrowed = hinted;
+            }
+        }
+
         if (narrowed.Count == 1)
         {
             chineseText = ResolveDisplay(narrowed[0].Display);
@@ -330,6 +349,18 @@ public sealed partial class TranslationStore
             return true;
         }
 
+        // A cutscene can hold two versions of one line for different player progress, with the
+        // same speaker and scene. No id on the addon says which branch is playing, and both are
+        // from this scene, so use the first (default) branch instead of leaving the line English.
+        if (narrowed.Count > 1 && AllLinesInOneCutscene(narrowed, cutsceneId))
+        {
+            chineseText = ResolveDisplay(narrowed[0].Display);
+            _log.Debug(
+                "Dialogue picked the first of {Count} branch lines in cutscene {CutsceneId}: {Keys}.",
+                narrowed.Count, cutsceneId, Describe(narrowed[0]));
+            return true;
+        }
+
         // The line stays English. Name the dump keys, because a report of a missing line cannot
         // say which scenes collided from a count alone.
         _log.Debug(
@@ -341,6 +372,31 @@ public sealed partial class TranslationStore
             string.Join(", ", candidates.Select(Describe)));
 
         return false;
+    }
+
+    /// <summary>True when every remaining candidate belongs to the one cutscene that is playing.</summary>
+    private static bool AllLinesInOneCutscene(List<ScriptCandidate> candidates, uint cutsceneId)
+    {
+        if (cutsceneId != 0)
+            return candidates.All(candidate => HoldsCutscene(candidate, cutsceneId));
+
+        uint scene = 0;
+        foreach (var candidate in candidates)
+        {
+            foreach (var key in candidate.Keys)
+            {
+                var keyScene = CutsceneIdOf(key);
+                if (keyScene == 0)
+                    return false;
+
+                if (scene == 0)
+                    scene = keyScene;
+                else if (scene != keyScene)
+                    return false;
+            }
+        }
+
+        return scene != 0;
     }
 
     /// <summary>True when every candidate shows the same text once punctuation and space are gone.</summary>
@@ -412,6 +468,69 @@ public sealed partial class TranslationStore
     /// <summary>True when any of the candidate's dump keys is the line for this cutscene.</summary>
     private static bool HoldsCutscene(ScriptCandidate candidate, uint cutsceneId)
         => Array.Exists(candidate.Keys, key => CutsceneIdOf(key) == cutsceneId);
+
+    private static bool CandidateMatchesAnyHint(ScriptCandidate candidate, IReadOnlyList<string> hints)
+    {
+        foreach (var key in candidate.Keys)
+        {
+            var family = ScriptFamilyOf(key);
+            if (family.Length == 0)
+                continue;
+
+            foreach (var hint in hints)
+            {
+                var hintFamily = ScriptFamilyOf(hint);
+                if (hintFamily.Length == 0)
+                    continue;
+
+                if (string.Equals(family, hintFamily, StringComparison.OrdinalIgnoreCase)
+                    || family.StartsWith($"{hintFamily}_", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The script a dump key belongs to, without the line suffix. <c>TEXT_REGUNI5BASEOMICRON_00760_A1_000_001</c>
+    /// and <c>REGUNI5BASEOMICRON_00760</c> both name <c>REGUNI5BASEOMICRON_00760</c>, so a Lua key and a dump
+    /// key can be compared.
+    /// </summary>
+    internal static string ScriptFamilyOf(string? key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return string.Empty;
+
+        var slash = key.LastIndexOfAny(['/', '\\']);
+        if (slash >= 0)
+            key = key[(slash + 1)..];
+
+        var dot = key.IndexOf('.');
+        if (dot > 0)
+            key = key[..dot];
+
+        const string prefix = "TEXT_";
+        var name = key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? key[prefix.Length..]
+            : key;
+
+        var first = name.IndexOf('_');
+        if (first <= 0)
+            return name;
+
+        var second = name.IndexOf('_', first + 1);
+        if (second < 0)
+            return name;
+
+        // Most keys are SCRIPT_NAME + a five digit id. Keep both.
+        if (uint.TryParse(name.AsSpan(first + 1, second - first - 1), out _))
+            return name[..second];
+
+        return name[..first];
+    }
 
     /// <summary>
     /// True when a line still holds Japanese kana. A few rows in the CN and TC dumps were never

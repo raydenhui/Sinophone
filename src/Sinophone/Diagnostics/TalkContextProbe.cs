@@ -82,11 +82,13 @@ public sealed class TalkContextProbe : IDisposable
         foreach (var handler in snapshot.Handlers.Take(8))
         {
             _log.Info(
-                "Talk probe handler: event {EventId}, content {ContentId}, entry {EntryId}, scene {Scene}, lua texts {LuaCount}.",
+                "Talk probe handler: event {EventId}, content {ContentId}, entry {EntryId}, scene {Scene}, " +
+                "lua key {LuaKey}, lua texts {LuaCount}.",
                 handler.EventId,
                 handler.ContentId,
                 handler.EntryId,
                 handler.Scene,
+                handler.LuaKey,
                 handler.LuaTexts?.Count ?? 0);
 
             if (handler.LuaTexts is null)

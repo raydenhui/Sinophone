@@ -924,6 +924,69 @@ public class TranslationStoreTests
         Assert.False(store.TryGetCutsceneId("Hold the line.", out _));
     }
 
+    [Theory]
+    [InlineData("REGUNI5BASEOMICRON_00760")]
+    [InlineData("TEXT_REGUNI5BASEOMICRON_00760_Q1_000_000")]
+    public void Lookup_UsesAScriptKeyHint_ToPickOneOfSeveralSharedLines(string hint)
+    {
+        // The Base Omicron options are the ones in the current dialog. The other two lines come
+        // from a different registration script and a guide, so only the hint can choose.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_REGUNI5BASEOMICRON_00760_A1_000_001", "What do you do here?", "你是做什麼的？"),
+            ("TEXT_REGSEAREDISTRIBUTION_00087_A1_000_1", "What do you do here?", "交談"),
+            ("TEXT_FESPDY2017SHARE_00377_A1_100_001", "What do you do here?", "你在這裡做什麼？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("What do you do here?", out _));
+
+        var context = new DialogueContext(ScriptKeyHints: [hint]);
+        Assert.True(store.TryGetDialogue("What do you do here?", in context, out var chinese));
+        Assert.Equal("你是做什麼的？", chinese);
+    }
+
+    [Fact]
+    public void Lookup_UsesATrackedQuestHint_ToPickTheQuestVariant()
+    {
+        // The same portal prompt exists in three quest scripts. The tracked quest names the
+        // script family, so the store keeps that quest's wording.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_AKTKMG110_04459_Q1_000_041", "Travel through the portal?", "要接觸傳送陣前進嗎？"),
+            ("TEXT_AKTKMG111_04460_Q1_000_135", "Travel through the portal?", "要接觸凋零的傳送門前進嗎？"),
+            ("TEXT_AKTKMG113_04462_Q1_000_040", "Travel through the portal?", "要接觸殘光的傳送門前進嗎？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(ScriptKeyHints: ["AKTKMG113_04462"]);
+        Assert.True(store.TryGetDialogue("Travel through the portal?", in context, out var chinese));
+        Assert.Equal("要接觸殘光的傳送門前進嗎？", chinese);
+    }
+
+    [Fact]
+    public void Lookup_PicksTheFirstBranch_WhenBothLinesAreInOneCutscene()
+    {
+        // Both lines are in scene 6006 and spoken by G'raha. The game picks one by player
+        // progress, and the addon exposes no flag for it. Both are valid for this scene, so the
+        // default (first) branch answers instead of leaving the line English.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_004300_GRAHATIA", "The significance of these details.",
+                "可能現在的你還有很多資訊沒有接觸到，\n不過，這裡大概就是那個歐米茄的母星。"),
+            ("TEXT_VOICEMAN_06006_004320_GRAHATIA", "The significance of these details.",
+                "如果你奇怪我為什麼憑藉這些資訊來進行判斷，\n那我只能說，這是在「可能存在的未來」中獲知的情報了。"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue("The significance of these details.", in context, out var chinese));
+        Assert.Equal("可能現在的你還有很多資訊沒有接觸到，\n不過，這裡大概就是那個歐米茄的母星。", chinese);
+    }
+
     [Fact]
     public void CutsceneIdOf_ReadsTheCutsceneNumberFromAVoiceManKey()
     {
