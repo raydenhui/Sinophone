@@ -79,6 +79,9 @@ pwsh -File scripts/Test.ps1
 # Run a subset
 pwsh -File scripts/Test.ps1 -Filter "FullyQualifiedName~MacroNormalizer"
 
+# Measure how much of each component's text translates (evaluation, not a gate)
+pwsh -File scripts/Test-Coverage.ps1
+
 # Download Dalamud libraries if you do not have a game install
 pwsh -File scripts/Get-DalamudLib.ps1
 
@@ -192,6 +195,10 @@ separate and out of "latest": it holds translation data, not plugin builds.
 Run `pwsh -File scripts/Test.ps1` before opening a pull request. Add a unit test for
 anything that can be tested without the game, and an integration test for wiring that
 uses the checked-in fixture.
+
+`scripts/Test-Coverage.ps1` is the evaluation run: it enumerates every English string each
+component can show against the real artifacts and reports coverage per component. Run it when the
+numbers matter, not on every change. Read [docs/testing.md](docs/testing.md) for its sections.
 
 Read [docs/testing.md](docs/testing.md) for test layout, fixture rules, naming, and the
 in-game checklist format. Native text changes also need

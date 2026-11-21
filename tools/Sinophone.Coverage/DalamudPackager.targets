@@ -1,0 +1,4 @@
+<Project>
+    <!-- This is a test tool, not a plugin: it has no manifest and needs no package. The empty
+         targets file stops DalamudPackager from running the default plugin steps. -->
+</Project>
