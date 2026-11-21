@@ -94,6 +94,7 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
+    private readonly TalkEventReader _eventReader;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
     private readonly List<nint> _nodes = [];
@@ -132,6 +133,7 @@ public sealed class SelectionDialogHandler : IDisposable
         _configuration = configuration;
         _getStore = getStore;
         _nativeWriter = nativeWriter;
+        _eventReader = new TalkEventReader(log, configuration, LogCategory.SelectionDialogs);
         _onAddonEvent = OnAddonEvent;
 
         foreach (var addonName in AddonNames)
@@ -242,7 +244,7 @@ public sealed class SelectionDialogHandler : IDisposable
             if (traceNodes)
                 _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
-            if (!TryTranslate(store, source, out var chinese))
+            if (!TryTranslate(store, source, _eventReader.ReadContext(source), out var chinese))
             {
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
@@ -522,6 +524,13 @@ public sealed class SelectionDialogHandler : IDisposable
     /// show "Yes".
     /// </summary>
     internal static bool TryTranslate(TranslationStore store, string? text, out string chinese)
+        => TryTranslate(store, text, default, out chinese);
+
+    internal static bool TryTranslate(
+        TranslationStore store,
+        string? text,
+        DialogueContext context,
+        out string chinese)
     {
         chinese = string.Empty;
 
@@ -536,7 +545,9 @@ public sealed class SelectionDialogHandler : IDisposable
             return chinese.Length > 0;
         }
 
-        if (store.TryGetDialogue(text, out chinese))
+        // The context matters here: a cutscene choice is a VOICEMAN script line, and several
+        // cutscenes can share one English option. The scene number picks the right one.
+        if (store.TryGetDialogue(text, in context, speakerName: null, out chinese))
         {
             // A line found by its text can hold values the dialog does not pass, such as the price
             // in "Pay 2,000 gil?". The same resolve the templates use fills them from the English
