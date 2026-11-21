@@ -319,8 +319,10 @@ things that feed the `_MiniTalk` addon:
   out of both sides of the bubble. The English size comes from the text node before the write, so a
   node the game has not laid out yet leaves the background alone.
 
-  Only ever grows. Extra width is centred, so the tail the game placed under the text stays in the
-  middle, and extra height grows **upward**: the tail hangs under the bubble's bottom edge at the
+  The target is never smaller than the text plus the nine-grid's slice offsets, because a background
+  that came out smaller than the English text makes the difference too small and the caps then clip
+  the Chinese. Only ever grows. Extra width is centred, so the tail the game placed under the text
+  stays in the middle, and extra height grows **upward**: the tail hangs under the bubble's bottom edge at the
   position the game gave it, so growing downward leaves the tail inside the bubble. The node's size
   and position come back with the game's text on the setting and on unload.
 

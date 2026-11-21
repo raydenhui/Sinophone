@@ -418,7 +418,9 @@ premature interface.
   margin directly does not work, because the background can still hold the previous line's size,
   and a margin that comes out as zero leaves the text spilling out of both sides of the bubble.
   The English size is read before the write, so a node the game has not laid out leaves the
-  background alone. Extra width is centred so the tail stays in the middle, and extra height grows
+  background alone. The result is never smaller than the text plus the nine-grid's slice offsets, so
+  a background that came out smaller than the English text cannot clip the Chinese. Extra width is
+  centred so the tail stays in the middle, and extra height grows
   upward so the bottom edge the tail hangs under does not move. The sizes and the position come
   back when the setting is turned off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
   restore plus the rewrite that follows rebuilds the node's font cache, which hitches every time a
