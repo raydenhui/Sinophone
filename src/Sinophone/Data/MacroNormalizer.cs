@@ -302,7 +302,10 @@ public static partial class MacroNormalizer
         if (string.IsNullOrEmpty(text))
             return string.Empty;
 
-        var cleaned = StripInvisible(text);
+        // The script dumps write a speaker alias such as "(-Voice from the Past-)" into the
+        // English line. Sheet and script keys strip it at load, and battle talk can pass the
+        // live line with the alias still attached, so strip it here for every lookup.
+        var cleaned = StripInvisible(StripSpeakerPrefix(text));
 
         // Most lines carry no macro. Running a regex per line costs more at load
         // than the character scan below, so test for the brackets first.

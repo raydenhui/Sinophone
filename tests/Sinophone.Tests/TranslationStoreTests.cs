@@ -1413,6 +1413,11 @@ public class TranslationStoreTests
         Assert.True(store.TryGetDialogue(
             "We...have gained the power...take back...rightfully ours.", out var chinese));
         Assert.Equal("朕乃……加雷馬帝國……皇帝……", chinese);
+
+        // Battle talk can pass the live line with the dump's alias still attached.
+        Assert.True(store.TryGetDialogue(
+            "(-Radio-)We...have gained the power...take back...rightfully ours.", out var prefixed));
+        Assert.Equal("朕乃……加雷馬帝國……皇帝……", prefixed);
     }
 
     [Fact]

@@ -282,6 +282,7 @@ sequenceDiagram
 
 #### Text handling & fallbacks
 - **Extraction**: Reads `AtkValue[0]` (dialogue) and `AtkValue[1]` (speaker) via `MemoryHelper.ReadSeStringAsString`, plus integer parameters from `AtkValue[2..]` (`Int`/`UInt`) to fill `IntegerParameter(n)` in stored text.
+- **Speaker alias**: A script dump can prefix the English line with `(-Voice from the Past-)`. `NormalizeKey` removes that prefix for every lookup, because battle talk can pass the live line with the alias still attached while the indexed key has it stripped.
 - **Oblique / multi-node fallback**: When `AtkValue[0]` misses in `OnAddonEvent` (e.g. a line with oblique formatting split across nodes where `AtkValue[0]` only holds the first segment), `GetTextNodeCandidates` reads `AtkTextNode220`, `228`, `238`, `240`, and `248` via `ReadOnlySeStringSpan.ExtractText()` and retries `Resolve` (excluding the speaker name node first, then including all segments).
 - **Pre-layout CJK wrapping (`CjkLineWrapper`)**: In the `AtkValue` hook, wraps Chinese to `nodeWidth - nodeFontSize` using `AtkTextNode.GetTextDrawSize`, keeping closing punctuation (`。，、．；：？！）］｝」』】〉》”’…`) off line starts, opening punctuation (`（［｛「『【〈《“‘`) off line ends, and rebalancing last lines shorter than 1/4 width.
 - **Speaker formatting**: `FormatSpeakerName` builds `{chinese} ({english})`, leaves masked names (`???`) unrevealed, and omits brackets when Chinese equals English.

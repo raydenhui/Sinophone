@@ -321,7 +321,8 @@ premature interface.
   on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. An
   unnamed or unclear speaker leaves the line English instead of showing another scene's text.
   The English script dumps mark italics with one asterisk and bold with two; the game draws that emphasis with a SeString macro, so
-  `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
+  `NormalizeKey` strips the asterisks and a leading `(-Alias-)` speaker prefix, and
+  `TalkHandler.ExtractPlainText` drops the macro
   from the text node before lookup. The dumps write client macros the datamining tool cannot
   name as `<Unknown60>0262</Unknown60>`. The payload is binary data, not text, so
   `CleanForDisplay` drops the whole pair instead of leaving `0262` in the line.
