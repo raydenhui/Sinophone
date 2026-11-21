@@ -337,6 +337,40 @@ used here. The bubble geometry is logged once per translated bubble, because the
 the part that has to be checked in game. A bubble that the handler cannot translate keeps the
 English text; there is no overlay for this surface.
 
+### Battle talk
+
+`Configuration.ShowInBattleTalk` turns on battle talk: the large line a boss, dungeon narration, or a
+duty NPC shows near the top of the screen. Alpha and off by default, because it needs the font mod.
+The surface is named **Battle talk** in the components tab, next to the font setup link.
+
+The game shows the line through three virtual functions on `UIModule`: `ShowBattleTalk`,
+`ShowBattleTalkImage`, and `ShowBattleTalkSound` (virtual table indices 198, 199, and 201, from
+ClientStructs' `UIModuleInterface`). Each takes the name and the text as UTF-8 pointers.
+`BattleTalkHandler` hooks all three and swaps those pointers for the Chinese, then calls the original.
+The game then wraps and sizes its own box for the translation, exactly like the `AtkValue` approach
+native Talk mode uses.
+
+Nothing is written into a text node and nothing is restored. A line with no translation is passed
+through unchanged, so the game's English stays. The replaced strings live in `Marshal.AllocHGlobal`
+buffers, and the last eight are kept: the game copies the line into its own fields, but a copy that
+lands after the call returns would otherwise read freed memory. Every hook body is wrapped in
+try/catch that logs and calls the original, because an exception inside the game's call is not an
+option.
+
+Rows are already indexed. `NpcYell` holds boss and enemy shouts whose output type includes the battle
+talk flag; the handler reads `NpcYell.Instance()->YellInfo` for the row id, the name, the
+`HideSpeakerName` flag, and the four message parameters. `InstanceContentTextData` holds dungeon
+narration and `ContentTalk` holds duty NPC lines, and both match on text alone. The name goes through
+`TranslationStore.TryGetName` and `TalkHandler.FormatSpeakerName`, so it follows `ShowSpeakerName` and
+keeps a masked `???` masked.
+
+The id comes first: a yell with a row id passes `DialogueRowId("NpcYell", rowId, "Text")`, which
+separates two yells with the same English line. Everything else falls back to the normalized text.
+
+`ChatBubbleHandler` filters the same `NpcYell` rows on the balloon flag, so a yell with both flags is
+written once per surface and neither handler fights the other. A line turned off mid-display stays
+Chinese until its box hides; the next line is English.
+
 ### Native nameplates
 
 `Configuration.ShowTargetName` turns on name translation in the game's own nameplates. Every

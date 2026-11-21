@@ -146,7 +146,8 @@ public class FixturePipelineTests
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);
 
-        var expectedTalk = FixtureData.Current.Rows.Count(r => r.Sheet is "DefaultTalk" or "WKSText" or "GimmickTalk");
+        var expectedTalk = FixtureData.Current.Rows.Count(
+            r => r.Sheet is "DefaultTalk" or "WKSText" or "GimmickTalk" or "NpcYell" or "InstanceContentTextData");
         var expectedNames = FixtureData.Current.Rows.Count(r => r.Sheet is "ENpcResident" or "BNpcName");
         var expectedScripts = FixtureData.Current.Scripts.Count;
 

@@ -32,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TalkHandler _talkHandler;
     private readonly SelectionDialogHandler _selectionDialogHandler;
     private readonly ChatBubbleHandler _chatBubbleHandler;
+    private readonly BattleTalkHandler _battleTalkHandler;
     private readonly ChatLogRestorer _chatLogRestorer;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
@@ -200,6 +201,12 @@ public sealed class Plugin : IDalamudPlugin
             () => _store,
             _nativeTextWriter,
             _chatLogRestorer);
+        _battleTalkHandler = new BattleTalkHandler(
+            AddonLifecycle,
+            GameInteropProvider,
+            Log,
+            _configuration,
+            () => _store);
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
@@ -853,6 +860,13 @@ public sealed class Plugin : IDalamudPlugin
             _log.Debug("Chat bubble settings changed; restored the game's text.");
         }
 
+        if (_configuration.ShowInBattleTalk && !pluginDisabled)
+        {
+            // The plugin can load before the UI module is up, so a load that found none retries
+            // here rather than staying English until the next reload.
+            _battleTalkHandler.EnsureHooks();
+        }
+
         if (selectionSettingsChanged || pluginDisabled)
         {
             // Put the game's own prompt back now; the handler re-translates on the
@@ -916,6 +930,7 @@ public sealed class Plugin : IDalamudPlugin
 #endif
         _chatLogRestorer.Dispose();
         _chatBubbleHandler.Dispose();
+        _battleTalkHandler.Dispose();
         _selectionDialogHandler.Dispose();
         _talkHandler.Dispose();
         _namePlateNameWriter.Disable();

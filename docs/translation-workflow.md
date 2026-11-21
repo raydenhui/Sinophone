@@ -53,6 +53,7 @@ flowchart LR
 | `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + `AddonTalk.VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` / `EventFramework` row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default, and all `TalkSubtitle`) or native `AtkValue` / nodes (`NativeTextMode`) | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
 | `SelectionDialogHandler` | `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, `CutSceneSelectString` | `IAddonLifecycle` (`PostSetup`, `PostRefresh`, `PreDraw`, `PostHide`, `PostClose`, `PreFinalize`) | `Addon` label -> dialogue lookup -> `Addon` template -> punctuation trim -> short label `+ "."` | In-place `AtkTextNode` (`NativeTextWriter.WriteAt`) | Unresolved templates or misses leave original English; `FitPromptLines` keeps multi-line layout if single-line exceeds node bounds |
 | `ChatBubbleHandler` | `_MiniTalk` (yells & default balloons) | `NpcYellBalloon.OpenBalloon` detour + `IAddonLifecycle` on `_MiniTalk` | Yells: `NpcYell.YellInfo` row ID -> dialogue lookup; Default balloons: plain text -> dialogue lookup | Yells: pre-layout text replacement; Balloons: in-place `BubbleTextNode` + `BubbleLayout.GrowTo` | Misses keep English and are hashed so they are not re-queried every frame; no overlay |
+| `BattleTalkHandler` | `UIModule` battle talk (`ShowBattleTalk`, `ShowBattleTalkImage`, `ShowBattleTalkSound`) | Virtual table hook at indices 198, 199, 201 | `NpcYell` row id -> dialogue lookup (id first), otherwise the normalized text; name via `TryGetName` | UTF-8 name and text swapped before the game measures the box | A miss, a disabled setting, or a failed lookup passes the game's own pointers through; no overlay |
 | `NamePlateNameWriter` | Visible NPC / object nameplates | `INamePlateGui.OnNamePlateUpdate` | Case-insensitive `TryGetName` (with punctuation trim) | `NamePlateUpdateHandler.NameParts.Text` before game bakes plate | Skips players; misses keep English; no overlay |
 | `ItemNameHandler` | Hovered item (`ItemDetail`) | `IGameGui.HoveredItemChanged` + `IAddonLifecycle` on `ItemDetail` | Strips HQ/Collectible offsets -> `Item` sheet English name -> `TryGetName` | `ItemNameWindow` above cursor (default) or `ItemDetail.ItemNameText` (`ItemNameNativeMode`) | Skips `EventItem` (`>= 2,000,000`); missing `ItemNameText` node falls back to `ItemNameWindow` |
 | `ChatLogRestorer` | Story tab & yell log lines | `IChatGui.ChatMessage` | Exact match against 64-entry MRU `(Chinese, English)` history | Rewrites `IMutableChatMessage.Message` and `Sender` to English | Unmatched story messages stay as-is and log at debug level |
@@ -397,7 +398,41 @@ sequenceDiagram
 
 ---
 
-### 5. World nameplates (`NamePlateNameWriter`)
+### 5. Battle talk (`BattleTalkHandler`)
+
+Translates the large line a boss, dungeon narration, or a duty NPC shows near the top of the screen.
+Native only; off by default and needs the font mod.
+
+```mermaid
+flowchart TD
+    Game["UIModule.ShowBattleTalk / ShowBattleTalkImage / ShowBattleTalkSound"] --> Hook["BattleTalkHandler detour"]
+    Hook --> Enabled{"Enabled && ShowInBattleTalk?"}
+    Enabled -- No --> Orig["Call the original with the game's pointers"]
+    Enabled -- Yes --> Read["Read NpcYell.Instance().YellInfo for a row with ShowBattleTalk"]
+    Read --> Resolve["Resolve (store, config, text, name, context, MessageParams)"]
+    Resolve --> Hit{"Translated?"}
+    Hit -- No --> Orig
+    Hit -- Yes --> Swap["Allocate UTF-8 Chinese name and text; keep the last 8 buffers"]
+    Swap --> Orig2["Call the original with the Chinese; the game sizes its own box"]
+```
+
+- **Hook**: the three virtual functions come from `UIModule.Instance()`'s virtual table (indices 198,
+  199, 201, from `UIModuleInterface`). Each hook body is wrapped in try/catch and calls the original on
+  failure, because throwing inside the game's own call is not allowed.
+- **Lookup**: `Resolve` checks `Enabled` and `ShowInBattleTalk`, looks the line up by `NpcYell` row id
+  first and by text second, substitutes `MessageParams` through `ResolveIntegerParameters`, and formats
+  the name through `TalkHandler.FormatSpeakerName` when `ShowSpeakerName` is on.
+- **Name source**: `NpcYellInfo.Name`, unless the `HideSpeakerName` flag is set. A masked `???` stays
+  masked.
+- **Buffers**: `Marshal.AllocHGlobal`, last eight kept, freed on dispose. The game copies the line into
+  its own fields, but a late copy must not read freed memory.
+- **Surface split**: `ChatBubbleHandler` filters the same yells on the balloon flag, so a yell with
+  both flags is written once per surface.
+- **Off mid-line**: the line on screen stays Chinese until its box hides. The next line is English.
+
+---
+
+### 6. World nameplates (`NamePlateNameWriter`)
 
 Translates visible NPC and object nameplates in place (native only; no overlay).
 
@@ -408,7 +443,7 @@ Translates visible NPC and object nameplates in place (native only; no overlay).
 
 ---
 
-### 6. Item names (`ItemNameHandler` + `ItemNameWindow`)
+### 7. Item names (`ItemNameHandler` + `ItemNameWindow`)
 
 Translates the hovered item's name in either a floating window (`ItemNameWindow`) or the game tooltip (`ItemDetail`).
 

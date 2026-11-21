@@ -40,6 +40,14 @@ internal static class FixtureStore
             .Where(r => r.Sheet == "GimmickTalk")
             .ToDictionary(r => r.RowId, r => new[] { r.English });
 
+        var npcYell = rows
+            .Where(r => r.Sheet == "NpcYell")
+            .ToDictionary(r => r.RowId, r => new[] { r.English });
+
+        var instanceText = rows
+            .Where(r => r.Sheet == "InstanceContentTextData")
+            .ToDictionary(r => r.RowId, r => new[] { r.English });
+
         // Field names must match SheetCatalog: DefaultTalk and WKSText use "Text",
         // GimmickTalk uses "Message", the name sheets use "Singular".
         return
@@ -49,6 +57,8 @@ internal static class FixtureStore
             new FakeSheetDescriptor("BNpcName", "Singular", true, npcNames),
             new FakeSheetDescriptor("WKSText", "Text", false, wksText),
             new FakeSheetDescriptor("GimmickTalk", "Message", false, gimmickTalk),
+            new FakeSheetDescriptor("NpcYell", "Text", false, npcYell),
+            new FakeSheetDescriptor("InstanceContentTextData", "Text", false, instanceText),
         ];
     }
 

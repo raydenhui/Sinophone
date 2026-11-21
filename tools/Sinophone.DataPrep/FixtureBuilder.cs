@@ -29,6 +29,14 @@ internal static class FixtureBuilder
         new("BNpcName", "Singular", "Singular"),
         new("WKSText", "Text", "Text", LocalizedIndex: 1),
         new("GimmickTalk", "Message", "Message", UseLastColumn: true),
+
+        // Battle talk surfaces. The CN/TC NpcYell dump has a shifted header, so the text column is
+        // given by position; the localized InstanceContentTextData dump names it. The yell rows are
+        // picked by hand: the first usable ones are balloon-only, and the parameter rows prove the
+        // message parameters reach the line.
+        new("NpcYell", "Text", "Text", LocalizedIndex: 14,
+            RowIds: [474, 2405, 2407, 2408, 3, 4, 5, 6]),
+        new("InstanceContentTextData", "Text", "Text"),
     ];
 
     /// <summary>Script folders the fixture covers. The full build indexes more.</summary>
@@ -82,6 +90,9 @@ internal static class FixtureBuilder
             {
                 if (kept >= rowCount)
                     break;
+
+                if (spec.RowIds is { Length: > 0 } wanted && !wanted.Contains(rowId))
+                    continue;
 
                 if (!cn.TryGetValue(rowId, out var cnText) || !tc.TryGetValue(rowId, out var tcText))
                     continue;
@@ -298,7 +309,8 @@ internal static class FixtureBuilder
         string Field,
         string EnglishColumn,
         int? LocalizedIndex = null,
-        bool UseLastColumn = false);
+        bool UseLastColumn = false,
+        uint[]? RowIds = null);
 
     private sealed record PairedRow(string Sheet, uint RowId, string English, string Cn, string Tc);
 

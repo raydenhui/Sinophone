@@ -70,6 +70,13 @@ public sealed class Configuration : IPluginConfiguration
     public bool NativeTextMode { get; set; }
 
     /// <summary>
+    /// Translate battle talk: the large line a boss, dungeon narration, or a duty NPC shows near
+    /// the top of the screen. Native text only, and off by default because it needs a CJK font mod.
+    /// The Chinese is passed to the game before it measures the box, so the box is sized for it.
+    /// </summary>
+    public bool ShowInBattleTalk { get; set; }
+
+    /// <summary>
     /// Native Talk mode only. Off by default: the caller's <c>AtkValue</c> strings are put back
     /// after the game has read them, so the chat log's Story tab, the game logic, and any other
     /// plugin that reads those values see the English line while the dialogue box shows Chinese.
