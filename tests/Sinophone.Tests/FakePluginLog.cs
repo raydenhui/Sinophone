@@ -1,6 +1,9 @@
+using System.Globalization;
 using Dalamud.Plugin.Services;
 using Serilog;
 using Serilog.Events;
+using Serilog.Formatting.Display;
+using Serilog.Parsing;
 
 namespace Sinophone.Tests;
 
@@ -18,21 +21,40 @@ internal sealed class FakePluginLog : IPluginLog
 
     public LogEventLevel MinimumLogLevel { get; set; } = LogEventLevel.Verbose;
 
-    public void Fatal(string messageTemplate, params object[] values) => Record(LogEventLevel.Fatal, messageTemplate);
-    public void Fatal(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Fatal, messageTemplate);
-    public void Error(string messageTemplate, params object[] values) => Record(LogEventLevel.Error, messageTemplate);
-    public void Error(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Error, messageTemplate);
-    public void Warning(string messageTemplate, params object[] values) => Record(LogEventLevel.Warning, messageTemplate);
-    public void Warning(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Warning, messageTemplate);
-    public void Information(string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate);
-    public void Information(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate);
-    public void Info(string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate);
-    public void Info(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate);
-    public void Debug(string messageTemplate, params object[] values) => Record(LogEventLevel.Debug, messageTemplate);
-    public void Debug(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Debug, messageTemplate);
-    public void Verbose(string messageTemplate, params object[] values) => Record(LogEventLevel.Verbose, messageTemplate);
-    public void Verbose(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Verbose, messageTemplate);
-    public void Write(LogEventLevel level, Exception? exception, string messageTemplate, params object[] values) => Record(level, messageTemplate);
+    public void Fatal(string messageTemplate, params object[] values) => Record(LogEventLevel.Fatal, messageTemplate, values);
+    public void Fatal(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Fatal, messageTemplate, values);
+    public void Error(string messageTemplate, params object[] values) => Record(LogEventLevel.Error, messageTemplate, values);
+    public void Error(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Error, messageTemplate, values);
+    public void Warning(string messageTemplate, params object[] values) => Record(LogEventLevel.Warning, messageTemplate, values);
+    public void Warning(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Warning, messageTemplate, values);
+    public void Information(string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate, values);
+    public void Information(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate, values);
+    public void Info(string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate, values);
+    public void Info(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Information, messageTemplate, values);
+    public void Debug(string messageTemplate, params object[] values) => Record(LogEventLevel.Debug, messageTemplate, values);
+    public void Debug(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Debug, messageTemplate, values);
+    public void Verbose(string messageTemplate, params object[] values) => Record(LogEventLevel.Verbose, messageTemplate, values);
+    public void Verbose(Exception? exception, string messageTemplate, params object[] values) => Record(LogEventLevel.Verbose, messageTemplate, values);
+    public void Write(LogEventLevel level, Exception? exception, string messageTemplate, params object[] values) => Record(level, messageTemplate, values);
 
-    private void Record(LogEventLevel level, string message) => Entries.Add((level, message));
+    /// <summary>Renders the template with its values, so a test can assert on what was logged.</summary>
+    private void Record(LogEventLevel level, string template, params object[] values)
+    {
+        var parsed = Parser.Parse(template);
+        var tokens = parsed.Tokens.ToList();
+        var properties = new List<LogEventProperty>(values.Length);
+        for (var i = 0; i < values.Length && i < tokens.Count; i++)
+        {
+            if (tokens[i] is PropertyToken token)
+                properties.Add(new LogEventProperty(token.PropertyName, new ScalarValue(values[i])));
+        }
+
+        var logEvent = new LogEvent(DateTimeOffset.Now, level, null, parsed, properties);
+        var writer = new StringWriter();
+        Formatter.Format(logEvent, writer);
+        Entries.Add((level, writer.ToString()));
+    }
+
+    private static readonly MessageTemplateParser Parser = new();
+    private static readonly MessageTemplateTextFormatter Formatter = new("{Message:lj}", CultureInfo.InvariantCulture);
 }

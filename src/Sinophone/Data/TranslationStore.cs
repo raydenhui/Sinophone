@@ -249,8 +249,8 @@ public sealed partial class TranslationStore
         {
             chineseText = ResolveDisplay(narrowed[0].Display);
             _log.Debug(
-                "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}.",
-                candidates.Count, speakerName ?? string.Empty);
+                "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}: {Keys}.",
+                candidates.Count, speakerName ?? string.Empty, Describe(narrowed[0]));
             return true;
         }
 
@@ -292,8 +292,22 @@ public sealed partial class TranslationStore
             }
         }
 
+        // The line stays English. Name the dump keys, because a report of a missing line cannot
+        // say which scenes collided from a count alone.
+        _log.Debug(
+            "Dialogue line has {Count} script candidates and none was chosen ({Speaker}, cutscene " +
+            "{CutsceneId}): {Keys}.",
+            candidates.Count,
+            speakerName ?? string.Empty,
+            cutsceneId,
+            string.Join(", ", candidates.Select(Describe)));
+
         return false;
     }
+
+    /// <summary>The dump keys behind one candidate, for the debug log.</summary>
+    private static string Describe(ScriptCandidate candidate)
+        => candidate.Keys.Length == 0 ? "(no key)" : string.Join(" / ", candidate.Keys);
 
     /// <summary>
     /// True when the candidate's dump key marks a line for a feature that has just unlocked, such

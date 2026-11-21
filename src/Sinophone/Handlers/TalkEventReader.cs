@@ -50,7 +50,10 @@ internal sealed class TalkEventReader
 
         if (rows.Count > 1)
         {
-            _log.Debug("Talk event has {Count} candidate handlers with sheet rows; using text fallback.", rows.Count);
+            _log.Debug(
+                "Talk event has {Count} candidate handlers with sheet rows; using text fallback: {Rows}.",
+                rows.Count,
+                string.Join(", ", rows.Select(static row => $"{row.Sheet} {row.RowId}")));
         }
 
         return new DialogueContext(
