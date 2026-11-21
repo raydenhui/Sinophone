@@ -861,6 +861,35 @@ public sealed partial class TranslationStore
         return true;
     }
 
+    /// <summary>
+    /// True when two English lines are close enough to be the same dump line. The game can
+    /// substitute a race, class, or other player word that the dump resolved to one value; those
+    /// lines share a long prefix or suffix. A reused menu key names a completely different line
+    /// and shares neither.
+    /// </summary>
+    private static bool IsCloseEnough(string a, string b)
+    {
+        if (string.Equals(a, b, StringComparison.Ordinal))
+            return true;
+
+        var length = Math.Min(a.Length, b.Length);
+        if (length < 12)
+            return false;
+
+        var prefix = 0;
+        while (prefix < length && a[prefix] == b[prefix])
+            prefix++;
+
+        if (prefix >= 12)
+            return true;
+
+        var suffix = 0;
+        while (suffix < length && a[a.Length - 1 - suffix] == b[b.Length - 1 - suffix])
+            suffix++;
+
+        return suffix >= 12;
+    }
+
     private bool TryGetDialogueById(string? englishText, in DialogueContext context, out string chineseText)
     {
         chineseText = string.Empty;
@@ -889,7 +918,8 @@ public sealed partial class TranslationStore
                     if (!string.Equals(
                             CollapseBranchWords(liveForCompare),
                             CollapseBranchWords(pairedKey),
-                            StringComparison.Ordinal))
+                            StringComparison.Ordinal)
+                        && !IsCloseEnough(liveForCompare, pairedKey))
                     {
                         _log.Debug(
                             "Dialogue ignored script key {ScriptKey}: it names {Paired}, not {Live}.",

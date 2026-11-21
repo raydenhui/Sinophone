@@ -296,7 +296,8 @@ premature interface.
   not a setting. Ask before starting that refactor.
 - **Exact match.** After normalization, a line must match exactly. A script key from the live Lua
   text map is used only when the dump paired it with the same English line; the live map can reuse
-  a key for another menu line. One different character means
+  a key for another menu line. A long shared prefix or suffix is accepted, because a race or other
+  player word can differ between the dump and the live line. One different character means
   a miss. Dialogue with a runtime id is tried by id first; when the game exposes no id, lookup
   falls back to this text match. Names are the exception: `ENpcResident` stores generic NPC names in lower case
   (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
