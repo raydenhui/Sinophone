@@ -70,6 +70,7 @@ internal sealed class Runner
         }
 
         RunScripts(result);
+        RunRuntime(result);
 
         // Script lines have no row id, so the id column equals the text column for them.
         var scripts = result["Talk (scripts)"];
@@ -344,6 +345,87 @@ internal sealed class Runner
     /// <summary>The cutscene number in a VOICEMAN key, or 0.</summary>
     private static uint CutsceneOf(string key)
         => TranslationStore.CutsceneIdOf(key);
+
+    /// <summary>The outcome of one runtime-built case, for the report.</summary>
+    public readonly record struct RuntimeOutcome(RuntimeCase Case, bool Translated);
+
+    public readonly List<RuntimeOutcome> Runtime = [];
+
+    /// <summary>
+    /// Runs the hardcoded runtime cases: text the game assembles, with values chosen in
+    /// <see cref="RuntimeCases"/>. A case marked <c>MustTranslate</c> counts as a miss when it stays
+    /// English; one that is not only records that the plugin leaves a client-built label alone.
+    /// </summary>
+    private void RunRuntime(Dictionary<string, Tally> result)
+    {
+        var component = GetTally(result, "Runtime text");
+
+        // Real rows whose English carries a placeholder, with the runtime value put in.
+        foreach (var (key, entry) in _artifact.Scripts)
+        {
+            var english = MacroNormalizer.StripSpeakerPrefix(entry.English);
+            if (string.IsNullOrWhiteSpace(english))
+                continue;
+
+            if (english.Contains("Player Player", StringComparison.Ordinal))
+            {
+                AddRuntimeCase(component, new RuntimeCase(
+                    "Talk", RuntimeCases.WithPlayerName(english), "player-name", true));
+            }
+
+            if (english.Contains("  ", StringComparison.Ordinal))
+            {
+                AddRuntimeCase(component, new RuntimeCase(
+                    "Talk", RuntimeCases.WithGapValue(english), "blank-gap", true));
+            }
+        }
+
+        foreach (var label in RuntimeCases.Labels)
+            AddRuntimeCase(component, label);
+    }
+
+    /// <summary>Runs one runtime case and records it, keeping the outcome for the report.</summary>
+    private void AddRuntimeCase(Tally component, RuntimeCase runtimeCase)
+    {
+        var kind = runtimeCase.Component == "Selection" ? SourceKind.SelectionAddon : SourceKind.TalkRow;
+        var source = new Source(runtimeCase.Component, "runtime", runtimeCase.Category, false, kind);
+        var chinese = SafeResolve(source, 0, 0, runtimeCase.English, useId: false);
+        var translated = !string.IsNullOrWhiteSpace(chinese);
+
+        Runtime.Add(new RuntimeOutcome(runtimeCase, translated));
+
+        if (!runtimeCase.MustTranslate)
+        {
+            // A label the client builds itself: English is the expected answer, so this is not a
+            // miss either way, but it still counts as covered when it does translate.
+            if (translated)
+                component.Resolved++;
+
+            component.Skipped++;
+            return;
+        }
+
+        component.Total++;
+        component.ByTag[runtimeCase.Category] = component.ByTag.GetValueOrDefault(runtimeCase.Category) + 1;
+
+        if (translated)
+        {
+            component.Resolved++;
+            component.ResolvedByTag[runtimeCase.Category] =
+                component.ResolvedByTag.GetValueOrDefault(runtimeCase.Category) + 1;
+            return;
+        }
+
+        component.Unresolved++;
+        component.Reasons[runtimeCase.Category] = component.Reasons.GetValueOrDefault(runtimeCase.Category) + 1;
+        AddMiss(component, new Miss(
+            runtimeCase.Component,
+            "runtime:" + runtimeCase.Category,
+            Outcome.Unresolved,
+            runtimeCase.Category,
+            runtimeCase.English,
+            runtimeCase.Category));
+    }
 
     private static Tally GetTally(Dictionary<string, Tally> result, string component)
     {
