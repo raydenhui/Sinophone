@@ -30,32 +30,49 @@ internal static class Report
         markdown.AppendLine("`Text` is the lookup as a miss sees it, with the line only. `Id` adds the row id the game");
         markdown.AppendLine("sometimes passes, which is what separates two lines that share one English string.");
         markdown.AppendLine();
-        markdown.AppendLine("| Component | Cases | Text | Text coverage | Id | Id coverage | Top reason for a miss |");
-        markdown.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | --- |");
+        markdown.AppendLine("Labels the game builds itself (`8:00 a.m.`, `Lv. UNKNOWN`) are counted apart as");
+        markdown.AppendLine("**Skipped**, because no dictionary can key them.");
+        markdown.AppendLine();
+        markdown.AppendLine("| Component | Cases | Text | Text coverage | Id | Id coverage | Skipped | Top reason for a miss |");
+        markdown.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
 
         foreach (var name in components)
         {
             var tally = results[name];
             var coverage = tally.Total == 0 ? 0 : (double)tally.Resolved / tally.Total;
-            var reason = (tally.Unresolved, tally.NoChinese) switch
-            {
-                (0, 0) => "-",
-                (0, _) => $"no Chinese in the artifact {tally.NoChinese:N0}",
-                (_, 0) => $"unresolved {tally.Unresolved:N0}",
-                _ => $"unresolved {tally.Unresolved:N0}, no Chinese {tally.NoChinese:N0}",
-            };
+            var topReason = tally.Reasons.OrderByDescending(entry => entry.Value).FirstOrDefault();
+            var reason = topReason.Value > 0
+                ? $"{topReason.Key} {topReason.Value:N0}"
+                : tally.NoChinese > 0 ? $"no Chinese {tally.NoChinese:N0}" : "-";
 
             var byId = tally.Total == 0 ? 0 : (double)tally.ResolvedById / tally.Total;
             markdown.AppendLine(
-                $"| {name} | {tally.Total:N0} | {tally.Resolved:N0} | {coverage:P1} | {tally.ResolvedById:N0} | {byId:P1} | {reason} |");
+                $"| {name} | {tally.Total:N0} | {tally.Resolved:N0} | {coverage:P1} | {tally.ResolvedById:N0} | " +
+                $"{byId:P1} | {tally.Skipped:N0} | {reason} |");
         }
 
         var byIdTotal = results.Values.Sum(tally => tally.ResolvedById);
         markdown.AppendLine(
             $"| **all** | **{total:N0}** | **{resolved:N0}** | **{(total == 0 ? 0 : (double)resolved / total):P1}** | " +
-            $"**{byIdTotal:N0}** | **{(total == 0 ? 0 : (double)byIdTotal / total):P1}** | |");
+            $"**{byIdTotal:N0}** | **{(total == 0 ? 0 : (double)byIdTotal / total):P1}** | " +
+            $"**{results.Values.Sum(tally => tally.Skipped):N0}** | |");
         markdown.AppendLine();
 
+        markdown.AppendLine("## Why a shared line was not answered");
+        markdown.AppendLine();
+        markdown.AppendLine("A script line that several dump entries share is answered only when the game names the");
+        markdown.AppendLine("speaker or the cutscene. This is what the misses are made of.");
+        markdown.AppendLine();
+        markdown.AppendLine("| Component | Reason | Cases |");
+        markdown.AppendLine("| --- | --- | ---: |");
+
+        foreach (var name in components)
+        {
+            foreach (var (reason, count) in results[name].Reasons.OrderByDescending(entry => entry.Value))
+                markdown.AppendLine($"| {name} | {reason} | {count:N0} |");
+        }
+
+        markdown.AppendLine();
         markdown.AppendLine("## By dynamic value");
         markdown.AppendLine();
         markdown.AppendLine("| Component | Value | Cases | Translated | Coverage |");
@@ -124,6 +141,7 @@ internal static class Report
                             Miss = miss.Outcome.ToString(),
                             miss.Source,
                             miss.Tags,
+                            miss.Reason,
                             miss.English,
                         }),
                     }),
@@ -131,6 +149,32 @@ internal static class Report
             new JsonSerializerOptions { WriteIndented = true });
 
         File.WriteAllText(Path.Combine(outputDirectory, "coverage.json"), json);
+    }
+
+    /// <summary>
+    /// Writes the totals only, which is small enough to keep in the repository and is what the gate
+    /// compares. Refresh it with the same command plus <c>--baseline</c>.
+    /// </summary>
+    public static void WriteBaseline(string path, string variant, Dictionary<string, Tally> results)
+    {
+        var json = JsonSerializer.Serialize(
+            new
+            {
+                Variant = variant,
+                GeneratedAt = DateTimeOffset.Now,
+                Components = results.ToDictionary(
+                    entry => entry.Key,
+                    entry => new
+                    {
+                        entry.Value.Total,
+                        entry.Value.Resolved,
+                        entry.Value.ResolvedById,
+                        entry.Value.Skipped,
+                    }),
+            },
+            new JsonSerializerOptions { WriteIndented = true });
+
+        File.WriteAllText(path, json);
     }
 
     /// <summary>Fails when a component translates fewer cases than the baseline did.</summary>
@@ -152,11 +196,19 @@ internal static class Report
             }
 
             var before = entry.Value.GetProperty("Resolved").GetInt32();
-            if (tally.Resolved >= before)
-                continue;
+            var beforeById = entry.Value.TryGetProperty("ResolvedById", out var byId) ? byId.GetInt32() : before;
 
-            Console.Error.WriteLine($"GATE {entry.Name}: {tally.Resolved:N0} translated, baseline {before:N0}.");
-            failures++;
+            if (tally.Resolved < before)
+            {
+                Console.Error.WriteLine($"GATE {entry.Name}: text {tally.Resolved:N0}, baseline {before:N0}.");
+                failures++;
+            }
+
+            if (tally.ResolvedById < beforeById)
+            {
+                Console.Error.WriteLine($"GATE {entry.Name}: id {tally.ResolvedById:N0}, baseline {beforeById:N0}.");
+                failures++;
+            }
         }
 
         return failures == 0 ? 0 : 1;

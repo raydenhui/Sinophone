@@ -62,7 +62,8 @@ against the real artifacts rather than the fixture. It is an evaluation run, not
 ```sh
 pwsh -File scripts/Test-Coverage.ps1                  # tc, using the plugin's own artifacts
 pwsh -File scripts/Test-Coverage.ps1 -Variant cn      # simplified data
-pwsh -File scripts/Test-Coverage.ps1 -Gate previous-coverage.json
+pwsh -File scripts/Test-Coverage.ps1 -Gate tools/Sinophone.Coverage/coverage-baseline.json
+pwsh -File scripts/Test-Coverage.ps1 -Baseline tools/Sinophone.Coverage/coverage-baseline.json
 ```
 
 It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
@@ -77,7 +78,17 @@ It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
   measured: no node, overlay, or font is involved.
 - Reports two numbers per component. **Text** is the lookup as a miss sees it, with the line alone.
   **Id** adds the row id the game sometimes passes, which is what separates two lines that share one
-  English string.
+  English string. For a `VOICEMAN` key the id column also carries the cutscene number, because that
+  is the id the game passes when the line plays in a cutscene.
+- Counts labels the game builds itself (`8:00 a.m.`, `Lv. UNKNOWN`) as **Skipped**, not as misses:
+  no dictionary can key them, so counting them would understate the number.
+- Splits script misses by why the line was not answered: `ambiguous: no speaker`, `one speaker`,
+  `several speakers`, `cutscene`, or `not indexed`. The first needs an id the game does not have;
+  the last three are what the speaker and cutscene narrowing recover in game.
+- Reads the speaker alias out of the dump line (`(-Retainer-)`, `(-???-)`) and uses it as the
+  speaker, because the game draws that name in the name node and not in the text.
+- Writes a small baseline with `-Baseline`, which `-Gate` compares. A data update changes the
+  totals, so refresh the baseline in the same pull request as the data.
 - Feeds dynamic values with game data: `IntegerParameter` gets several vectors, `Player` gets a
   real name, a conditional is measured once per branch, and an empty or letterless label is skipped
   because it carries no text to translate. The report breaks the numbers down by those categories,

@@ -36,6 +36,26 @@ internal static partial class Dynamic
     [GeneratedRegex(@"Player Player|(?<!\w)Player(?!\w)", RegexOptions.CultureInvariant)]
     private static partial Regex PlayerPattern();
 
+    /// <summary>
+    /// True for a label the game assembles itself, such as <c>8:00 a.m.</c>, <c>Lv. UNKNOWN</c>, or
+    /// <c>UNKNOWN/UNKNOWN</c>. The Chinese client builds those too, so counting them as misses
+    /// understates coverage; the report counts them apart.
+    /// </summary>
+    public static bool IsRuntimeLabel(string english)
+    {
+        if (english.Contains("UNKNOWN", StringComparison.Ordinal))
+            return true;
+
+        var trimmed = english.Trim();
+        return ClockPattern().IsMatch(trimmed) || LevelPattern().IsMatch(trimmed);
+    }
+
+    [GeneratedRegex(@"^\d{1,2}:\d{2}\s*[ap]\.m\.$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ClockPattern();
+
+    [GeneratedRegex(@"^Lv\.", RegexOptions.CultureInvariant)]
+    private static partial Regex LevelPattern();
+
     /// <summary>The categories a line carries. Empty for a plain line.</summary>
     public static string[] Tags(string english)
     {

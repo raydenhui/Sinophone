@@ -1,0 +1,48 @@
+{
+  "Variant": "TC",
+  "GeneratedAt": "2026-11-21T18:41:34.5156232+08:00",
+  "Components": {
+    "Talk": {
+      "Total": 28380,
+      "Resolved": 28182,
+      "ResolvedById": 28182,
+      "Skipped": 1381
+    },
+    "Chat bubbles": {
+      "Total": 27185,
+      "Resolved": 27185,
+      "ResolvedById": 27185,
+      "Skipped": 12
+    },
+    "Battle talk": {
+      "Total": 27610,
+      "Resolved": 27610,
+      "ResolvedById": 27610,
+      "Skipped": 22
+    },
+    "Selection": {
+      "Total": 12347,
+      "Resolved": 12226,
+      "ResolvedById": 12226,
+      "Skipped": 1374
+    },
+    "Nameplates": {
+      "Total": 51325,
+      "Resolved": 51325,
+      "ResolvedById": 51325,
+      "Skipped": 0
+    },
+    "Item name": {
+      "Total": 50569,
+      "Resolved": 50569,
+      "ResolvedById": 50569,
+      "Skipped": 0
+    },
+    "Talk (scripts)": {
+      "Total": 267115,
+      "Resolved": 259065,
+      "ResolvedById": 259065,
+      "Skipped": 247
+    }
+  }
+}
