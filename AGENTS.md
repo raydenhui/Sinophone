@@ -197,8 +197,10 @@ anything that can be tested without the game, and an integration test for wiring
 uses the checked-in fixture.
 
 `scripts/Test-Coverage.ps1` is the evaluation run: it enumerates every English string each
-component can show against the real artifacts and reports coverage per component. Run it when the
-numbers matter, not on every change. Read [docs/testing.md](docs/testing.md) for its sections.
+component can show against the real artifacts and reports coverage per component, with the misses
+split by reason. Run it when the numbers matter, not on every change, and refresh
+`tools/Sinophone.Coverage/coverage-baseline.json` with `-Baseline` when a data update changes the
+totals; `-Gate` then catches a drop. Read [docs/testing.md](docs/testing.md) for its sections.
 
 Read [docs/testing.md](docs/testing.md) for test layout, fixture rules, naming, and the
 in-game checklist format. Native text changes also need

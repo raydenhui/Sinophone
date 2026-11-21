@@ -13,7 +13,15 @@ internal enum Outcome
     Unresolved,
 }
 
-internal sealed record Miss(string Component, string Source, Outcome Outcome, string Tags, string English);
+internal sealed record ScriptCandidate(string Key, string Chinese);
+
+internal sealed record Miss(
+    string Component,
+    string Source,
+    Outcome Outcome,
+    string Tags,
+    string English,
+    string Reason = "");
 
 internal sealed class Tally
 {
@@ -22,6 +30,8 @@ internal sealed class Tally
     public int ResolvedById;
     public int Unresolved;
     public int NoChinese;
+    public int Skipped;
+    public readonly Dictionary<string, int> Reasons = new(StringComparer.Ordinal);
     public readonly Dictionary<string, int> ByTag = new(StringComparer.Ordinal);
     public readonly Dictionary<string, int> ResolvedByTag = new(StringComparer.Ordinal);
     public readonly List<Miss> Misses = [];
@@ -135,6 +145,12 @@ internal sealed class Runner
 
     private void Record(Tally tally, Source source, uint rowId, int slot, string english, bool hasChinese)
     {
+        if (Dynamic.IsRuntimeLabel(english))
+        {
+            tally.Skipped++;
+            return;
+        }
+
         tally.Total++;
 
         var tags = Dynamic.Tags(english);
@@ -199,26 +215,50 @@ internal sealed class Runner
     private void RunScripts(Dictionary<string, Tally> result)
     {
         var component = GetTally(result, "Talk (scripts)");
+        var groups = ScriptGroups();
 
         foreach (var (key, entry) in _artifact.Scripts)
         {
-            var english = entry.English;
+            // The dump writes the speaker alias into the English line, and the game draws it in
+            // the name node instead, so the alias is the speaker and not part of the text.
+            var alias = MacroNormalizer.ExtractSpeakerPrefix(entry.English);
+            var english = MacroNormalizer.StripSpeakerPrefix(entry.English);
             if (string.IsNullOrWhiteSpace(english))
                 continue;
 
             foreach (var variant in Variants(english))
             {
-                if (string.IsNullOrWhiteSpace(variant))
+                if (string.IsNullOrWhiteSpace(variant) || Dynamic.IsRuntimeLabel(variant))
+                {
+                    if (!string.IsNullOrWhiteSpace(variant))
+                        component.Skipped++;
+
                     continue;
+                }
 
                 component.Total++;
                 var tags = Dynamic.Tags(variant);
                 var tagKey = tags.Length == 0 ? "plain" : string.Join("+", tags);
                 component.ByTag[tagKey] = component.ByTag.GetValueOrDefault(tagKey) + 1;
 
-                var speaker = SpeakerOf(key);
+                var speaker = alias.Length > 0 ? alias : SpeakerOf(key);
                 var chinese = TalkHandler.Resolve(
                     _probes.Store, Probes.Configuration, variant, speaker)?.ChineseText;
+
+                // The game also names the cutscene a VOICEMAN line belongs to, so the id column
+                // measures that narrowing too instead of copying the text column.
+                var cutsceneId = CutsceneOf(key);
+                var chineseById = cutsceneId == 0
+                    ? chinese
+                    : TalkHandler.Resolve(
+                        _probes.Store,
+                        Probes.Configuration,
+                        variant,
+                        speaker,
+                        new DialogueContext(null, null, cutsceneId))?.ChineseText;
+
+                if (!string.IsNullOrWhiteSpace(chineseById))
+                    component.ResolvedById++;
 
                 if (!string.IsNullOrWhiteSpace(chinese))
                 {
@@ -228,10 +268,82 @@ internal sealed class Runner
                 }
 
                 component.Unresolved++;
-                AddMiss(component, new Miss("Talk (scripts)", key, Outcome.Unresolved, tagKey, variant));
+                var reason = Classify(groups, variant);
+                component.Reasons[reason] = component.Reasons.GetValueOrDefault(reason) + 1;
+                AddMiss(component, new Miss("Talk (scripts)", key, Outcome.Unresolved, tagKey, variant, reason));
             }
         }
     }
+
+    /// <summary>
+    /// Why a shared script line was not answered, from the artifact's own candidates. It tells the
+    /// reader which of these the game can still resolve at run time: a speaker it names, or the
+    /// cutscene the line belongs to.
+    /// </summary>
+    private static string Classify(Dictionary<string, List<ScriptCandidate>> groups, string english)
+    {
+        if (!groups.TryGetValue(MacroNormalizer.NormalizeKey(english), out var candidates))
+            return "not indexed";
+
+        if (candidates.Select(candidate => candidate.Chinese).Distinct(StringComparer.Ordinal).Count() == 1)
+            return "not indexed";
+
+        if (candidates.All(candidate => CutsceneOf(candidate.Key) != 0))
+            return "ambiguous: cutscene";
+
+        var speakers = candidates
+            .Select(candidate => LastToken(candidate.Key))
+            .Where(token => token.Length >= 4 && !token.All(char.IsDigit))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return speakers.Count switch
+        {
+            0 => "ambiguous: no speaker",
+            1 => "ambiguous: one speaker",
+            _ => "ambiguous: several speakers",
+        };
+    }
+
+    private Dictionary<string, List<ScriptCandidate>>? _scriptGroups;
+
+    private Dictionary<string, List<ScriptCandidate>> ScriptGroups()
+    {
+        if (_scriptGroups is not null)
+            return _scriptGroups;
+
+        _scriptGroups = new Dictionary<string, List<ScriptCandidate>>(StringComparer.Ordinal);
+        foreach (var (key, entry) in _artifact.Scripts)
+        {
+            var english = entry.English;
+            if (string.IsNullOrWhiteSpace(english))
+                continue;
+
+            var normalized = MacroNormalizer.NormalizeKey(MacroNormalizer.StripSpeakerPrefix(english));
+            if (normalized.Length == 0)
+                continue;
+
+            if (!_scriptGroups.TryGetValue(normalized, out var list))
+            {
+                list = [];
+                _scriptGroups[normalized] = list;
+            }
+
+            list.Add(new ScriptCandidate(key, entry.Text));
+        }
+
+        return _scriptGroups;
+    }
+
+    private static string LastToken(string key)
+    {
+        var index = key.LastIndexOf('_');
+        return index < 0 ? string.Empty : key[(index + 1)..];
+    }
+
+    /// <summary>The cutscene number in a VOICEMAN key, or 0.</summary>
+    private static uint CutsceneOf(string key)
+        => TranslationStore.CutsceneIdOf(key);
 
     private static Tally GetTally(Dictionary<string, Tally> result, string component)
     {

@@ -126,6 +126,12 @@ foreach (var (name, tally) in results.OrderBy(entry => entry.Key, StringComparer
 Console.WriteLine();
 Console.WriteLine($"report written to {outputDirectory}");
 
+if (options.BaselinePath is not null)
+{
+    Report.WriteBaseline(options.BaselinePath, variant: options.Variant.ToUpperInvariant(), results);
+    Console.WriteLine($"baseline written to {options.BaselinePath}");
+}
+
 if (options.GatePath is not null)
     return Report.Gate(options.GatePath, results);
 
@@ -142,6 +148,8 @@ internal sealed class Options
     public string Variant { get; private set; } = "tc";
 
     public string? GatePath { get; private set; }
+
+    public string? BaselinePath { get; private set; }
 
     public string DumpBaseUrl { get; private set; } = "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/master";
 
@@ -180,6 +188,9 @@ internal sealed class Options
                     break;
                 case "--gate":
                     options.GatePath = Next(args, ref i);
+                    break;
+                case "--baseline":
+                    options.BaselinePath = Next(args, ref i);
                     break;
                 case "--dump":
                     options.DumpBaseUrl = Next(args, ref i);
@@ -223,7 +234,8 @@ internal sealed class Options
             --en <dir>         folder with the English dump CSVs (default: <data>/en-csv)
             --out <dir>        report folder (default: <data>/coverage)
             --variant <tc|cn>  artifact to measure (default: tc)
-            --gate <file>      compare against coverage.json and exit 1 on a drop
+            --gate <file>      compare against a baseline and exit 1 on a drop
+            --baseline <file>  write per-component totals only, for a later --gate
             --dump <url>       base URL of the English dump (default: xivapi master)
             --list-sheets      print the sheets the map uses, one per line
             --dry-run          print the downloads that are missing, then stop
