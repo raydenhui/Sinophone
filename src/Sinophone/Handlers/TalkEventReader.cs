@@ -77,10 +77,18 @@ internal sealed partial class TalkEventReader
 
         if (rows.Count > 1)
         {
-            _log.Debug(
-                "Talk event has {Count} candidate handlers with sheet rows; using text fallback: {Rows}.",
-                rows.Count,
-                string.Join(", ", rows.Select(static row => $"{row.Sheet} {row.RowId}")));
+            var signature = string.Join(", ", rows.Select(static row => $"{row.Sheet} {row.RowId}"));
+            if (!string.Equals(signature, _lastRowLog, StringComparison.Ordinal))
+            {
+                _lastRowLog = signature;
+                _log.Debug(
+                    "Talk event has {Count} candidate handlers with sheet rows; using text fallback: {Rows}.",
+                    rows.Count, signature);
+            }
+        }
+        else
+        {
+            _lastRowLog = string.Empty;
         }
 
         return new DialogueContext(
@@ -229,6 +237,9 @@ internal sealed partial class TalkEventReader
     }
 
     private string _lastCutscenePath = string.Empty;
+
+    /// <summary>The last sheet-row list logged, so a menu that retries does not repeat it.</summary>
+    private string _lastRowLog = string.Empty;
 
     /// <summary>
     /// The scene number in a cutscene path, such as 6005 from

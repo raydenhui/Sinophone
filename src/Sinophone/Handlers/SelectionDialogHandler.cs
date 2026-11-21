@@ -1,5 +1,7 @@
 using FFXIVClientStructs.FFXIV.Client.UI;
 
+using Sinophone.Data;
+
 namespace Sinophone.Handlers;
 
 /// <summary>
@@ -108,6 +110,13 @@ public sealed class SelectionDialogHandler : IDisposable
     /// </summary>
     private readonly Dictionary<string, List<string>> _dialogScriptHints = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The event context for each text already read in this dialog refresh. The context walks the
+    /// whole handler map, so reading it again for every node and every retry made a large menu
+    /// visibly hitch.
+    /// </summary>
+    private readonly Dictionary<string, Dictionary<string, DialogueContext>> _dialogContexts = new(StringComparer.Ordinal);
+
     /// <summary>Addons already reported as waiting for the translation store, so the log stays one line.</summary>
     private readonly HashSet<string> _waitingForStore = new(StringComparer.Ordinal);
 
@@ -178,6 +187,7 @@ public sealed class SelectionDialogHandler : IDisposable
         if (eventType is AddonEvent.PostHide or AddonEvent.PostClose or AddonEvent.PreFinalize)
         {
             _dialogScriptHints.Remove(addonName);
+            _dialogContexts.Remove(addonName);
 
             // A delayed hide from an old dialog must not clear text that a newer
             // dialog has already written into a reused node.
@@ -187,7 +197,14 @@ public sealed class SelectionDialogHandler : IDisposable
         }
 
         if (eventType == AddonEvent.PostSetup)
+        {
             _dialogScriptHints.Remove(addonName);
+            _dialogContexts.Remove(addonName);
+        }
+        else if (eventType == AddonEvent.PostRefresh)
+        {
+            _dialogContexts.Remove(addonName);
+        }
 
         if (!IsEnabled(addonName))
             return;
@@ -268,7 +285,7 @@ public sealed class SelectionDialogHandler : IDisposable
             if (traceNodes)
                 _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
-            var context = _eventReader.ReadContext(source, includeHandlerHints: true, scanAllLuaTexts: scriptHints.Count == 0);
+            var context = DialogContext(addonName, source, scriptHints.Count == 0);
             var learnedHint = AddDialogHints(scriptHints, context.ScriptKeys);
             learnedHint |= AddDialogHints(scriptHints, context.ScriptKeyHints);
             if (learnedHint)
@@ -315,6 +332,22 @@ public sealed class SelectionDialogHandler : IDisposable
                     addonName, nodeId, source, fitted);
             }
         }
+    }
+
+    private DialogueContext DialogContext(string addonName, string source, bool scanAllLuaTexts)
+    {
+        if (!_dialogContexts.TryGetValue(addonName, out var contexts))
+        {
+            contexts = new Dictionary<string, DialogueContext>(StringComparer.Ordinal);
+            _dialogContexts[addonName] = contexts;
+        }
+
+        if (contexts.TryGetValue(source, out var context))
+            return context;
+
+        context = _eventReader.ReadContext(source, includeHandlerHints: true, scanAllLuaTexts: scanAllLuaTexts);
+        contexts[source] = context;
+        return context;
     }
 
     private List<string> DialogScriptHints(string addonName)
