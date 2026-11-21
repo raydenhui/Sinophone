@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 4;
+    public const int IndexFormatVersion = 5;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
@@ -1376,6 +1376,13 @@ public sealed partial class TranslationStore
 
         for (var i = 0; i < candidates.Count; i++)
         {
+            // The same dump key can arrive again from the other variant's artifact, with that
+            // variant's Chinese. It is one line, not a second scene: keep the configured variant's
+            // text and the key it already carries, or the candidate list grows a phantom entry and
+            // the speaker and cutscene steps can no longer see that only one line matches.
+            if (!string.IsNullOrEmpty(scriptKey) && Array.IndexOf(candidates[i].Keys, scriptKey) >= 0)
+                return;
+
             if (!string.Equals(candidates[i].Display, display, StringComparison.Ordinal))
                 continue;
 

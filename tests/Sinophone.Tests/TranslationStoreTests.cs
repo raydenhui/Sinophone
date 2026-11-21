@@ -62,6 +62,28 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_DoesNotRepeatACandidate_WhenTheFallbackVariantOwnsTheSameKey()
+    {
+        // The fallback artifact carries the same dump keys with its own Chinese. They are the same
+        // lines, not a second scene, so the candidate list must not grow a phantom entry: with one,
+        // the speaker step sees two lines and drops a line that only one scene has.
+        var tc = Artifact("TC", ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06005_004360_ALISAIE", "Mother!?", "母親！？"),
+            ("TEXT_BANANA001_03036_ALPA_000_067", "Mother!?", "媽媽！？")));
+        var cn = Artifact("CN", ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06005_004360_ALISAIE", "Mother!?", "母亲！？"),
+            ("TEXT_BANANA001_03036_ALPA_000_067", "Mother!?", "妈妈！？")));
+
+        var store = TranslationStore.Load(
+            [], ChineseVariant.Traditional, true, Artifacts(cn, tc), new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("Mother!?", out _));
+        Assert.True(store.TryGetDialogue("Mother!?", default, "Alisaie", out var chinese));
+        Assert.Equal("母親！？", chinese);
+    }
+
+    [Fact]
     public void Lookup_NamesTheCandidateKeys_WhenAnAmbiguousLineIsNotAnswered()
     {
         var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
