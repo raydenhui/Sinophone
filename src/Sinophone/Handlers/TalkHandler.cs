@@ -274,7 +274,7 @@ public sealed class TalkHandler : IDisposable
             store,
             TalkAddonName,
             englishText,
-            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0));
+            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
 
         var content = Resolve(
             store,
@@ -608,7 +608,7 @@ public sealed class TalkHandler : IDisposable
         }
 
         var context = string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
-            ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0)
+            ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true)
             : default;
 
         context = WithRememberedScene(store, addonName, englishText, context);
@@ -621,12 +621,21 @@ public sealed class TalkHandler : IDisposable
             {
                 _log.Debug("{Addon} AtkValue text missed; retrying with addon text nodes: {Text}",
                     addonName, candidate);
+                var retryContext = WithRememberedScene(
+                    store,
+                    addonName,
+                    candidate,
+                    _eventReader.ReadContext(candidate, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
+
+                if (context.CutsceneId != 0 && retryContext.CutsceneId == 0)
+                    retryContext = retryContext with { CutsceneId = context.CutsceneId };
+
                 content = Resolve(
                     store,
                     _configuration,
                     candidate,
                     englishName,
-                    _eventReader.ReadContext(candidate),
+                    retryContext,
                     integerParameters);
                 if (content is not null)
                 {

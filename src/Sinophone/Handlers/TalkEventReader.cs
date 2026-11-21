@@ -23,7 +23,11 @@ internal sealed partial class TalkEventReader
     /// text instead of guessing. Script keys are collected only when a Lua handler's
     /// value is the line on screen.
     /// </summary>
-    public unsafe DialogueContext ReadContext(string? englishText, nint targetAddress = 0)
+    public unsafe DialogueContext ReadContext(
+        string? englishText,
+        nint targetAddress = 0,
+        bool includeHandlerHints = false,
+        bool scanAllLuaTexts = false)
     {
         var framework = EventFramework.Instance();
         if (framework is null)
@@ -35,12 +39,19 @@ internal sealed partial class TalkEventReader
             // A cutscene choice runs with no talk handler of its own, and the scene number is the
             // only thing that tells its VOICEMAN lines apart from another scene's.
             var scene = ReadCutsceneId(framework);
-            return scene == 0 ? default : new DialogueContext(CutsceneId: scene);
+            var fallbackHints = ReadTrackedQuestHints();
+            if (scanAllLuaTexts)
+                MergeHints(ref fallbackHints, ReadAllLuaTextKeys(framework, englishText));
+
+            return new DialogueContext(
+                CutsceneId: scene,
+                ScriptKeyHints: fallbackHints);
         }
 
         var scriptKeys = new List<string>();
         var rows = new List<DialogueRowId>();
         var cutsceneId = ReadCutsceneId(framework);
+        List<string>? handlerHints = null;
 
         foreach (var handler in handlers)
         {
@@ -49,7 +60,18 @@ internal sealed partial class TalkEventReader
 
             if (handler.LuaTexts is not null)
                 CollectScriptKeys(handler.LuaTexts, scriptKeys);
+
+            if (includeHandlerHints && handler.LuaKey.Length > 0)
+            {
+                handlerHints ??= [];
+                if (!handlerHints.Contains(handler.LuaKey, StringComparer.OrdinalIgnoreCase))
+                    handlerHints.Add(handler.LuaKey);
+            }
         }
+
+        MergeHints(ref handlerHints, ReadTrackedQuestHints());
+        if (scanAllLuaTexts && scriptKeys.Count == 0 && cutsceneId == 0)
+            MergeHints(ref handlerHints, ReadAllLuaTextKeys(framework, englishText));
 
         DialogueRowId? selectedRow = rows.Count == 1 ? rows[0] : null;
 
@@ -65,7 +87,88 @@ internal sealed partial class TalkEventReader
             selectedRow,
             scriptKeys.Count == 0 ? null : scriptKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             cutsceneId,
-            ReadChocoboTaxiStandUnlocked(handlers));
+            ReadChocoboTaxiStandUnlocked(handlers),
+            handlerHints);
+    }
+
+    private static void MergeHints(ref List<string>? hints, List<string>? added)
+    {
+        if (added is null || added.Count == 0)
+            return;
+
+        hints ??= [];
+        foreach (var key in added)
+        {
+            if (key.Length > 0 && !hints.Contains(key, StringComparer.OrdinalIgnoreCase))
+                hints.Add(key);
+        }
+    }
+
+    /// <summary>
+    /// Every Lua text key in the event handler map whose value is this line. The active handler
+    /// filter can miss the quest that produced a menu prompt, so a fallback scan keeps the script
+    /// family available as a hint.
+    /// </summary>
+    private unsafe List<string>? ReadAllLuaTextKeys(EventFramework* framework, string? englishText)
+    {
+        var wanted = MacroNormalizer.NormalizeKey(englishText);
+        if (wanted.Length == 0)
+            return null;
+
+        var keys = new List<string>();
+        foreach (var (_, pointer) in framework->EventHandlerModule.EventHandlerMap)
+        {
+            var handler = pointer.Value;
+            if (handler is null)
+                continue;
+
+            var contentId = handler->Info.EventId.ContentId;
+            var texts = TryReadLuaTexts(handler, contentId, readAll: false, englishText);
+            if (texts is null)
+                continue;
+
+            foreach (var (key, _) in texts)
+            {
+                if (key.Length > 0 && !keys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                    keys.Add(key);
+            }
+        }
+
+        return keys.Count > 0 ? keys : null;
+    }
+
+    /// <summary>
+    /// The script ids of the quests the player is tracking. A quest line can be shared by several
+    /// quest scripts, and the tracked quest names the family the line must come from, even when
+    /// the quest handler is not in the active handler map anymore.
+    /// </summary>
+    private unsafe List<string>? ReadTrackedQuestHints()
+    {
+        try
+        {
+            var ui = UIState.Instance();
+            if (ui is null)
+                return null;
+
+            var quests = ui->QuestTodoList.Todo.TrackedQuests;
+            if (quests.Count == 0)
+                return null;
+
+            var hints = new List<string>(quests.Count);
+            foreach (ref var quest in quests.AsSpan())
+            {
+                var id = quest.Id.ToString();
+                if (id.Length > 0 && !hints.Contains(id, StringComparer.OrdinalIgnoreCase))
+                    hints.Add(id);
+            }
+
+            return hints.Count > 0 ? hints : null;
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Talk event reader: could not read the tracked quests; keeping the line unqualified.");
+            return null;
+        }
     }
 
     /// <summary>
@@ -322,7 +425,24 @@ internal sealed partial class TalkEventReader
             (int)eventId.ContentId,
             eventId.EntryId,
             handler->Scene,
+            ReadLuaKey(handler, eventId.ContentId),
             luaTexts);
+    }
+
+    /// <summary>
+    /// The Lua script name, such as <c>REGUNI5BASEOMICRON_00760</c>. It names the script that
+    /// produced the dialog, so a selection option shared by many places can pick its line.
+    /// </summary>
+    private static unsafe string ReadLuaKey(EventHandler* handler, EventHandlerContent contentId)
+    {
+        if (contentId is not (EventHandlerContent.Quest
+            or EventHandlerContent.CustomTalk
+            or EventHandlerContent.GuildLeveAssignment))
+        {
+            return string.Empty;
+        }
+
+        return ((LuaEventHandler*)handler)->LuaKey.ToString();
     }
 
     private static void AddActiveId(HashSet<uint> ids, EventId eventId)
@@ -399,6 +519,7 @@ internal sealed record TalkHandlerSnapshot(
     int ContentId,
     ushort EntryId,
     short Scene,
+    string LuaKey,
     IReadOnlyList<KeyValuePair<string, string>>? LuaTexts);
 
 /// <summary>The event and scene state captured by the debug probe.</summary>

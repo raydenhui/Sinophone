@@ -101,6 +101,13 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly Dictionary<string, List<nint>> _translated = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The script keys the open dialog has exposed, from the active Lua handler and from the
+    /// lines it has already shown. Options come from one script, so a key from the prompt can
+    /// pick the line for an option that many scripts share.
+    /// </summary>
+    private readonly Dictionary<string, List<string>> _dialogScriptHints = new(StringComparer.Ordinal);
+
     /// <summary>Addons already reported as waiting for the translation store, so the log stays one line.</summary>
     private readonly HashSet<string> _waitingForStore = new(StringComparer.Ordinal);
 
@@ -170,12 +177,17 @@ public sealed class SelectionDialogHandler : IDisposable
 
         if (eventType is AddonEvent.PostHide or AddonEvent.PostClose or AddonEvent.PreFinalize)
         {
+            _dialogScriptHints.Remove(addonName);
+
             // A delayed hide from an old dialog must not clear text that a newer
             // dialog has already written into a reused node.
             if (eventType == AddonEvent.PreFinalize)
                 ClearTracked(addonName);
             return;
         }
+
+        if (eventType == AddonEvent.PostSetup)
+            _dialogScriptHints.Remove(addonName);
 
         if (!IsEnabled(addonName))
             return;
@@ -229,6 +241,8 @@ public sealed class SelectionDialogHandler : IDisposable
                 addonName, dialogCutscene);
         }
 
+        var scriptHints = DialogScriptHints(addonName);
+
         foreach (var nodeAddress in _nodes)
         {
             var node = (AtkTextNode*)nodeAddress;
@@ -254,9 +268,20 @@ public sealed class SelectionDialogHandler : IDisposable
             if (traceNodes)
                 _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
-            var context = _eventReader.ReadContext(source);
+            var context = _eventReader.ReadContext(source, includeHandlerHints: true, scanAllLuaTexts: scriptHints.Count == 0);
+            var learnedHint = AddDialogHints(scriptHints, context.ScriptKeys);
+            learnedHint |= AddDialogHints(scriptHints, context.ScriptKeyHints);
+            if (learnedHint)
+            {
+                _log.Debug(
+                    "Selection dialog {Addon}: script hints now {Hints}.",
+                    addonName, string.Join(", ", scriptHints));
+            }
+
             if (context.CutsceneId == 0 && dialogCutscene != 0)
                 context = context with { CutsceneId = dialogCutscene };
+            if (scriptHints.Count > 0)
+                context = context with { ScriptKeyHints = scriptHints };
 
             if (!TryTranslate(store, source, context, out var chinese))
             {
@@ -290,6 +315,35 @@ public sealed class SelectionDialogHandler : IDisposable
                     addonName, nodeId, source, fitted);
             }
         }
+    }
+
+    private List<string> DialogScriptHints(string addonName)
+    {
+        if (!_dialogScriptHints.TryGetValue(addonName, out var hints))
+        {
+            hints = [];
+            _dialogScriptHints[addonName] = hints;
+        }
+
+        return hints;
+    }
+
+    private static bool AddDialogHints(List<string> hints, IReadOnlyList<string>? keys)
+    {
+        if (keys is null)
+            return false;
+
+        var added = false;
+        foreach (var key in keys)
+        {
+            if (key.Length == 0 || hints.Contains(key, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            hints.Add(key);
+            added = true;
+        }
+
+        return added;
     }
 
     private unsafe uint ReadDialogCutscene(TranslationStore store)
