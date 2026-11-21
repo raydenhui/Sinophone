@@ -873,6 +873,50 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AcceptsAScriptKey_WhenOnlyAPlayerWordDiffers()
+    {
+        // The dump resolved the deliverer's race to Hyur; the live line says Viera. The rest of
+        // the line is identical, so the key is still the same line.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_CMNDEFMOGLETTER_00002_LETTERMOOGLE_000_001",
+             "Well, if it isn't our favorite delivery Hyur! No new letters for you today, kupo!",
+             "現在還沒有給你這個後輩的新郵件咕波。"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(
+            ScriptKeys: ["TEXT_CMNDEFMOGLETTER_00002_LETTERMOOGLE_000_001"]);
+
+        Assert.True(store.TryGetDialogue(
+            "Well, if it isn't our favorite delivery Viera! No new letters for you today, kupo!",
+            in context,
+            out var chinese));
+        Assert.Equal("現在還沒有給你這個後輩的新郵件咕波。", chinese);
+    }
+
+    [Fact]
+    public void Lookup_IgnoresAScriptKey_WhenTheDumpPairedItWithAnotherLine()
+    {
+        // The live Lua map can reuse a menu key for another line. The dump paired this key with
+        // "Madam?", not with the discard prompt, so the key must not answer for it.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_CMNDEFRETAINERBELL_00544_ENTER2_ROEGADYN_FEMALE_TYPE3",
+             "Madam?",
+             "哼，你難道打算再派給我一些工作嗎？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(
+            ScriptKeys: ["TEXT_CMNDEFRETAINERBELL_00544_ENTER2_ROEGADYN_FEMALE_TYPE3"]);
+
+        Assert.False(store.TryGetDialogue("Discard the pot of metallic orange dye?", in context, out _));
+    }
+
+    [Fact]
     public void Lookup_AnswersByScriptKey_WhenTheEnglishKeyIsAmbiguous()
     {
         var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));

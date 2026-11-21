@@ -166,7 +166,7 @@ flowchart TD
 #### Details of each fallback layer
 
 1. **ID-first lookup (`TryGetDialogueById`)**:
-   - **Script keys**: Exact case-insensitive match in `_scriptKeyLookup` using `TEXT_...` keys read from `LuaEventHandler.LuaTexts`.
+   - **Script keys**: Exact case-insensitive match in `_scriptKeyLookup` using `TEXT_...` keys read from `LuaEventHandler.LuaTexts`. The key is used only when the dump paired it with the same English line; the live Lua map can reuse a key for another menu line. A long shared prefix or suffix is accepted, because the dump can resolve a race or other player word to one value while the live line uses another.
    - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live English variants via `SheetCatalog` and picks the slot whose normalized text matches `englishText`. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
 2. **Ambiguous script disambiguation (`TryLookupAmbiguousScript`)**:
    - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `_textLookup` and stored in `_ambiguousScriptKeys`.

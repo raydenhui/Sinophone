@@ -74,6 +74,9 @@ public sealed partial class TranslationStore
     /// <summary>Script translations keyed by the dump's text key, when the game exposes it.</summary>
     private readonly Dictionary<string, string> _scriptKeyLookup = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The normalized English line each script key was paired with in the dump.</summary>
+    private readonly Dictionary<string, string> _scriptKeyEnglishLookup = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Script lines that share one English key but have different Chinese, such as the
     /// three different "You bastard!" lines. The key alone cannot tell them apart, so
@@ -885,19 +888,72 @@ public sealed partial class TranslationStore
         return true;
     }
 
+    /// <summary>
+    /// True when two English lines are close enough to be the same dump line. The game can
+    /// substitute a race, class, or other player word that the dump resolved to one value; those
+    /// lines share a long prefix or suffix. A reused menu key names a completely different line
+    /// and shares neither.
+    /// </summary>
+    private static bool IsCloseEnough(string a, string b)
+    {
+        if (string.Equals(a, b, StringComparison.Ordinal))
+            return true;
+
+        var length = Math.Min(a.Length, b.Length);
+        if (length < 12)
+            return false;
+
+        var prefix = 0;
+        while (prefix < length && a[prefix] == b[prefix])
+            prefix++;
+
+        if (prefix >= 12)
+            return true;
+
+        var suffix = 0;
+        while (suffix < length && a[a.Length - 1 - suffix] == b[b.Length - 1 - suffix])
+            suffix++;
+
+        return suffix >= 12;
+    }
+
     private bool TryGetDialogueById(string? englishText, in DialogueContext context, out string chineseText)
     {
         chineseText = string.Empty;
 
         if (context.ScriptKeys is not null)
         {
+            var liveKey = MacroNormalizer.NormalizeKey(englishText);
             foreach (var scriptKey in context.ScriptKeys)
             {
                 if (string.IsNullOrWhiteSpace(scriptKey))
                     continue;
 
-                if (!_scriptKeyLookup.TryGetValue(scriptKey.Trim(), out var script))
+                var trimmed = scriptKey.Trim();
+                if (!_scriptKeyLookup.TryGetValue(trimmed, out var script))
                     continue;
+
+                // The live Lua text map can reuse a key for another line. Trust the key only
+                // when the dump paired it with the same English line. Put the player name back
+                // and collapse gender/time wording first, because those differences are expected.
+                if (_scriptKeyEnglishLookup.TryGetValue(trimmed, out var pairedKey))
+                {
+                    var liveForCompare = PlayerNamePlaceholderKey(liveKey);
+                    if (liveForCompare.Length == 0)
+                        liveForCompare = liveKey;
+
+                    if (!string.Equals(
+                            CollapseBranchWords(liveForCompare),
+                            CollapseBranchWords(pairedKey),
+                            StringComparison.Ordinal)
+                        && !IsCloseEnough(liveForCompare, pairedKey))
+                    {
+                        _log.Debug(
+                            "Dialogue ignored script key {ScriptKey}: it names {Paired}, not {Live}.",
+                            trimmed, pairedKey, liveKey);
+                        continue;
+                    }
+                }
 
                 chineseText = ResolveDisplay(script);
                 _log.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
@@ -1706,7 +1762,10 @@ public sealed partial class TranslationStore
             // exposes it through the event handler, so keep it separate from the
             // English key and let an id lookup win over duplicate text.
             if (!string.IsNullOrWhiteSpace(scriptKey))
+            {
                 _scriptKeyLookup.TryAdd(scriptKey, display);
+                _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
+            }
 
             if (_ambiguousScriptKeys.TryGetValue(key, out var known))
             {
