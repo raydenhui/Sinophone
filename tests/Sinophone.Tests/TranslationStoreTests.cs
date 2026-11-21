@@ -449,6 +449,22 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetName_ReadsTheSpeakerAliasFromAScriptLine()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_AKTKMG114_04463_PASSER_000_090",
+             "(-Voice from the Past-)If you need a push, I'll be right there behind you.",
+             "(-劃過耳畔的聲音-)如果你決定前進，就由我來支援你。"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetName("Voice from the Past", out var name));
+        Assert.Equal("劃過耳畔的聲音", name);
+    }
+
+    [Fact]
     public void Load_IndexesNameSheet_IntoNamesLookup()
     {
         var descriptor = NameSheet((100, "Mother Miounne"));
