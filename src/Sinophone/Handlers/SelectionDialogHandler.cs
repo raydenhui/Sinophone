@@ -236,6 +236,18 @@ public sealed class SelectionDialogHandler : IDisposable
                     || !string.Equals(reported, source, StringComparison.Ordinal))
                 {
                     _reportedMiss[nodeAddress] = source;
+
+                    if (!store.HasAddonPromptLike(source))
+                    {
+                        // No row in the data starts like this. The live client is newer than the
+                        // dumps, so there is no Chinese to show yet.
+                        _log.Debug(
+                            "Selection dialog {Addon} node {NodeId}: the data has no row for this " +
+                            "prompt yet (the dumps may be behind the game): {Text}",
+                            addonName, nodeId, Excerpt(source));
+                        continue;
+                    }
+
                     _log.Debug(
                         "Selection dialog {Addon} node {NodeId}: no translation for {Text} " +
                         "({Length} chars, {Templates:N0} addon templates)",
@@ -411,11 +423,14 @@ public sealed class SelectionDialogHandler : IDisposable
         return false;
     }
 
-    /// <summary>The first line of a line, long enough to compare with the sheet in the log.</summary>
+    /// <summary>
+    /// The text on one line, long enough to compare with the sheet. The game wraps a prompt with
+    /// line breaks, so the whole text is flattened rather than cut at the first break.
+    /// </summary>
     private static string Excerpt(string text)
     {
-        var line = TalkHandler.FirstLineOf(text);
-        return line.Length <= 120 ? line : line[..120] + "…";
+        var flat = string.Join(' ', text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+        return flat.Length <= 200 ? flat : flat[..200] + "…";
     }
 
     private void Reapply(string addonName)
