@@ -78,8 +78,8 @@ It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
   measured: no node, overlay, or font is involved.
 - Reports two numbers per component. **Text** is the lookup as a miss sees it, with the line alone.
   **Id** adds the row id the game sometimes passes, which is what separates two lines that share one
-  English string. For a `VOICEMAN` key the id column also carries the cutscene number, because that
-  is the id the game passes when the line plays in a cutscene.
+  English string. For a `VOICEMAN` key the id column also carries the scene number from the key,
+  because that is what the game reads out of the cutscene path when the line plays in one.
 - Counts labels the game builds itself (`8:00 a.m.`, `Lv. UNKNOWN`) as **Skipped**, not as misses:
   no dictionary can key them, so counting them would understate the number.
 - Splits script misses by why the line was not answered: `ambiguous: no speaker`, `one speaker`,

@@ -301,8 +301,10 @@ premature interface.
   case. Dialogue lookup stays case-sensitive. When several script lines share one English line, the
   speaker name picks the right one through the speaker token in the dump key (`..._JULLUS`, and
   `..._GRAHATIA` for a two-part name, so the whole name without punctuation is matched too), and a
-  cutscene picks it through the number in a `VOICEMAN` key (`TEXT_VOICEMAN_06005_...` is cutscene
-  6005, read from `PlayCutSceneTask.CutsceneId`). A chocobokeep's greeting is the same English line
+  cutscene picks it through the number in a `VOICEMAN` key (`TEXT_VOICEMAN_06005_...` is scene
+  6005, read from the number in `PlayCutSceneTask.CutscenePath` such as
+  `cut_scene/060/VoiceMan_06005`, and from `CutsceneId` when the path has no number). The task id
+  is not the scene number, so a cutscene id alone never matches a `VOICEMAN` key. A chocobokeep's greeting is the same English line
   for a stand that just became usable and for every later visit, so `UIState.IsChocoboTaxiStandUnlocked`
   on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. An
   unnamed or unclear speaker leaves the line English instead of showing another scene's text.

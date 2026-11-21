@@ -112,8 +112,11 @@ name and no cutscene, or with more than one candidate left, stays unanswered and
 English. The id path is not affected: the game can still name the exact script key, which always
 wins.
 
-The cutscene number comes from `PlayCutSceneTask.CutsceneId`, the task with `EventSceneTaskType.
-PlayCutScene` under `EventFramework.EventSceneModule.TaskManager.Tasks`. It is read on the addon event
+The cutscene number comes from the path in `PlayCutSceneTask.CutscenePath` (`cut_scene/060/
+VoiceMan_06005` is scene 6005), or from its `CutsceneId` when the path has no number; the task is
+the one with `EventSceneTaskType.PlayCutScene` under
+`EventFramework.EventSceneModule.TaskManager.Tasks`. The task id is the cutscene row, which is not
+the number a `VOICEMAN` key carries, so the path is what to read. It is read on the addon event
 and travels in `DialogueContext.CutsceneId`; 0 means no cutscene, and every read failure leaves it at
 0 so the lookup behaves as before. Each candidate keeps the dump keys that hold its Chinese
 (`ScriptCandidate.Keys`), because a line used by two cutscenes needs both keys to be told apart.

@@ -35,6 +35,16 @@ public class TalkEventReaderTests
     }
 
     [Theory]
+    [InlineData("cut_scene/060/VoiceMan_06005", 6005u)]
+    [InlineData("cut_scene/060/VoiceMan_06005.cutscene", 6005u)]
+    [InlineData("VoiceMan_06005", 6005u)]
+    [InlineData("cut_scene/002/CS_00200", 200u)]
+    [InlineData("", 0u)]
+    [InlineData("cut_scene/060/NoNumberHere", 0u)]
+    public void SceneNumberFromPath_ReadsTheSceneTheKeyCarries(string path, uint expected)
+        => Assert.Equal(expected, TalkEventReader.SceneNumberFromPath(path));
+
+    [Theory]
     [InlineData(1)]   // Quest: dialogue comes from script text keys, not a sheet row.
     [InlineData(11)]  // CustomTalk: dialogue comes from script text keys.
     [InlineData(25)]  // ContentNpc: the row holds ContentTalk links, not the line.

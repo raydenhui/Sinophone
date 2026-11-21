@@ -272,7 +272,7 @@ sequenceDiagram
    - Falls back to matching `handler->Scene == framework->Scene`.
 2. Maps `ContentId` to sheet rows via `TalkEventSurfaces` (`DefaultTalk` using packed `EventId.Id`; `GuildLeveAssignment`, `CraftLeveClient`, `GimmickAccessor`/`GimmickRect`, `GimmickBill`, and `GoldSaucerTalk` using `EntryId`). A row is only kept if exactly one handler maps to a row.
 3. For `Quest`, `CustomTalk`, and `GuildLeveAssignment` handlers, reads `LuaEventHandler->LuaTexts` and keeps keys whose `ScriptTextTemplate` matches the normalized live English line.
-4. Reads `PlayCutSceneTask.CutsceneId` from `EventSceneModule.TaskManager.Tasks` and `UIState.IsChocoboTaxiStandUnlocked(standId)` for `ChocoboTaxiStand` handlers.
+4. Reads the scene number from `PlayCutSceneTask.CutscenePath` (falling back to `CutsceneId`) in `EventSceneModule.TaskManager.Tasks`, and `UIState.IsChocoboTaxiStandUnlocked(standId)` for `ChocoboTaxiStand` handlers.
 
 #### Text handling & fallbacks
 - **Extraction**: Reads `AtkValue[0]` (dialogue) and `AtkValue[1]` (speaker) via `MemoryHelper.ReadSeStringAsString`, plus integer parameters from `AtkValue[2..]` (`Int`/`UInt`) to fill `IntegerParameter(n)` in stored text.

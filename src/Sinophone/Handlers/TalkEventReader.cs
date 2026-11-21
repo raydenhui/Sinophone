@@ -10,7 +10,7 @@ namespace Sinophone.Handlers;
 /// optional: a missing or changed game structure only costs the id-first lookup and
 /// leaves the text fallback in place.
 /// </summary>
-internal sealed class TalkEventReader
+internal sealed partial class TalkEventReader
 {
     private readonly PluginLog _log;
 
@@ -120,6 +120,32 @@ internal sealed class TalkEventReader
         }
     }
 
+    private string _lastCutscenePath = string.Empty;
+
+    /// <summary>
+    /// The scene number in a cutscene path, such as 6005 from
+    /// <c>cut_scene/060/VoiceMan_06005</c>. Zero when the path carries no number, so the caller can
+    /// fall back to the task's own id.
+    /// </summary>
+    internal static uint SceneNumberFromPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return 0;
+
+        var name = path.Replace('\\', '/');
+        var slash = name.LastIndexOf('/');
+        if (slash >= 0)
+            name = name[(slash + 1)..];
+
+        var match = SceneNumberPattern().Match(name);
+        return match.Success && uint.TryParse(match.Groups[1].Value, out var scene) ? scene : 0;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(
+        @"(?:_|^)(\d{4,6})(?:\.|$)",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    private static partial System.Text.RegularExpressions.Regex SceneNumberPattern();
+
     /// <summary>First row of the <c>ChocoboTaxiStand</c> sheet, which is also its event content.</summary>
     private const uint ChocoboTaxiStandFirstRow = 0x120000;
 
@@ -147,9 +173,28 @@ internal sealed class TalkEventReader
                 if (task is null || task->Type != EventSceneTaskType.PlayCutScene)
                     continue;
 
-                var cutsceneId = ((PlayCutSceneTask*)task)->CutsceneId;
-                if (cutsceneId != 0)
-                    return cutsceneId;
+                var play = (PlayCutSceneTask*)task;
+
+                // The task's id is the cutscene row, which is not the number a VOICEMAN dump key
+                // carries; the path is (cut_scene/060/VoiceMan_06005), and its number is. Keep the
+                // id when the path says nothing.
+                var path = play->CutscenePath.ToString();
+                var scene = SceneNumberFromPath(path);
+                if (scene != 0)
+                {
+                    if (!string.Equals(path, _lastCutscenePath, StringComparison.Ordinal))
+                    {
+                        _lastCutscenePath = path;
+                        _log.Debug(
+                            "Talk event: cutscene {Id} path {Path}, using scene {Scene}.",
+                            play->CutsceneId, path, scene);
+                    }
+
+                    return scene;
+                }
+
+                if (play->CutsceneId != 0)
+                    return play->CutsceneId;
             }
         }
         catch (Exception ex)
