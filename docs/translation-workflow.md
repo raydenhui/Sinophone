@@ -304,6 +304,7 @@ Covers `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, and `CutSc
   1. `addon->RootNode` tree (recursing into child/sibling nodes and component `UldManager.NodeList` up to depth 64).
   2. `addon->UldManager.NodeList`.
   3. Typed addon fields (`PromptText`, `YesButton`, `NoButton`, `AtkComponentButton238`, `OkButton`, `PopupMenu.PopupMenu.List` item renderers, `CutSceneSelectString.TextLabel` and `OptionList`).
+- A sheet row that branches on the player's gender ("Ah, Master Player" against "Ah, Mistress Player") is indexed a second time with the gendered nouns collapsed, so the wording the live sheet did not keep still finds the row. The same collapsed index covers script lines.
 - A shared key whose remaining candidates say the same thing once punctuation and space are gone is answered with the first one, because the localisation of one line can differ only in a closing mark (`一定要凱旋。` / `一定要凱旋`). A shared key whose lines differ in words still stays English.
 - A cutscene with no number in its path leaves the scene at 0 rather than passing the cutscene row id, because a row id is not a `VOICEMAN` scene number and can only narrow to the wrong line.
 - `CutSceneSelectString` options are `VOICEMAN` script lines, and one English option can sit in several scenes. The handler reads the live cutscene scene through `TalkEventReader.ReadContext` and passes it with the lookup, so the scene number picks the right line; with no scene the store refuses the shared key and the option stays English.

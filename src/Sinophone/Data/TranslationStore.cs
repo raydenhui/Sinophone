@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 5;
+    public const int IndexFormatVersion = 6;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
@@ -791,7 +791,7 @@ public sealed partial class TranslationStore
             return false;
         }
 
-        _log.Debug("Script line matched after collapsing the branch words.");
+        _log.Debug("Line matched after collapsing the branch words.");
         stored = match;
         return true;
     }
@@ -1272,6 +1272,23 @@ public sealed partial class TranslationStore
 
                         if (target.TryAdd(key, display))
                             indexedSlots++;
+
+                        // A sheet row can branch on the player's gender too, as "Ah, Master
+                        // Player" does against "Ah, Mistress Player". Keep a key with the
+                        // gendered words collapsed so either wording finds the row, in case the
+                        // live sheet's branch list is not the one the game drew.
+                        if (!descriptor.IsNameSheet)
+                        {
+                            var neutralKey = CollapseBranchWords(key);
+                            if (!ReferenceEquals(neutralKey, key)
+                                && !_textLookup.ContainsKey(neutralKey)
+                                && !_branchNeutralLookup.TryAdd(neutralKey, display)
+                                && !string.Equals(
+                                    _branchNeutralLookup[neutralKey], display, StringComparison.Ordinal))
+                            {
+                                _ambiguousBranchKeys.Add(neutralKey);
+                            }
+                        }
 
                         if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
                             && !descriptor.IsNameSheet)
