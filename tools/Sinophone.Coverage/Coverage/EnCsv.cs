@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Sinophone.Data;
 
 namespace Sinophone.Coverage;
@@ -114,10 +115,18 @@ internal sealed class EnCsvSheetDescriptor : ISheetDescriptor, IParameterizedTem
             return false;
 
         var text = slots[0];
-        if (text.Length == 0 || !text.Contains("UNKNOWN", StringComparison.Ordinal))
+        if (text.Length == 0)
             return false;
 
-        var built = ScriptTextTemplate.BuildLooseFromPlainText(text);
+        // Two shapes carry a value: the word UNKNOWN, and a run of two spaces where the game
+        // splices an item or a name. Both are wildcards in the template.
+        string built;
+        if (Regex.IsMatch(text, @"\s{2,}", RegexOptions.CultureInvariant))
+            built = ScriptTextTemplate.BuildBlankGapTemplate(text);
+        else if (text.Contains("UNKNOWN", StringComparison.Ordinal))
+            built = ScriptTextTemplate.BuildLooseFromPlainText(text);
+        else
+            return false;
         if (built.Length == 0)
             return false;
 
