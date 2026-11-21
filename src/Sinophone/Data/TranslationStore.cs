@@ -292,6 +292,18 @@ public sealed partial class TranslationStore
             }
         }
 
+        // Two scenes of one cutscene file can hold the same line twice, and the localisation
+        // differs only in a closing mark. Saying either is right, so answer instead of refusing.
+        if (AllSayTheSame(narrowed))
+        {
+            chineseText = ResolveDisplay(narrowed[0].Display);
+            _log.Debug(
+                "Dialogue picked one of {Count} script lines that share a key and differ only in " +
+                "punctuation ({Keys}).",
+                narrowed.Count, Describe(narrowed[0]));
+            return true;
+        }
+
         // The line stays English. Name the dump keys, because a report of a missing line cannot
         // say which scenes collided from a count alone.
         _log.Debug(
@@ -303,6 +315,42 @@ public sealed partial class TranslationStore
             string.Join(", ", candidates.Select(Describe)));
 
         return false;
+    }
+
+    /// <summary>True when every candidate shows the same text once punctuation and space are gone.</summary>
+    private static bool AllSayTheSame(List<ScriptCandidate> candidates)
+    {
+        if (candidates.Count < 2)
+            return false;
+
+        var first = TextWithoutPunctuation(candidates[0].Display);
+        if (first.Length == 0)
+            return false;
+
+        for (var i = 1; i < candidates.Count; i++)
+        {
+            if (!string.Equals(first, TextWithoutPunctuation(candidates[i].Display), StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static string TextWithoutPunctuation(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        var builder = new System.Text.StringBuilder(text.Length);
+        foreach (var character in MacroNormalizer.CleanForDisplay(text))
+        {
+            if (char.IsPunctuation(character) || char.IsWhiteSpace(character) || char.IsSymbol(character))
+                continue;
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>The dump keys behind one candidate, for the debug log.</summary>
@@ -465,6 +513,13 @@ public sealed partial class TranslationStore
     /// game sometimes uses the full character name and sometimes only the first
     /// name, while the dump writes only the placeholder.
     /// </summary>
+    /// <summary>The name the store was given, for a log line that has to explain a miss.</summary>
+    private string DescribePlayerName()
+    {
+        var name = _playerName?.Invoke();
+        return string.IsNullOrWhiteSpace(name) ? "<empty>" : name;
+    }
+
     /// <summary>
     /// The key with the player's name put back as the dump placeholder, or empty when no name is
     /// known or the key does not hold it.
@@ -686,6 +741,13 @@ public sealed partial class TranslationStore
         // never equals the sheet's wording. Put the placeholder back before comparing, or every row
         // that names the player looks like a slot that does not match.
         var nameKey = PlayerNamePlaceholderKey(key);
+        if (nameKey.Length == 0)
+        {
+            _log.Debug(
+                "Row {Sheet} {RowId}: the slot compare had no player name to put back ({Name}), " +
+                "so the sheet's Player placeholder could not match.",
+                row.Sheet, row.RowId, DescribePlayerName());
+        }
 
         compared = true;
 

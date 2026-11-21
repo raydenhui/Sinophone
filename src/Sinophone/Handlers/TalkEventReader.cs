@@ -198,8 +198,8 @@ internal sealed partial class TalkEventReader
                     return scene;
                 }
 
-                if (play->CutsceneId != 0)
-                    return play->CutsceneId;
+                // No path number: leave the scene at 0. A cutscene row id is not a VoiceMan scene
+                // number, so passing it could only narrow to the wrong line, or to none.
             }
         }
         catch (Exception ex)
