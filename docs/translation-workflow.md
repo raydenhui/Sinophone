@@ -170,6 +170,7 @@ flowchart TD
    - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live English variants via `SheetCatalog` and picks the slot whose normalized text matches `englishText`. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
 2. **Ambiguous script disambiguation (`TryLookupAmbiguousScript`)**:
    - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `_textLookup` and stored in `_ambiguousScriptKeys`.
+   - A sheet row can also share an English line with script lines, such as `NpcYell` and a cutscene line. The sheet text stays in `_textLookup` as the fallback, and the script candidates are added to `_ambiguousScriptKeys`, so the speaker, scene, or script hint picks the script line when it can.
    - Narrowing runs in five steps:
      1. **Speaker tokens**: Matches normalized speaker words (and full punctuation-free name, e.g. `G'raha Tia` -> `GRAHATIA`) against key tokens (`KeySpeakerTokens`).
      2. **Cutscene ID**: Matches `context.CutsceneId` against `TEXT_VOICEMAN_<id>_...`.

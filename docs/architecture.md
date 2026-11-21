@@ -102,8 +102,10 @@ current company block should render.
 
 Several script lines can share one English line. The dumps pair by text key, and a generic line such
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
-different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in
-`_ambiguousScriptKeys` and narrows them by the speaker name, the cutscene number, and the event
+different NPC. A sheet row can share the same English line with script lines; the sheet text stays
+as the fallback while the script candidates are kept for the identity steps. The text index never
+answers a script key directly: `TranslationStore` keeps the candidates in `_ambiguousScriptKeys`
+and narrows them by the speaker name, the cutscene number, and the event
 script hints. The hints come from a Lua handler key, the tracked quest ids in
 `UIState.QuestTodoList`, a sibling option, or a fallback scan of every Lua handler when the active
 filter finds no key. The speaker name is matched against the speaker token in the dump key, such as
