@@ -31,7 +31,12 @@ internal sealed partial class TalkEventReader
 
         var handlers = CollectHandlers(framework, readAllLuaTexts: false, englishText, targetAddress);
         if (handlers.Count == 0)
-            return default;
+        {
+            // A cutscene choice runs with no talk handler of its own, and the scene number is the
+            // only thing that tells its VOICEMAN lines apart from another scene's.
+            var scene = ReadCutsceneId(framework);
+            return scene == 0 ? default : new DialogueContext(CutsceneId: scene);
+        }
 
         var scriptKeys = new List<string>();
         var rows = new List<DialogueRowId>();

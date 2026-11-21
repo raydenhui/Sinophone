@@ -642,6 +642,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_UsesTheCutsceneScene_ToPickASharedOptionLine()
+    {
+        // The real keys from a cutscene choice: the same English option sits in several scenes.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_A2_000_001_NONE_VOICE", "It's a secret.", "保密！"),
+            ("TEXT_VOICEMAN_06005_A2_000_001_NONE_VOICE", "It's a secret.", "這是秘密。"),
+            ("TEXT_VOICEMAN_06006_A2_000_003_NONE_VOICE", "Nothing in particular.", "也沒什麼事"),
+            ("TEXT_VOICEMAN_06005_A2_000_003_NONE_VOICE", "Nothing in particular.", "什麼都不做。"),
+            ("TEXT_VOICEMAN_07003_000520_ESTINIEN", "Nothing in particular.", "我只是到處遊山玩水。"));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(Artifact("TC", scripts)),
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        var scene = new DialogueContext(CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue("Nothing in particular.", in scene, null, out var chinese));
+        Assert.Equal("也沒什麼事", chinese);
+
+        // Without the scene the store cannot tell the scenes apart, so the line stays English.
+        Assert.False(store.TryGetDialogue("Nothing in particular.", out _));
+    }
+
+    [Fact]
     public void Load_IndexesScriptLines_WhenArtifactHasScripts()
     {
         var artifacts = Artifacts(null, Artifact("TC", Scripts(("Hello from a script.", "腳本你好。"))));
