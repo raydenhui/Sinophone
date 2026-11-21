@@ -222,7 +222,7 @@ public sealed partial class TranslationStore
         // Second chances, only after a miss so the common line stays one hit. The
         // game fills in the player's name where the dumps have a placeholder, and
         // script lines from the English dump hold one gender's wording.
-        if (TryLookupPlayerNamePlaceholder(key, out chineseText))
+        if (TryLookupPlayerNamePlaceholder(key, in context, speakerName, out chineseText))
             return true;
 
         if (TryLookupScriptTemplate(key, out chineseText))
@@ -785,7 +785,11 @@ public sealed partial class TranslationStore
         }
     }
 
-    private bool TryLookupPlayerNamePlaceholder(string key, out string chineseText)
+    private bool TryLookupPlayerNamePlaceholder(
+        string key,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         chineseText = string.Empty;
 
@@ -793,7 +797,7 @@ public sealed partial class TranslationStore
         if (string.IsNullOrEmpty(fullName))
             return false;
 
-        if (TryPlayerNameVariant(key, fullName, out chineseText))
+        if (TryPlayerNameVariant(key, fullName, in context, speakerName, out chineseText))
             return true;
 
         var separator = fullName.IndexOf(' ');
@@ -804,7 +808,7 @@ public sealed partial class TranslationStore
         if (string.Equals(firstName, fullName, StringComparison.Ordinal))
             return false;
 
-        if (TryPlayerNameVariant(key, firstName, out chineseText))
+        if (TryPlayerNameVariant(key, firstName, in context, speakerName, out chineseText))
             return true;
 
         // A line can write both forms: the dump puts "Player Player" where the game shows the full
@@ -816,16 +820,21 @@ public sealed partial class TranslationStore
             firstName);
 
         return !ReferenceEquals(combined, key)
-               && TryLookupWithGenderFallback(combined, out chineseText);
+               && TryLookupWithGenderFallback(combined, in context, speakerName, out chineseText);
     }
 
-    private bool TryPlayerNameVariant(string key, string playerName, out string chineseText)
+    private bool TryPlayerNameVariant(
+        string key,
+        string playerName,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         chineseText = string.Empty;
 
         var doublePlaceholder = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
         if (!ReferenceEquals(doublePlaceholder, key)
-            && TryLookupWithGenderFallback(doublePlaceholder, out chineseText))
+            && TryLookupWithGenderFallback(doublePlaceholder, in context, speakerName, out chineseText))
         {
             return true;
         }
@@ -833,7 +842,7 @@ public sealed partial class TranslationStore
         var singlePlaceholder = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(key, playerName);
         return !ReferenceEquals(singlePlaceholder, key)
                && !string.Equals(singlePlaceholder, doublePlaceholder, StringComparison.Ordinal)
-               && TryLookupWithGenderFallback(singlePlaceholder, out chineseText);
+               && TryLookupWithGenderFallback(singlePlaceholder, in context, speakerName, out chineseText);
     }
 
     private bool TryLookupScriptTemplate(string key, out string chineseText)
@@ -852,9 +861,16 @@ public sealed partial class TranslationStore
         return false;
     }
 
-    private bool TryLookupWithGenderFallback(string key, out string chineseText)
+    private bool TryLookupWithGenderFallback(
+        string key,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         chineseText = string.Empty;
+
+        if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText))
+            return true;
 
         if (_textLookup.TryGetValue(key, out var stored))
         {

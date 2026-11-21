@@ -689,6 +689,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AnswersAnAmbiguousLine_WhenThePlayerNameIsTheOnlyDifference()
+    {
+        // "Are you ready, Player?" is shared by several speakers. The live line has the real
+        // name, and the placeholder step has to reach the ambiguous script step after restoring it.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_AKTKMG115_04464_ALPHINAUD_000_010",
+             "Are you ready, Player?",
+             "<Highlight>ObjectParameter(1)</Highlight>……你準備好了嗎？"),
+            ("TEXT_STMBDR301_03154_CID_000_050",
+             "Are you ready, Player?",
+             "那麼……怎麼樣，<Highlight>ObjectParameter(1)</Highlight>，\n準備好了嗎？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Nedyar Sol");
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue("Are you ready, Nedyar?", in context, "Alphinaud", out var chinese));
+        Assert.Equal("……你準備好了嗎？", chinese);
+    }
+
+    [Fact]
     public void Lookup_AnswersASheetRow_WhoseEnglishNamesTheOtherGender()
     {
         // DefaultTalk 598565: the dump holds "Ah, Mistress Player" and the game shows
