@@ -744,7 +744,7 @@ public sealed partial class TranslationStore
     /// matches the start of the text. False means the dumps have no row for it at all, which is
     /// what a live client newer than the data looks like.
     /// </summary>
-    public bool HasAddonPromptLike(string? englishText, int prefixLength = 12)
+    public bool HasAddonPromptLike(string? englishText, int prefixLength = 8)
     {
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length < prefixLength)
@@ -757,8 +757,7 @@ public sealed partial class TranslationStore
             if (template.Length == 0 || template[0] == ScriptTextTemplate.Wildcard)
                 continue;
 
-            var literal = template.Split(ScriptTextTemplate.Wildcard)[0];
-            if (literal.Length >= prefixLength && literal.StartsWith(prefix, StringComparison.Ordinal))
+            if (template.StartsWith(prefix, StringComparison.Ordinal))
                 return true;
         }
 
