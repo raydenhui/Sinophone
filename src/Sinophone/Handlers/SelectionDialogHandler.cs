@@ -98,6 +98,12 @@ public sealed class SelectionDialogHandler : IDisposable
     /// <summary>Addons already reported as waiting for the translation store, so the log stays one line.</summary>
     private readonly HashSet<string> _waitingForStore = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The last text each node failed on, so a dialog retried twelve times logs one line per node
+    /// instead of twelve.
+    /// </summary>
+    private readonly Dictionary<nint, string> _reportedMiss = [];
+
     private bool _disposed;
 
     public SelectionDialogHandler(
@@ -164,6 +170,7 @@ public sealed class SelectionDialogHandler : IDisposable
             ForgetTracked(addonName);
 
         _lateAttempts[addonName] = 0;
+        _reportedMiss.Clear();
         Translate(addonName);
     }
 
@@ -208,6 +215,11 @@ public sealed class SelectionDialogHandler : IDisposable
             if (string.IsNullOrWhiteSpace(source))
                 continue;
 
+            // The client is English. A node with no Latin letter holds either our own translation
+            // or a label the client builds in its own language, and neither is a line to look up.
+            if (!HasLatinLetter(source))
+                continue;
+
             if (traceNodes)
                 _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
@@ -218,11 +230,17 @@ public sealed class SelectionDialogHandler : IDisposable
                 _nativeWriter.ClearIfStillOursAt(addonName, nodeAddress);
 
                 // A prompt that stays English is either a miss or the wrong timing; the text and
-                // the addon name are what a report needs to tell those apart. Bounded: a node is
-                // retried a limited number of times.
-                _log.Debug(
-                    "Selection dialog {Addon} node {NodeId}: no translation for {Text}",
-                    addonName, nodeId, TalkHandler.FirstLineOf(source));
+                // the addon name are what a report needs to tell those apart. One line per node
+                // and text, because a dialog is retried a dozen times.
+                if (!_reportedMiss.TryGetValue(nodeAddress, out var reported)
+                    || !string.Equals(reported, source, StringComparison.Ordinal))
+                {
+                    _reportedMiss[nodeAddress] = source;
+                    _log.Debug(
+                        "Selection dialog {Addon} node {NodeId}: no translation for {Text} " +
+                        "({Length} chars, {Templates:N0} addon templates)",
+                        addonName, nodeId, Excerpt(source), source.Length, store.AddonTemplateCount);
+                }
 
                 continue;
             }
@@ -379,6 +397,25 @@ public sealed class SelectionDialogHandler : IDisposable
 
         _lateAttempts[addonName] = attempts + 1;
         Translate(addonName);
+    }
+
+    /// <summary>True for text with a Latin letter, which is the only text this plugin looks up.</summary>
+    private static bool HasLatinLetter(string text)
+    {
+        foreach (var character in text)
+        {
+            if (character is >= 'a' and <= 'z' or >= 'A' and <= 'Z')
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>The first line of a line, long enough to compare with the sheet in the log.</summary>
+    private static string Excerpt(string text)
+    {
+        var line = TalkHandler.FirstLineOf(text);
+        return line.Length <= 120 ? line : line[..120] + "…";
     }
 
     private void Reapply(string addonName)
