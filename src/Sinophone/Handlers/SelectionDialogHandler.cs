@@ -49,6 +49,11 @@ public sealed class SelectionDialogHandler : IDisposable
     /// <c>&lt;Format(IntegerParameter(1),FF022C)/&gt;</c>. The tag itself has no text,
     /// so the value must be substituted before the macro strip removes the tag.
     /// </summary>
+    /// <summary>A number as the English shows it, including thousands separators.</summary>
+    private static readonly Regex EnglishDigits = new(
+        @"\d[\d,]*",
+        RegexOptions.CultureInvariant);
+
     private static readonly Regex FormattedValue = new(
         @"<(?:Format|Digit)\(IntegerParameter\((\d+)\)[^<>]*/>",
         RegexOptions.CultureInvariant);
@@ -103,6 +108,13 @@ public sealed class SelectionDialogHandler : IDisposable
     /// instead of twelve.
     /// </summary>
     private readonly Dictionary<nint, string> _reportedMiss = [];
+
+    /// <summary>
+    /// What this handler last wrote into each node. The writer's saved entry can be dropped while
+    /// the node keeps the translation, and then the node would be looked up as if it were source
+    /// text; this is what tells the two apart.
+    /// </summary>
+    private readonly Dictionary<nint, string> _written = [];
 
     private bool _disposed;
 
@@ -171,6 +183,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
         _lateAttempts[addonName] = 0;
         _reportedMiss.Clear();
+        _written.Clear();
         Translate(addonName);
     }
 
@@ -215,6 +228,12 @@ public sealed class SelectionDialogHandler : IDisposable
             if (string.IsNullOrWhiteSpace(source))
                 continue;
 
+            if (_written.TryGetValue(nodeAddress, out var written)
+                && string.Equals(written, source, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             // The client is English. A node with no Latin letter holds either our own translation
             // or a label the client builds in its own language, and neither is a line to look up.
             if (!HasLatinLetter(source))
@@ -249,6 +268,7 @@ public sealed class SelectionDialogHandler : IDisposable
             var fitted = FitPromptLines(node, source, chinese);
             if (_nativeWriter.WriteAt(addonName, nodeAddress, fitted))
             {
+                _written[nodeAddress] = fitted;
                 Remember(addonName, nodeAddress);
                 _log.Debug("Selection dialog {Addon} node {NodeId}: {Source} -> {Chinese}",
                     addonName, nodeId, source, fitted);
@@ -517,7 +537,13 @@ public sealed class SelectionDialogHandler : IDisposable
         }
 
         if (store.TryGetDialogue(text, out chinese))
-            return true;
+        {
+            // A line found by its text can hold values the dialog does not pass, such as the price
+            // in "Pay 2,000 gil?". The same resolve the templates use fills them from the English
+            // line, and leaves the prompt English when a value cannot be filled.
+            chinese = ResolveAddonText(chinese, plainText);
+            return chinese.Length > 0;
+        }
 
         if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices))
         {
@@ -639,23 +665,11 @@ public sealed class SelectionDialogHandler : IDisposable
             return string.Empty;
 
         // Addon rows such as "Garden n: Patch n" use the first two integer
-        // parameters. The numbers in the live prompt are their fallback value.
+        // parameters. The numbers in the live prompt are their fallback value, and a price keeps the
+        // separators the English showed: "2,000" is one number, not two.
         var numbers = new List<string>();
-        var currentNumber = new StringBuilder();
-        foreach (var ch in liveEnglish)
-        {
-            if (char.IsDigit(ch))
-            {
-                currentNumber.Append(ch);
-            }
-            else if (currentNumber.Length > 0)
-            {
-                numbers.Add(currentNumber.ToString());
-                currentNumber.Clear();
-            }
-        }
-        if (currentNumber.Length > 0)
-            numbers.Add(currentNumber.ToString());
+        foreach (System.Text.RegularExpressions.Match match in EnglishDigits.Matches(liveEnglish))
+            numbers.Add(match.Value);
 
         // A Format macro has no text of its own: it renders the value of the
         // expression inside the tag. Replace the whole tag, or the macro strip

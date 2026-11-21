@@ -90,6 +90,25 @@ public class SelectionDialogHandlerTests
     }
 
     [Fact]
+    public void ResolveAddonText_FillsThePriceOfAPaymentPrompt()
+    {
+        // A script line found by its text has no captures, so the price comes from the English.
+        const string chinese = "確定要支付<Format(IntegerParameter(1),FF022C)/>Gil嗎？";
+
+        var resolved = SelectionDialogHandler.ResolveAddonText(chinese, "Pay 2,000 gil?");
+
+        Assert.Equal("確定要支付2,000Gil嗎？", resolved);
+    }
+
+    [Fact]
+    public void ResolveAddonText_LeavesThePromptEnglish_WhenThePriceIsMissing()
+    {
+        const string chinese = "確定要支付<Format(IntegerParameter(1),FF022C)/>Gil嗎？";
+
+        Assert.Empty(SelectionDialogHandler.ResolveAddonText(chinese, "Pay gil?"));
+    }
+
+    [Fact]
     public void ResolveAddonText_FillsQuestNameAndLevels()
     {
         const string chinese =
