@@ -269,8 +269,29 @@ public sealed partial class TranslationStore
             }
         }
 
+        if (context.ChocoboTaxiStandUnlocked is { } standUnlocked)
+        {
+            var match = OnlyMatch(narrowed, candidate => HoldsUnlockLine(candidate) != standUnlocked);
+            if (match is not null)
+            {
+                chineseText = ResolveDisplay(match.Value.Display);
+                _log.Debug(
+                    "Dialogue picked the {State} chocobo taxi greeting out of {Count} script lines " +
+                    "that share a key.",
+                    standUnlocked ? "unlocked" : "locked", narrowed.Count);
+                return true;
+            }
+        }
+
         return false;
     }
+
+    /// <summary>
+    /// True when the candidate's dump key marks a line for a feature that has just unlocked, such
+    /// as <c>TEXT_CHOCOBOTAXISTAND_00000_CHOCOBOTAXI_UNLOCK_01</c>.
+    /// </summary>
+    private static bool HoldsUnlockLine(ScriptCandidate candidate)
+        => Array.Exists(candidate.Keys, key => key.Contains("_UNLOCK", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The one candidate that matches, or null when none or several do.</summary>
     private static ScriptCandidate? OnlyMatch(List<ScriptCandidate> candidates, Predicate<ScriptCandidate> matches)

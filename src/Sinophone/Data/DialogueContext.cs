@@ -15,4 +15,5 @@ public readonly record struct DialogueRowId(string Sheet, uint RowId, string Fie
 public readonly record struct DialogueContext(
     DialogueRowId? Row = null,
     IReadOnlyList<string>? ScriptKeys = null,
-    uint CutsceneId = 0);
+    uint CutsceneId = 0,
+    bool? ChocoboTaxiStandUnlocked = null);

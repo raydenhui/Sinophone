@@ -751,6 +751,48 @@ public class TranslationStoreTests
         Assert.False(store.TryGetDialogue(SharedVoiceLine, in context, out _));
     }
 
+    /// <summary>The real porter pair: the question, and the announcement for a locked stand.</summary>
+    private static Dictionary<string, ScriptEntry> TaxiGreetingScripts()
+        => ScriptsWithKeys(
+            ("TEXT_CHOCOBOTAXISTAND_00000_CHOCOBOTAXI_01", "Well met, traveler!", "歡迎光臨。您要使用「陸行鳥運輸」嗎？"),
+            ("TEXT_CHOCOBOTAXISTAND_00000_CHOCOBOTAXI_UNLOCK_01", "Well met, traveler!", "歡迎光臨。此處可以為您提供「陸行鳥運輸」的服務。"));
+
+    [Fact]
+    public void Lookup_PicksTheTaxiGreetingForAnUnlockedStand()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", TaxiGreetingScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(ChocoboTaxiStandUnlocked: true);
+
+        Assert.True(store.TryGetDialogue("Well met, traveler!", in context, out var chinese));
+        Assert.Equal("歡迎光臨。您要使用「陸行鳥運輸」嗎？", chinese);
+    }
+
+    [Fact]
+    public void Lookup_PicksTheTaxiAnnouncementForAStandThatIsStillLocked()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", TaxiGreetingScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(ChocoboTaxiStandUnlocked: false);
+
+        Assert.True(store.TryGetDialogue("Well met, traveler!", in context, out var chinese));
+        Assert.Equal("歡迎光臨。此處可以為您提供「陸行鳥運輸」的服務。", chinese);
+    }
+
+    [Fact]
+    public void Lookup_StaysUnanswered_WhenTheTaxiStandStateIsUnknown()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", TaxiGreetingScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("Well met, traveler!", out _));
+    }
+
     [Fact]
     public void Cache_KeepsTheScriptLinesThatShareOneEnglishKey()
     {

@@ -279,8 +279,10 @@ premature interface.
   speaker name picks the right one through the speaker token in the dump key (`..._JULLUS`, and
   `..._GRAHATIA` for a two-part name, so the whole name without punctuation is matched too), and a
   cutscene picks it through the number in a `VOICEMAN` key (`TEXT_VOICEMAN_06005_...` is cutscene
-  6005, read from `PlayCutSceneTask.CutsceneId`); an unnamed or unclear speaker leaves the line
-  English instead of showing another scene's text.
+  6005, read from `PlayCutSceneTask.CutsceneId`). A chocobokeep's greeting is the same English line
+  for a stand that just became usable and for every later visit, so `UIState.IsChocoboTaxiStandUnlocked`
+  on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. An
+  unnamed or unclear speaker leaves the line English instead of showing another scene's text.
   The English script dumps mark italics with one asterisk and bold with two; the game draws that emphasis with a SeString macro, so
   `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
   from the text node before lookup. The dumps write client macros the datamining tool cannot
