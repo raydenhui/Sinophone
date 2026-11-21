@@ -62,6 +62,29 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AnswersALineThatWritesBothPlayerNamePlaceholders()
+    {
+        // The dump writes "Player Player" for the full name and "Player" for the given name, and
+        // one line can hold both.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_TEST_000_1", "Player Player is Player of the Scions.", "Player Player是Player的拂曉血盟成員。"));
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Y'shtola Rhul");
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Y'shtola Rhul is Y'shtola of the Scions.", out var chinese));
+        Assert.Equal("Player Player是Player的拂曉血盟成員。", chinese);
+    }
+
+    [Fact]
     public void Lookup_DoesNotRepeatACandidate_WhenTheFallbackVariantOwnsTheSameKey()
     {
         // The fallback artifact carries the same dump keys with its own Chinese. They are the same

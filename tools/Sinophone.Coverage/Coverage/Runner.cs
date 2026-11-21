@@ -107,6 +107,11 @@ internal sealed class Runner
                 if (!HasWords(english))
                     continue;
 
+                // The Addon sheet writes UNKNOWN where the game fills a value. The store's template
+                // matches any value there, so the probe asks with one in place.
+                if (source.Kind == SourceKind.SelectionAddon)
+                    english = Dynamic.FillUnknownPlaceholders(english);
+
                 foreach (var variant in Variants(english))
                 {
                     if (string.IsNullOrWhiteSpace(variant))

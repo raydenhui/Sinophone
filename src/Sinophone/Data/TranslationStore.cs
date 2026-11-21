@@ -481,8 +481,22 @@ public sealed partial class TranslationStore
             return false;
 
         var firstName = fullName[..separator];
-        return !string.Equals(firstName, fullName, StringComparison.Ordinal)
-               && TryPlayerNameVariant(key, firstName, out chineseText);
+        if (string.Equals(firstName, fullName, StringComparison.Ordinal))
+            return false;
+
+        if (TryPlayerNameVariant(key, firstName, out chineseText))
+            return true;
+
+        // A line can write both forms: the dump puts "Player Player" where the game shows the full
+        // name and "Player" where it shows the given name, as in "Player Player is Player of the
+        // Scions". One name at a time cannot reduce that to the stored key, so put the full name in
+        // the double placeholder first and the given name in what is left.
+        var combined = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(
+            MacroNormalizer.RestorePlayerNamePlaceholder(key, fullName),
+            firstName);
+
+        return !ReferenceEquals(combined, key)
+               && TryLookupWithGenderFallback(combined, out chineseText);
     }
 
     private bool TryPlayerNameVariant(string key, string playerName, out string chineseText)

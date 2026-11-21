@@ -83,7 +83,7 @@ internal sealed class EnCsv
 }
 
 /// <summary>A sheet descriptor over the English dump, so the store indexes without the game.</summary>
-internal sealed class EnCsvSheetDescriptor : ISheetDescriptor
+internal sealed class EnCsvSheetDescriptor : ISheetDescriptor, IParameterizedTemplateDescriptor
 {
     private readonly EnCsv _csv;
 
@@ -100,6 +100,32 @@ internal sealed class EnCsvSheetDescriptor : ISheetDescriptor
     public string FieldName { get; }
 
     public bool IsNameSheet { get; }
+
+    /// <summary>
+    /// Builds the Addon match template from the dump text, where the game fills a value at the
+    /// literal word <c>UNKNOWN</c>. The live client builds the same template from the SeString's
+    /// parameter macros; the dump has no macros, so the word is the only thing to go on.
+    /// </summary>
+    public bool TryBuildTemplate(uint rowId, out AddonParameterTemplate template)
+    {
+        template = null!;
+
+        if (!_csv.TryGetSlots(rowId, out var slots) || slots.Length == 0)
+            return false;
+
+        var text = slots[0];
+        if (text.Length == 0 || !text.Contains("UNKNOWN", StringComparison.Ordinal))
+            return false;
+
+        var built = ScriptTextTemplate.BuildLooseFromPlainText(text);
+        if (built.Length == 0)
+            return false;
+
+        var indices = new int[built.Count(character => character == ScriptTextTemplate.Wildcard)];
+        Array.Fill(indices, -1);
+        template = new AddonParameterTemplate(built, indices);
+        return true;
+    }
 
     public bool TryExtract(uint rowId, out IReadOnlyList<IReadOnlyList<string>> texts)
     {
