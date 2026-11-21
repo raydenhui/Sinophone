@@ -17,6 +17,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
     [PluginService] public static INamePlateGui NamePlateGui { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
+
+    [PluginService] public static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
@@ -543,7 +545,7 @@ public sealed class Plugin : IDalamudPlugin
                     descriptors,
                     dialogueLog,
                     ResolveDisplayText,
-                    () => PlayerState.CharacterName,
+                    () => CurrentPlayerName(),
                     out var cached))
             {
                 return new StoreLoadResult(cached, null);
@@ -707,7 +709,7 @@ public sealed class Plugin : IDalamudPlugin
                     variant,
                     log,
                     ResolveDisplayText,
-                    () => PlayerState.CharacterName,
+                    () => CurrentPlayerName(),
                     configuration,
                     indexResolver);
 
@@ -762,6 +764,20 @@ public sealed class Plugin : IDalamudPlugin
     /// The display resolver for the index build. The build runs on a worker task,
     /// so the player state it may need is read once here and captured.
     /// </summary>
+    /// <summary>
+    /// The character's name, for the placeholder the dumps write as "Player". PlayerState is the
+    /// first source; the object table is the second, because a lookup that runs before the player
+    /// state has loaded would otherwise find no name and leave the line English.
+    /// </summary>
+    private static string CurrentPlayerName()
+    {
+        var name = PlayerState?.CharacterName;
+        if (!string.IsNullOrWhiteSpace(name))
+            return name;
+
+        return ObjectTable?.LocalPlayer?.Name.TextValue ?? string.Empty;
+    }
+
     private Func<string, string> CreateLoadDisplayResolver()
     {
         var loaded = PlayerState.IsLoaded;

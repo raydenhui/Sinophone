@@ -465,6 +465,13 @@ public sealed partial class TranslationStore
     /// game sometimes uses the full character name and sometimes only the first
     /// name, while the dump writes only the placeholder.
     /// </summary>
+    /// <summary>The name the store was given, for a log line that has to explain a miss.</summary>
+    private string DescribePlayerName()
+    {
+        var name = _playerName?.Invoke();
+        return string.IsNullOrWhiteSpace(name) ? "<empty>" : name;
+    }
+
     /// <summary>
     /// The key with the player's name put back as the dump placeholder, or empty when no name is
     /// known or the key does not hold it.
@@ -686,6 +693,13 @@ public sealed partial class TranslationStore
         // never equals the sheet's wording. Put the placeholder back before comparing, or every row
         // that names the player looks like a slot that does not match.
         var nameKey = PlayerNamePlaceholderKey(key);
+        if (nameKey.Length == 0)
+        {
+            _log.Debug(
+                "Row {Sheet} {RowId}: the slot compare had no player name to put back ({Name}), " +
+                "so the sheet's Player placeholder could not match.",
+                row.Sheet, row.RowId, DescribePlayerName());
+        }
 
         compared = true;
 

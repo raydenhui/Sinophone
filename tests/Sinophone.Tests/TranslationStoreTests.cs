@@ -642,6 +642,36 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AnswersTheRealStudiumLine_WithTheLivePlayerName()
+    {
+        const string sheet = "Ah, Player! I have come to this Studium in order to study pudding.";
+        const string live = "Ah, Nedyar! I have come to this Studium in order to study pudding.";
+
+        var descriptor = new FakeSheetDescriptor("DefaultTalk", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [598522] = [sheet, "0", "0"],
+            });
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(Artifact("TC", ("DefaultTalk", "Text", 598522, "PUDDING-CHINESE"))),
+            new FakePluginLog(),
+            playerName: () => "Nedyar");
+
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(new DialogueRowId("DefaultTalk", 598522, "Text"));
+        Assert.True(store.TryGetDialogue(live, in context, "Puddingway", out var byId), "row id path");
+        Assert.Equal("PUDDING-CHINESE", byId);
+
+        Assert.True(store.TryGetDialogue(live, out var byText), "text path");
+        Assert.Equal("PUDDING-CHINESE", byText);
+    }
+
+    [Fact]
     public void Lookup_UsesTheCutsceneScene_ToPickASharedOptionLine()
     {
         // The real keys from a cutscene choice: the same English option sits in several scenes.
