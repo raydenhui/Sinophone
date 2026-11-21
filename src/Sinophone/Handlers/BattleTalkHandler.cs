@@ -138,6 +138,9 @@ public sealed class BattleTalkHandler : IDisposable
         InstallHooks();
     }
 
+    /// <summary>True once at least one show function is hooked, for the startup log.</summary>
+    public bool IsHooked => _plainHook is not null || _imageHook is not null || _soundHook is not null;
+
     /// <summary>
     /// Places the three hooks. The virtual table is read from the live module, so a table that
     /// moved leaves every hook unplaced and every line English.
@@ -164,7 +167,7 @@ public sealed class BattleTalkHandler : IDisposable
             _imageHook = Hook<ShowBattleTalkImageDelegate>(table[ShowBattleTalkImageIndex], OnShowBattleTalkImage);
             _soundHook = Hook<ShowBattleTalkSoundDelegate>(table[ShowBattleTalkSoundIndex], OnShowBattleTalkSound);
 
-            _log.Debug(
+            _log.Info(
                 "Battle talk: hooked ShowBattleTalk at {Plain:X}, the image form at {Image:X}, and the " +
                 "sound form at {Sound:X}.",
                 table[ShowBattleTalkIndex], table[ShowBattleTalkImageIndex], table[ShowBattleTalkSoundIndex]);
@@ -300,7 +303,12 @@ public sealed class BattleTalkHandler : IDisposable
 
         var store = _getStore();
         if (store is null)
+        {
+            // The index is still loading. A line that plays now stays English; the log says why, so
+            // a report of a missed line can be told apart from a hook that never fired.
+            _log.Debug("Battle talk: the translation store is not ready yet; leaving the line English.");
             return false;
+        }
 
         var english = MemoryHelper.ReadStringNullTerminated((nint)text.Value).Trim();
         if (english.Length == 0)
