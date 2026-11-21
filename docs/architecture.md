@@ -100,6 +100,10 @@ Display resolves Grand Company parameters 52, 53, and 54 against the player's
 current company and rank. A line can contain one block per company, and only the
 current company block should render.
 
+A script key read from `LuaEventHandler.LuaTexts` is used only when the dump paired
+that key with the same English line. The live Lua map can reuse a key for another
+menu line, and the old code would then show the dump's unrelated Chinese.
+
 Several script lines can share one English line. The dumps pair by text key, and a generic line such
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
 different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in

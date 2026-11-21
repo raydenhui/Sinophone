@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 7;
+    public const int IndexFormatVersion = 8;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
@@ -66,6 +66,9 @@ public sealed partial class TranslationStore
 
     /// <summary>Script translations keyed by the dump's text key, when the game exposes it.</summary>
     private readonly Dictionary<string, string> _scriptKeyLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The normalized English line each script key was paired with in the dump.</summary>
+    private readonly Dictionary<string, string> _scriptKeyEnglishLookup = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Script lines that share one English key but have different Chinese, such as the
@@ -864,13 +867,36 @@ public sealed partial class TranslationStore
 
         if (context.ScriptKeys is not null)
         {
+            var liveKey = MacroNormalizer.NormalizeKey(englishText);
             foreach (var scriptKey in context.ScriptKeys)
             {
                 if (string.IsNullOrWhiteSpace(scriptKey))
                     continue;
 
-                if (!_scriptKeyLookup.TryGetValue(scriptKey.Trim(), out var script))
+                var trimmed = scriptKey.Trim();
+                if (!_scriptKeyLookup.TryGetValue(trimmed, out var script))
                     continue;
+
+                // The live Lua text map can reuse a key for another line. Trust the key only
+                // when the dump paired it with the same English line. Put the player name back
+                // and collapse gender/time wording first, because those differences are expected.
+                if (_scriptKeyEnglishLookup.TryGetValue(trimmed, out var pairedKey))
+                {
+                    var liveForCompare = PlayerNamePlaceholderKey(liveKey);
+                    if (liveForCompare.Length == 0)
+                        liveForCompare = liveKey;
+
+                    if (!string.Equals(
+                            CollapseBranchWords(liveForCompare),
+                            CollapseBranchWords(pairedKey),
+                            StringComparison.Ordinal))
+                    {
+                        _log.Debug(
+                            "Dialogue ignored script key {ScriptKey}: it names {Paired}, not {Live}.",
+                            trimmed, pairedKey, liveKey);
+                        continue;
+                    }
+                }
 
                 chineseText = ResolveDisplay(script);
                 _log.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
@@ -1677,7 +1703,10 @@ public sealed partial class TranslationStore
             // exposes it through the event handler, so keep it separate from the
             // English key and let an id lookup win over duplicate text.
             if (!string.IsNullOrWhiteSpace(scriptKey))
+            {
                 _scriptKeyLookup.TryAdd(scriptKey, display);
+                _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
+            }
 
             if (_ambiguousScriptKeys.TryGetValue(key, out var known))
             {

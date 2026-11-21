@@ -294,7 +294,9 @@ premature interface.
 - **English only.** Lookup is keyed on the English text the game displays. The other three game
   languages (Japanese, German, French) are planned but not supported. This is a design change,
   not a setting. Ask before starting that refactor.
-- **Exact match.** After normalization, a line must match exactly. One different character means
+- **Exact match.** After normalization, a line must match exactly. A script key from the live Lua
+  text map is used only when the dump paired it with the same English line; the live map can reuse
+  a key for another menu line. One different character means
   a miss. Dialogue with a runtime id is tried by id first; when the game exposes no id, lookup
   falls back to this text match. Names are the exception: `ENpcResident` stores generic NPC names in lower case
   (`skywatcher`) and the game shows them capitalised (`Skywatcher`), so the name lookup ignores
