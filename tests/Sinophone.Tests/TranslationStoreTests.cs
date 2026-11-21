@@ -62,6 +62,20 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_NamesTheCandidateKeys_WhenAnAmbiguousLineIsNotAnswered()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
+        var log = new FakePluginLog();
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, log);
+
+        Assert.False(store!.TryGetDialogue("You bastard!", default, "Y'shtola", out _));
+
+        var message = Assert.Single(log.Entries, e => e.Message.Contains("none was chosen", StringComparison.Ordinal)).Message;
+        Assert.Contains("TEXT_VOICEMAN_05004_004230_THANCRED", message);
+        Assert.Contains("TEXT_JOBPLD650_02573_ALDIS_000_052", message);
+    }
+
+    [Fact]
     public void Lookup_DoesNotLog_WhenTheDialogueGroupIsOff()
     {
         var (store, log) = LoadWithLog(new Configuration { LogDialogue = false });
