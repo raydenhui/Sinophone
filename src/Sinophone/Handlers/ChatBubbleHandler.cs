@@ -388,15 +388,15 @@ public sealed class ChatBubbleHandler : IDisposable
                 Layout = layout,
             };
 
-            layout.GrowTo(node);
+            var grown = layout.GrowTo(node);
 
             _log.Debug(
                 "Chat bubbles: translated a balloon in place ({Length} chars, English {EnglishW}x" +
-                "{EnglishH}, Chinese {TextW}x{TextH}, background {NineW}x{NineH}, bubble {BubbleW}x" +
-                "{BubbleH}) in {Elapsed} ms.",
+                "{EnglishH}, Chinese {TextW}x{TextH}, background {NineW}x{NineH} to {FinalW}x{FinalH}, " +
+                "bubble {BubbleW}x{BubbleH}) in {Elapsed} ms.",
                 chinese.Length,
                 layout.TextWidth, layout.TextHeight, node->Width, node->Height,
-                layout.NineGridWidth, layout.NineGridHeight,
+                layout.NineGridWidth, layout.NineGridHeight, grown.Width, grown.Height,
                 layout.BubbleWidth, layout.BubbleHeight,
                 (long)elapsed.TotalMilliseconds);
         }
@@ -543,15 +543,30 @@ public sealed class ChatBubbleHandler : IDisposable
             => englishTextSize <= 0 ? bubbleSize : bubbleSize + chineseTextSize - englishTextSize;
 
         /// <summary>
+        /// The size to grow to: the change carried over from the English layout, but never less than
+        /// the text plus the balloon's borders.
+        /// </summary>
+        /// <remarks>
+        /// The carried-over size is right when the background was laid out for the English line. It
+        /// is not when that background came out smaller than the text (the game had not laid it out
+        /// yet): the difference is then too small and the text is clipped by the balloon's caps. The
+        /// caps are the floor, so a short measure can only leave the text touching the border, never
+        /// under it.
+        /// </remarks>
+        internal static int GrownSize(int bubbleSize, int englishTextSize, int chineseTextSize, int caps)
+            => Math.Max(TargetSize(bubbleSize, englishTextSize, chineseTextSize), chineseTextSize + caps);
+
+        /// <summary>
         /// Grows the background and the bubble by the change in text size, so the margin the game
         /// drew around the English line still holds the Chinese. The text node itself is left alone:
         /// its width is what the game wraps at, and changing it makes the game write the line back
         /// with hard breaks. Only ever grows, so a shorter line keeps the game's layout.
         /// </summary>
-        public unsafe void GrowTo(AtkTextNode* node)
+        /// <summary>The size the background has after this call, for the debug log.</summary>
+        public unsafe (int Width, int Height) GrowTo(AtkTextNode* node)
         {
-            var width = Clamp(TargetSize(NineGridWidth, TextWidth, node->Width));
-            var height = Clamp(TargetSize(NineGridHeight, TextHeight, node->Height));
+            var width = Clamp(GrownSize(NineGridWidth, TextWidth, node->Width, Caps(horizontal: true)));
+            var height = Clamp(GrownSize(NineGridHeight, TextHeight, node->Height, Caps(horizontal: false)));
 
             if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
             {
@@ -582,6 +597,28 @@ public sealed class ChatBubbleHandler : IDisposable
                 if (bubble->Height < height)
                     bubble->Height = height;
             }
+
+            return (width, height);
+        }
+
+        /// <summary>
+        /// The balloon texture's border on one axis, or zero when the asset does not say. The nine-grid
+        /// offsets are the slices the texture stretches between, which is the room the caps need.
+        /// </summary>
+        private unsafe int Caps(bool horizontal)
+        {
+            if (NineGrid == 0)
+                return 0;
+
+            var nineGrid = (AtkNineGridNode*)NineGrid;
+            if (nineGrid is null)
+                return 0;
+
+            var caps = horizontal
+                ? nineGrid->LeftOffset + nineGrid->RightOffset
+                : nineGrid->TopOffset + nineGrid->BottomOffset;
+
+            return caps is > 0 and < 256 ? caps : 0;
         }
 
         /// <summary>Puts the background and the bubble back to the sizes the game gave them.</summary>

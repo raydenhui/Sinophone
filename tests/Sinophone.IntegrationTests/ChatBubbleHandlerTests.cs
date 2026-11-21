@@ -37,6 +37,20 @@ public class ChatBubbleHandlerTests
     }
 
     [Fact]
+    public void GrownSize_NeverGoesBelowTheTextPlusTheBalloonBorders()
+    {
+        // A background smaller than the English text means the game had not laid it out yet; the
+        // difference is then too small and the caps would clip the Chinese.
+        Assert.Equal(174, ChatBubbleHandler.BubbleLayout.GrownSize(100, 122, 154, 20));
+
+        // A plain background: the carried-over change wins.
+        Assert.Equal(181, ChatBubbleHandler.BubbleLayout.GrownSize(149, 122, 154, 20));
+
+        // No offsets to read: the text itself is the floor.
+        Assert.Equal(154, ChatBubbleHandler.BubbleLayout.GrownSize(100, 122, 154, 0));
+    }
+
+    [Fact]
     public void TargetSize_LeavesTheBackgroundAlone_WhenTheEnglishSizeIsUnreadable()
     {
         // A node the game has not laid out reports no English size; guessing a margin from that
