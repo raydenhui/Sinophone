@@ -30,6 +30,9 @@ internal sealed class Tally
     public int ResolvedById;
     public int Unresolved;
     public int NoChinese;
+    public int Exact;
+    public int ExactTotal;
+    public readonly List<(string Expected, string Actual)> Differences = [];
     public int Skipped;
     public readonly Dictionary<string, int> Reasons = new(StringComparer.Ordinal);
     public readonly Dictionary<string, int> ByTag = new(StringComparer.Ordinal);
@@ -182,6 +185,7 @@ internal sealed class Runner
         {
             tally.Resolved++;
             tally.ResolvedByTag[tagKey] = tally.ResolvedByTag.GetValueOrDefault(tagKey) + 1;
+            CheckExact(tally, source, rowId, slot, english, chinese);
             return;
         }
 
@@ -204,6 +208,74 @@ internal sealed class Runner
             Console.Error.WriteLine($"!! {source} row {rowId}: {ex.GetType().Name}: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Compares what the plugin produced with the Chinese the data holds for that row. Values the
+    /// game fills at run time (numbers, names) are ignored on both sides, because the harness
+    /// chose them; everything else has to match exactly, which is what catches a wrong line, a
+    /// dropped clause, or a macro left in the text.
+    /// </summary>
+    private void CheckExact(
+        Tally tally,
+        Source source,
+        uint rowId,
+        int slot,
+        string english,
+        string actual)
+    {
+        var expected = Expected(source, rowId, slot);
+        if (expected.Length == 0)
+            return;
+
+        tally.ExactTotal++;
+
+        if (string.Equals(TextOnly(expected), TextOnly(actual), StringComparison.Ordinal))
+        {
+            tally.Exact++;
+            return;
+        }
+
+        if (tally.Differences.Count < 40)
+            tally.Differences.Add((expected, actual));
+    }
+
+    /// <summary>The Chinese the data holds for a case, before any runtime value is filled in.</summary>
+    private string Expected(Source source, uint rowId, int slot)
+    {
+        // A script case is identified by its dump key, which the source carries as its sheet name.
+        if (_artifact.Scripts.TryGetValue(source.Sheet, out var script))
+            return script.Text ?? string.Empty;
+
+        if (!_artifact.Sheets.TryGetValue(source.Sheet, out var rows)
+            || !rows.TryGetValue(rowId.ToString(), out var fields)
+            || !fields.TryGetValue(source.Field, out var slots)
+            || slot >= slots.Length)
+        {
+            return string.Empty;
+        }
+
+        return slots[slot] ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Text with macros removed and runtime values normalised away, so two renderings of the same
+    /// line compare equal: digits and names differ only because the harness picked them.
+    /// </summary>
+    internal static string TextOnly(string text)
+    {
+        var cleaned = MacroNormalizer.NormalizeKey(MacroNormalizer.CleanForDisplay(text));
+
+        var builder = new System.Text.StringBuilder(cleaned.Length);
+        foreach (var character in cleaned)
+        {
+            if (char.IsDigit(character) || character is ',' or '，')
+                continue;
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     private static void AddMiss(Tally tally, Miss miss)
@@ -270,6 +342,13 @@ internal sealed class Runner
                 {
                     component.Resolved++;
                     component.ResolvedByTag[tagKey] = component.ResolvedByTag.GetValueOrDefault(tagKey) + 1;
+                    CheckExact(
+                        component,
+                        new Source("Talk (scripts)", key, "Text", false, SourceKind.TalkRow),
+                        0,
+                        0,
+                        variant,
+                        chinese);
                     continue;
                 }
 
