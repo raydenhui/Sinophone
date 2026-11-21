@@ -391,13 +391,13 @@ public sealed class ChatBubbleHandler : IDisposable
             layout.GrowTo(node);
 
             _log.Debug(
-                "Chat bubbles: translated a balloon in place ({Length} chars, text {TextW}x{TextH}, " +
-                "background {NineW}x{NineH}, bubble {BubbleW}x{BubbleH}, padding {PadX}x{PadY} " +
-                "from {Source}) in {Elapsed} ms.",
-                chinese.Length, node->Width, node->Height,
+                "Chat bubbles: translated a balloon in place ({Length} chars, English {EnglishW}x" +
+                "{EnglishH}, Chinese {TextW}x{TextH}, background {NineW}x{NineH}, bubble {BubbleW}x" +
+                "{BubbleH}) in {Elapsed} ms.",
+                chinese.Length,
+                layout.TextWidth, layout.TextHeight, node->Width, node->Height,
                 layout.NineGridWidth, layout.NineGridHeight,
                 layout.BubbleWidth, layout.BubbleHeight,
-                layout.Padding.X, layout.Padding.Y, layout.PaddingSource,
                 (long)elapsed.TotalMilliseconds);
         }
     }
@@ -510,22 +510,13 @@ public sealed class ChatBubbleHandler : IDisposable
         float NineGridX,
         float NineGridY,
         ushort BubbleWidth,
-        ushort BubbleHeight,
-        (int X, int Y) Padding,
-        string PaddingSource)
+        ushort BubbleHeight)
     {
         public static unsafe BubbleLayout Capture(
             AtkTextNode* node,
             AtkNineGridNode* nineGrid,
             AtkResNode* bubble)
-        {
-            var (padding, source) = SelectPadding(
-                nineGrid is null ? 0 : nineGrid->LeftOffset + nineGrid->RightOffset,
-                nineGrid is null ? 0 : nineGrid->TopOffset + nineGrid->BottomOffset,
-                nineGrid is null ? 0 : (int)nineGrid->AtkResNode.Width - node->Width,
-                nineGrid is null ? 0 : (int)nineGrid->AtkResNode.Height - node->Height);
-
-            return new(
+            => new(
                 (nint)nineGrid,
                 (nint)bubble,
                 node->Width,
@@ -535,64 +526,32 @@ public sealed class ChatBubbleHandler : IDisposable
                 nineGrid is null ? 0f : nineGrid->AtkResNode.X,
                 nineGrid is null ? 0f : nineGrid->AtkResNode.Y,
                 bubble is null ? (ushort)0 : bubble->Width,
-                bubble is null ? (ushort)0 : bubble->Height,
-                padding,
-                source);
-        }
+                bubble is null ? (ushort)0 : bubble->Height);
 
         /// <summary>
-        /// The room a balloon keeps around its text, in width and height.
+        /// The size the background needs for the text the node now has.
         /// </summary>
         /// <remarks>
-        /// Two sources bound it from opposite sides, so the smaller is the honest one. The nine-grid
-        /// slice offsets are the balloon texture's borders, and they are an upper bound: the texture
-        /// has room for its caps, not all of which is margin around the text. The difference
-        /// between the background and the text node is the game's real margin, but it goes wrong
-        /// when the game has not laid that background out for this line yet, because the background
-        /// still holds the previous line's size. Taking the smaller keeps a stale measurement from
-        /// inflating the bubble and a texture border from over-padding a short line.
+        /// The background the game laid out is the English text plus whatever margin the balloon
+        /// keeps, so carrying the change in text size over to it keeps that margin without knowing
+        /// it. Measuring the margin on its own does not work: the background can still hold the
+        /// previous line's size when the game has not laid it out for this line yet, and a margin of
+        /// zero leaves the text spilling out of both sides of the bubble. When the English size is
+        /// not readable, the background is left as the game drew it.
         /// </remarks>
-        internal static ((int X, int Y) Padding, string Source) SelectPadding(
-            int offsetX, int offsetY, int measuredX, int measuredY)
-        {
-            var capped = false;
-            var x = Bound(offsetX, measuredX, ref capped);
-            var y = Bound(offsetY, measuredY, ref capped);
-
-            return ((x, y), capped ? "the measured margin, capped by the balloon borders" : "the measured margin");
-        }
-
-        private static int Bound(int offset, int measured, ref bool capped)
-        {
-            var offsetFits = offset is > 0 and < 256;
-
-            if (offsetFits && measured > 0)
-            {
-                if (measured > offset)
-                    capped = true;
-
-                return Math.Min(measured, offset);
-            }
-
-            if (offsetFits)
-            {
-                capped = true;
-                return offset;
-            }
-
-            return Math.Max(0, measured);
-        }
+        internal static int TargetSize(int bubbleSize, int englishTextSize, int chineseTextSize)
+            => englishTextSize <= 0 ? bubbleSize : bubbleSize + chineseTextSize - englishTextSize;
 
         /// <summary>
-        /// Grows the background and the bubble to hold the text the node now has, plus the padding
-        /// the balloon keeps. The text node itself is left alone: its width is what the game wraps
-        /// at, and changing it makes the game write the line back with hard breaks. Only ever grows,
-        /// so a shorter line keeps the game's layout.
+        /// Grows the background and the bubble by the change in text size, so the margin the game
+        /// drew around the English line still holds the Chinese. The text node itself is left alone:
+        /// its width is what the game wraps at, and changing it makes the game write the line back
+        /// with hard breaks. Only ever grows, so a shorter line keeps the game's layout.
         /// </summary>
         public unsafe void GrowTo(AtkTextNode* node)
         {
-            var width = Clamp(node->Width + Padding.X);
-            var height = Clamp(node->Height + Padding.Y);
+            var width = Clamp(TargetSize(NineGridWidth, TextWidth, node->Width));
+            var height = Clamp(TargetSize(NineGridHeight, TextHeight, node->Height));
 
             if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
             {
