@@ -10,8 +10,9 @@ official Simplified (CN) or Traditional (TC) Chinese translation of the game's t
 - Nameplates above NPCs and objects.
 - The name in the item tooltip.
 
-The overlay draws its own window. The native modes write Chinese into the game's own windows and
-need a font mod (see [Font setup](#font-setup)).
+The overlay needs no font mod: it draws its own window and loads a Chinese font from Windows. Only
+the native modes, which write Chinese into the game's own windows, need one (see
+[Font setup](#font-setup)).
 
 ## Game language support
 
@@ -29,6 +30,7 @@ other plugins read, so other plugins still see the English text. It works alongs
 
 - Dalamud API 15 (`Dalamud.NET.SDK/15.0.0`)
 - .NET 10 (`net10.0-windows7.0`)
+- Optional: a font mod, only for the native modes (see [Font setup](#font-setup))
 
 ## Install
 
