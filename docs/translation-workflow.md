@@ -391,6 +391,7 @@ sequenceDiagram
 
 - **Yells**: `OpenBalloon` detour reads `NpcYell.Instance()->YellInfo` (filtering for `NpcYellOutputFlags.ShowBalloon`), resolves row ID + `MessageParams`, and passes UTF-8 Chinese before the game measures the bubble. Battle-talk-only yells are ignored.
 - **Default balloons**: Addon populates `BubbleTextNode` after `PostSetup`, so `SyncBubbles` runs on `PreDraw` using a zero-allocation FNV-1a byte hash + length check.
+- **Sound-only lines**: A balloon can hold nothing but a sound marker, such as `<squeal> <squeal>`. `NormalizeKey` keeps a lowercase tag, so the line gets a key at all, and `IsOnlySoundMarkers` answers the first candidate when several script lines share it. Before that rule the key came out empty, the line was skipped before lookup, and the bubble stayed English.
 - **Layout sizing (`BubbleLayout`)**: Leaves `BubbleTextNode` width and flags untouched (changing them causes the game to re-break lines into fragments). Instead, grows `BubbleNineGridNode` and `BubbleResNode` to `textNode + padding`, where padding comes from the nine-grid slice offsets (`LeftOffset + RightOffset`, `TopOffset + BottomOffset`), falling back to `nineGrid - textNode` size difference if offsets are unavailable.
 - **Lifecycle**: `PostHide` intentionally keeps cached translations to prevent font-cache rebuild hitches during multi-line balloon streams. `PreFinalize` calls `ForgetAll`; disabling or unloading calls `RestoreAll` to revert text and node sizes.
 
