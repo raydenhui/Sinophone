@@ -123,7 +123,7 @@ Before any text lookup or indexing, English strings pass through `NormalizeKey`:
 
 1. **Strip invisible/control characters**: Removes soft hyphens, zero-width spaces/joiners, BOM, replacement chars (`\uFFFD`), and raw SeString control bytes (`U+0002`, etc.); turns non-breaking spaces into spaces.
 2. **Replace line breaks**: `<br>` and `<br/>` become `" "` so adjacent words do not glue together.
-3. **Strip tags and emphasis**: Removes remaining `<...>` SeString macro tags and `*` / `**` markdown emphasis markers from script dumps.
+3. **Strip tags and emphasis**: Removes remaining `<...>` SeString macro tags and `*` / `**` markdown emphasis markers from script dumps. A tag whose contents are all lowercase, such as `<squeal>`, is kept: the dumps write a sound that way and the game draws it as text. Real macros carry a capital, a digit or a slash, so they still go.
 4. **Collapse whitespace**: Collapses any run of whitespace (tabs, newlines, multiple spaces) into a single space and trims both ends.
 
 ### Dialogue search order (`TranslationStore.TryGetDialogue`)
@@ -145,7 +145,9 @@ flowchart TD
     NarrowSpeaker -- "1 left" --> Ret
     NarrowSpeaker -- ">1 left" --> NarrowCutscene["Narrow by context.CutsceneId (VOICEMAN)"]
     NarrowCutscene -- "1 match" --> Ret
-    NarrowCutscene -- "No unique match" --> NarrowTaxi["Narrow by ChocoboTaxiStandUnlocked (_UNLOCK)"]
+    NarrowCutscene -- "No unique match" --> NarrowSound["Sound-only key (IsOnlySoundMarkers)"]
+    NarrowSound -- "Yes" --> Ret
+    NarrowSound -- "No" --> NarrowTaxi["Narrow by ChocoboTaxiStandUnlocked (_UNLOCK)"]
     NarrowTaxi -- "1 match" --> Ret
     NarrowTaxi -- "Still ambiguous" --> Fail
 
@@ -167,10 +169,11 @@ flowchart TD
    - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live English variants via `SheetCatalog` and picks the slot whose normalized text matches `englishText`. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
 2. **Ambiguous script disambiguation (`TryLookupAmbiguousScript`)**:
    - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `_textLookup` and stored in `_ambiguousScriptKeys`.
-   - Narrowing runs in three steps:
+   - Narrowing runs in four steps:
      1. **Speaker tokens**: Matches normalized speaker words (and full punctuation-free name, e.g. `G'raha Tia` -> `GRAHATIA`) against key tokens (`KeySpeakerTokens`).
      2. **Cutscene ID**: Matches `context.CutsceneId` against `TEXT_VOICEMAN_<id>_...`.
-     3. **Chocobo taxi stand unlock state**: Matches `_UNLOCK` in keys against `context.ChocoboTaxiStandUnlocked` so newly-unlocked vs already-unlocked greetings resolve cleanly.
+     3. **Sound-only key**: When the key holds nothing but sound markers (`IsOnlySoundMarkers`), answers the first candidate. Every candidate says the same thing, and a balloon that squeals carries no speaker name or id to narrow with.
+     4. **Chocobo taxi stand unlock state**: Matches `_UNLOCK` in keys against `context.ChocoboTaxiStandUnlocked` so newly-unlocked vs already-unlocked greetings resolve cleanly.
    - If more than one candidate remains (or none match), lookup returns `false` so the line stays English rather than showing another scene's translation.
 3. **Player name placeholder fallback (`TryLookupPlayerNamePlaceholder`)**:
    - Script dumps store `"Player Player"` or `"Player"`, whereas the live game inserts the character's name.

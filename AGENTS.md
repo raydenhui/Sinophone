@@ -231,6 +231,15 @@ The readme comes in three files. `README.en.md` is the source: change it first, 
 translations. `README.md` is Traditional Chinese and is what GitHub shows by default;
 `README.zh-CN.md` is Simplified Chinese. Keep the links and section order the same in all three.
 
+Two docs own the behaviour description, and both move with the code:
+
+- `docs/architecture.md` holds the file map, the data flow, the id-first lookup, and native mode.
+- `docs/translation-workflow.md` holds the load and lookup order, every fallback, and the
+  per-surface hook workflow.
+
+Update them in the same pull request as the change. A new fallback goes in the lookup order, a new
+handler goes in the per-component section, and a changed rule updates the sentence that states it.
+
 ## Boundaries
 
 **Always**
@@ -239,6 +248,8 @@ translations. `README.md` is Traditional Chinese and is what GitHub shows by def
 - Add a test when you add a function that can be tested.
 - Add a debug log at a new decision point.
 - Change both sheet lists together.
+- Update `docs/architecture.md` and `docs/translation-workflow.md` when the change touches what they
+  describe, in the same pull request.
 - Update this file when you learn something a future agent needs.
 
 **Never**
