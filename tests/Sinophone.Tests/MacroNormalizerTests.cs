@@ -53,6 +53,24 @@ public class MacroNormalizerTests
     }
 
     [Fact]
+    public void NormalizeKey_KeepsASoundMarkerWithAWordSpace()
+    {
+        // A description, not a single word: the balloon draws it as it stands.
+        Assert.Equal("<moist noises>", MacroNormalizer.NormalizeKey("<moist noises>"));
+        Assert.Equal("<ka-klunk> <ka-pshhh>", MacroNormalizer.NormalizeKey("<ka-klunk> <ka-pshhh>"));
+        // A description can name a creature, or be a label the sheet draws as it stands.
+        Assert.Equal("<Laladile smile>", MacroNormalizer.NormalizeKey("<Laladile smile>"));
+        Assert.Equal("<Not for Sale>", MacroNormalizer.NormalizeKey("<Not for Sale>"));
+    }
+
+    [Fact]
+    public void NormalizeKey_StillStripsALowercaseMacroThatIsNotADescription()
+    {
+        // A slash means a macro, whatever the case.
+        Assert.Equal("Hello", MacroNormalizer.NormalizeKey("<sheet(1)/>Hello"));
+    }
+
+    [Fact]
     public void NormalizeKey_KeepsASoundMarkerBesideSpokenWords()
     {
         Assert.Equal(
@@ -67,6 +85,11 @@ public class MacroNormalizerTests
     }
 
     [Theory]
+    [InlineData("<moist noises>", true)]
+    [InlineData("<heavy breathing>", true)]
+    [InlineData("<If(x)>", false)]
+    [InlineData("<Laladile smile>", true)]
+    [InlineData("<Highlight>", false)]
     [InlineData("<squeal> <squeal>", true)]
     [InlineData("<squeal>?", true)]
     [InlineData("<squeal> <squeal>!", true)]
