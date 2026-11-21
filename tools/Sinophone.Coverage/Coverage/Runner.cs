@@ -385,6 +385,41 @@ internal sealed class Runner
             }
         }
 
+        // Addon prompts that splice a value into a gap: the armoire prompt is the shape that was
+        // missed in game, so it is measured with an item name in the gap.
+        foreach (var source in Sources.All.Where(entry => entry.Kind == SourceKind.SelectionAddon))
+        {
+            if (!_artifact.Sheets.TryGetValue(source.Sheet, out var rows))
+                continue;
+
+            var csv = LoadCsv(source);
+            if (csv is null)
+                continue;
+
+            foreach (var (rowKey, fields) in rows.Take(400))
+            {
+                if (!uint.TryParse(rowKey, out var rowId)
+                    || !fields.TryGetValue(source.Field, out var chineseSlots)
+                    || chineseSlots.Length == 0
+                    || string.IsNullOrWhiteSpace(chineseSlots[0])
+                    || !csv.TryGetSlots(rowId, out var englishSlots)
+                    || englishSlots.Length == 0)
+                {
+                    continue;
+                }
+
+                var english = englishSlots[0];
+                if (!english.Contains("  ", StringComparison.Ordinal))
+                    continue;
+
+                AddRuntimeCase(component, new RuntimeCase(
+                    "Selection",
+                    RuntimeCases.WithGapValue(english),
+                    "addon-gap",
+                    true));
+            }
+        }
+
         foreach (var label in RuntimeCases.Labels)
             AddRuntimeCase(component, label);
     }

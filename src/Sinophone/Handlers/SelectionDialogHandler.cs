@@ -213,6 +213,14 @@ public sealed class SelectionDialogHandler : IDisposable
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
                 _nativeWriter.ClearIfStillOursAt(addonName, nodeAddress);
+
+                // A prompt that stays English is either a miss or the wrong timing; the text and
+                // the addon name are what a report needs to tell those apart. Bounded: a node is
+                // retried a limited number of times.
+                _log.Debug(
+                    "Selection dialog {Addon} node {NodeId}: no translation for {Text}",
+                    addonName, nodeId, TalkHandler.FirstLineOf(source));
+
                 continue;
             }
 
