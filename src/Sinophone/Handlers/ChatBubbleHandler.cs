@@ -507,6 +507,8 @@ public sealed class ChatBubbleHandler : IDisposable
         ushort TextHeight,
         ushort NineGridWidth,
         ushort NineGridHeight,
+        float NineGridX,
+        float NineGridY,
         ushort BubbleWidth,
         ushort BubbleHeight,
         (int X, int Y) Padding,
@@ -530,6 +532,8 @@ public sealed class ChatBubbleHandler : IDisposable
                 node->Height,
                 nineGrid is null ? (ushort)0 : nineGrid->AtkResNode.Width,
                 nineGrid is null ? (ushort)0 : nineGrid->AtkResNode.Height,
+                nineGrid is null ? 0f : nineGrid->AtkResNode.X,
+                nineGrid is null ? 0f : nineGrid->AtkResNode.Y,
                 bubble is null ? (ushort)0 : bubble->Width,
                 bubble is null ? (ushort)0 : bubble->Height,
                 padding,
@@ -540,19 +544,43 @@ public sealed class ChatBubbleHandler : IDisposable
         /// The room a balloon keeps around its text, in width and height.
         /// </summary>
         /// <remarks>
-        /// The padding belongs to the balloon texture, so the nine-grid's own slice offsets give it
-        /// and do not change from line to line. Measuring the background against the text node
-        /// instead goes wrong when the game has not laid that background out for this line yet: the
-        /// background still holds the previous line's size, the difference is not padding, and the
-        /// bubble grows far too big. The measurement is only used when the offsets say nothing.
+        /// Two sources bound it from opposite sides, so the smaller is the honest one. The nine-grid
+        /// slice offsets are the balloon texture's borders, and they are an upper bound: the texture
+        /// has room for its caps, not all of which is margin around the text. The difference
+        /// between the background and the text node is the game's real margin, but it goes wrong
+        /// when the game has not laid that background out for this line yet, because the background
+        /// still holds the previous line's size. Taking the smaller keeps a stale measurement from
+        /// inflating the bubble and a texture border from over-padding a short line.
         /// </remarks>
         internal static ((int X, int Y) Padding, string Source) SelectPadding(
             int offsetX, int offsetY, int measuredX, int measuredY)
         {
-            if (offsetX > 0 && offsetY > 0 && offsetX < 256 && offsetY < 256)
-                return ((offsetX, offsetY), "the balloon borders");
+            var capped = false;
+            var x = Bound(offsetX, measuredX, ref capped);
+            var y = Bound(offsetY, measuredY, ref capped);
 
-            return ((Math.Max(0, measuredX), Math.Max(0, measuredY)), "the measured background");
+            return ((x, y), capped ? "the measured margin, capped by the balloon borders" : "the measured margin");
+        }
+
+        private static int Bound(int offset, int measured, ref bool capped)
+        {
+            var offsetFits = offset is > 0 and < 256;
+
+            if (offsetFits && measured > 0)
+            {
+                if (measured > offset)
+                    capped = true;
+
+                return Math.Min(measured, offset);
+            }
+
+            if (offsetFits)
+            {
+                capped = true;
+                return offset;
+            }
+
+            return Math.Max(0, measured);
         }
 
         /// <summary>
@@ -568,11 +596,23 @@ public sealed class ChatBubbleHandler : IDisposable
 
             if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
             {
+                // Extra width goes to both sides, so the text stays in the middle and the tail the
+                // game placed under it stays centred.
                 if (nineGrid->AtkResNode.Width < width)
+                {
+                    var grown = width - nineGrid->AtkResNode.Width;
+                    nineGrid->AtkResNode.X -= grown / 2f;
                     nineGrid->AtkResNode.Width = width;
+                }
 
+                // Extra height goes upward. The tail hangs under the bottom edge where the game put
+                // it, so growing downward leaves the tail inside the bubble.
                 if (nineGrid->AtkResNode.Height < height)
+                {
+                    var grown = height - nineGrid->AtkResNode.Height;
+                    nineGrid->AtkResNode.Y -= grown;
                     nineGrid->AtkResNode.Height = height;
+                }
             }
 
             if (Bubble != 0 && (AtkResNode*)Bubble is var bubble && bubble is not null)
@@ -592,6 +632,8 @@ public sealed class ChatBubbleHandler : IDisposable
             {
                 nineGrid->AtkResNode.Width = NineGridWidth;
                 nineGrid->AtkResNode.Height = NineGridHeight;
+                nineGrid->AtkResNode.X = NineGridX;
+                nineGrid->AtkResNode.Y = NineGridY;
             }
 
             if (Bubble != 0 && (AtkResNode*)Bubble is var bubble && bubble is not null)

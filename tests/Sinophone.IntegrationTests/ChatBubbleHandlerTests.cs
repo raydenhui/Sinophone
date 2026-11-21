@@ -31,6 +31,26 @@ public class ChatBubbleHandlerTests
     }
 
     [Fact]
+    public void SelectPadding_KeepsTheMeasuredMargin_WhenTheBordersAreLarger()
+    {
+        // The real balloon: the game's margin is 76 by 15, while the texture borders are 76 by 46.
+        // Using the borders alone added 31px of height and pushed the tail inside the bubble.
+        var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(76, 46, 76, 15);
+
+        Assert.Equal((76, 15), padding);
+        Assert.Contains("measured", source);
+    }
+
+    [Fact]
+    public void SelectPadding_UsesTheBorders_WhenTheBackgroundHasNotBeenLaidOut()
+    {
+        // A stale background reports no margin at all; the borders are the only bound left.
+        var (padding, _) = ChatBubbleHandler.BubbleLayout.SelectPadding(76, 46, 0, 0);
+
+        Assert.Equal((76, 46), padding);
+    }
+
+    [Fact]
     public void SelectPadding_FallsBackToTheMeasuredBackground_WhenTheBordersAreUnset()
     {
         var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(0, 0, 116, 63);

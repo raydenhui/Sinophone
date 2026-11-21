@@ -309,14 +309,18 @@ things that feed the `_MiniTalk` addon:
   Sizing is `BubbleLayout.GrowTo`, and it never touches the text node. The node's width and flags
   are what the game wraps at; changing either makes the game write the line back with hard breaks,
   and the next lookup then sees fragments instead of the line. Instead the background grows: the
-  nine-grid is the visible bubble, and the room it keeps around the text is its own slice offsets
-  (`LeftOffset` + `RightOffset`, `TopOffset` + `BottomOffset`). The padding is a property of the
-  balloon texture, so it does not change from line to line. Measuring it as the background minus the
-  text node instead goes wrong when the game has not laid the background out for that line yet, since
-  the background still holds the previous line's size and the bubble grows far too big; that
-  measurement is only the fallback for a balloon whose offsets say nothing. The nine-grid and the
-  bubble's res node grow to the text node's size plus the padding, in both width and height. Only ever grows; the sizes come back
-  with the game's text on the setting and on unload.
+  nine-grid is the visible bubble. Its padding around the text comes from the smaller of two
+  sources. The background minus the text node is the game's real margin, but it is wrong when the
+  game has not laid the background out for that line yet, because the background still holds the
+  previous line's size. The nine-grid's slice offsets (`LeftOffset` + `RightOffset`, `TopOffset` +
+  `BottomOffset`) are the balloon texture's borders, so they bound the margin from above but over-pad
+  a short line on their own. Taking the smaller keeps both failures out.
+
+  The nine-grid and the bubble's res node grow to the text node's size plus that padding. Only ever
+  grows. Extra width is centred, so the tail the game placed under the text stays in the middle, and
+  extra height grows **upward**: the tail hangs under the bubble's bottom edge at the position the
+  game gave it, so growing downward leaves the tail inside the bubble. The node's size and position
+  come back with the game's text on the setting and on unload.
 
   The addon fills the text node itself, and it does that after `PostSetup`, so the node is empty
   when the bubble starts. The handler therefore looks at the nodes on each draw: a hash of the
