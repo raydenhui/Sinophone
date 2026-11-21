@@ -95,6 +95,9 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly Dictionary<string, List<nint>> _translated = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _lateAttempts = new(StringComparer.Ordinal);
 
+    /// <summary>Addons already reported as waiting for the translation store, so the log stays one line.</summary>
+    private readonly HashSet<string> _waitingForStore = new(StringComparer.Ordinal);
+
     private bool _disposed;
 
     public SelectionDialogHandler(
@@ -356,6 +359,19 @@ public sealed class SelectionDialogHandler : IDisposable
     {
         if (!IsEnabled(addonName))
             return;
+
+        if (_getStore() is null)
+        {
+            // The index is still loading. Spending an attempt here would end the retries before
+            // the store exists, and a dialog opened during a reload would stay English for its
+            // whole life even though every line is in the data.
+            if (_waitingForStore.Add(addonName))
+                _log.Debug("Selection dialog {Addon}: the translation store is not ready yet; retrying.", addonName);
+
+            return;
+        }
+
+        _waitingForStore.Remove(addonName);
 
         var attempts = _lateAttempts.GetValueOrDefault(addonName);
         if (attempts >= MaxLateAttempts)
