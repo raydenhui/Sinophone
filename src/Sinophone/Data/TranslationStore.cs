@@ -739,6 +739,32 @@ public sealed partial class TranslationStore
     /// Resolves an Addon-sheet prompt and returns the captured values plus the
     /// IntegerParameter / StringParameter indices that produced them.
     /// </summary>
+    /// <summary>
+    /// True when an Addon row in the data could hold this prompt: some template's literal prefix
+    /// matches the start of the text. False means the dumps have no row for it at all, which is
+    /// what a live client newer than the data looks like.
+    /// </summary>
+    public bool HasAddonPromptLike(string? englishText, int prefixLength = 12)
+    {
+        var key = MacroNormalizer.NormalizeKey(englishText);
+        if (key.Length < prefixLength)
+            return false;
+
+        var prefix = key[..prefixLength];
+
+        foreach (var (template, _, _) in _addonTemplates)
+        {
+            if (template.Length == 0 || template[0] == ScriptTextTemplate.Wildcard)
+                continue;
+
+            var literal = template.Split(ScriptTextTemplate.Wildcard)[0];
+            if (literal.Length >= prefixLength && literal.StartsWith(prefix, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
     public bool TryGetAddonText(
         string? englishText,
         out string chineseText,
