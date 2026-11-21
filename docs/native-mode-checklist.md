@@ -51,6 +51,14 @@ and write down which build was running when a row failed.
 | An NPC default balloon (`ENpcBase.Balloon`), not a yell | Chinese in the bubble; note whether the background grew |
 | Turn chat bubbles off while a bubble is open | The English bubble text comes back |
 | A battle talk yell (enemy shout in a duty) with bubbles on | The bubble handler leaves it alone; battle talk is a separate setting |
+| Battle talk on, boss shout | Chinese in the name field and in the line; the box is sized for the Chinese |
+| Battle talk on, dungeon narration | Chinese line with no name field |
+| Each style: plain, image, and sound | All three go through the hook; note any style that stays English |
+| A line queued before the plugin was enabled | Chinese when it plays |
+| A long battle talk line | Wraps inside the box; nothing runs off the screen edge |
+| A battle talk line with no translation | English stays; no Chinese from the previous line |
+| Turn battle talk off during a fight | The line on screen stays Chinese until it hides; the next line is English |
+| Battle talk without the font mod | Missing-glyph characters; the settings text warns about the mod |
 | A line the plugin cannot fit, such as one wider than the screen | The English line stays; no Chinese is drawn outside the box |
 | Line with oblique words | Note whether the English fragments stay on screen. If they do, open an issue |
 | Yes/No dialog | Prompt and button labels are Chinese; no overlay |

@@ -36,6 +36,7 @@ public sealed unsafe class NativeTextProbe : IDisposable
         "Talk",
         "TalkSubtitle",
         "_MiniTalk",
+        "_BattleTalk",
         "Journal",
         "JournalDetail",
         "ItemDetail",

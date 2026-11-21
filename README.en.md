@@ -6,6 +6,8 @@ A [Dalamud](https://github.com/goatcorp/Dalamud) plugin for **Final Fantasy XIV*
 official Simplified (CN) or Traditional (TC) Chinese translation of the game's text. It covers:
 
 - Dialogue above the Talk window, or written into the game's own dialogue box.
+- Battle talk, the large line a boss, dungeon narration, or a duty NPC shows near the top of the
+  screen.
 - Selection dialogs, such as yes/no, string, and icon prompts.
 - Nameplates above NPCs and objects.
 - The name in the item tooltip.

@@ -403,6 +403,15 @@ premature interface.
   restore plus the rewrite that follows rebuilds the node's font cache, which hitches every time a
   bubble appears or vanishes. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
   so the bubble and battle talk surfaces never both write one line.
+- **Battle talk.** `ShowInBattleTalk` puts Chinese into the game's own battle talk box: boss shouts
+  from `NpcYell` with the battle talk flag, dungeon narration from `InstanceContentTextData`, and duty
+  NPC lines from `ContentTalk`. It needs a font mod and is off by default. The three `UIModule` show
+  functions are hooked through the virtual table (indices 198, 199, 201) and the name and text pointers
+  are swapped before the game sizes the box, so nothing is written into a node and nothing is restored;
+  a line with no translation is passed through untouched. Keep the last few UTF-8 buffers alive: the
+  game copies the strings, but a late copy must not read freed memory. A yell with both the balloon and
+  the battle talk flag is written by both handlers, once per surface, so keep the two flag checks apart.
+  Turning the switch off mid-line leaves that line Chinese until its box hides.
 - **Native nameplates.** `ShowTargetName` puts Chinese names into the game's own nameplates above
   every visible NPC or object, such as a summoning bell, company chest, or door, not only the
   target. It needs a font mod and nameplates visible in the game settings. The names change

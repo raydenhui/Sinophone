@@ -1,0 +1,130 @@
+using Sinophone.Data;
+using Sinophone.Handlers;
+
+using GameNpcYell = FFXIVClientStructs.FFXIV.Client.Game.UI.NpcYell;
+
+namespace Sinophone.IntegrationTests;
+
+/// <summary>
+/// Tests the decision BattleTalkHandler makes for one line, wired to the real fixture store. The
+/// hooks and the game's own box need a live game, so they are covered by
+/// docs/native-mode-checklist.md instead.
+/// </summary>
+public class BattleTalkHandlerTests
+{
+    private static readonly Configuration Enabled = new() { ShowInBattleTalk = true };
+
+    private static FixtureData.FixtureRow Row(string sheet)
+        => FixtureData.Current.Rows.First(r => r.Sheet == sheet);
+
+    private static FixtureData.FixtureRow Row(string sheet, uint rowId)
+        => FixtureData.Current.Rows.First(r => r.Sheet == sheet && r.RowId == rowId);
+
+    private static string Tc(FixtureData.FixtureRow row)
+        => MacroNormalizer.CleanForDisplay(row.Tc);
+
+    [Fact]
+    public void Resolve_AnswersAnNpcYellByItsRow()
+    {
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var row = Row("NpcYell", 474);
+        var context = new DialogueContext(new DialogueRowId("NpcYell", row.RowId, "Text"));
+
+        var content = BattleTalkHandler.Resolve(store, Enabled, row.English, "Chocobokeep", context);
+
+        Assert.NotNull(content);
+        Assert.Equal(Tc(row), content.Value.ChineseText);
+    }
+
+    [Fact]
+    public void Resolve_AnswersDungeonNarrationByItsText()
+    {
+        // Dungeon narration has no yell row, so the text is all there is.
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var row = FixtureData.Current.Rows.First(r => r.Sheet == "InstanceContentTextData" && r.RowId == 2);
+
+        var content = BattleTalkHandler.Resolve(store, Enabled, row.English, null);
+
+        Assert.NotNull(content);
+        Assert.Equal(Tc(row), content.Value.ChineseText);
+    }
+
+    [Fact]
+    public void Resolve_FallsBackToTheText_WhenTheRowDoesNotMatch()
+    {
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var row = Row("NpcYell");
+        var context = new DialogueContext(new DialogueRowId("NpcYell", 999999, "Text"));
+
+        var content = BattleTalkHandler.Resolve(store, Enabled, row.English, null, context);
+
+        Assert.NotNull(content);
+        Assert.Equal(Tc(row), content.Value.ChineseText);
+    }
+
+    [Fact]
+    public void Resolve_ReturnsNull_WhenTheSettingIsOff()
+    {
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var row = Row("NpcYell");
+
+        Assert.Null(BattleTalkHandler.Resolve(store, new Configuration(), row.English, null));
+    }
+
+    [Fact]
+    public void Resolve_ReturnsNull_ForALineWithNoTranslation()
+    {
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+
+        Assert.Null(BattleTalkHandler.Resolve(
+            store, Enabled, "A line that exists in no dump at all.", null));
+    }
+
+    [Fact]
+    public void Resolve_SubstitutesTheYellParameters()
+    {
+        // The row reads 打倒<Sheet(BNpcName,IntegerParameter(1),0)/>, and the game passes the
+        // target's row id in the first message parameter.
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var row = Row("NpcYell", 2405);
+
+        var content = BattleTalkHandler.Resolve(store, Enabled, row.English, null, default, [77]);
+
+        Assert.NotNull(content);
+        Assert.Contains("77", content.Value.ChineseText);
+    }
+
+    [Fact]
+    public void Resolve_ShowsTheChineseNameWithTheEnglishInBrackets()
+    {
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var name = Row("ENpcResident");
+
+        var content = BattleTalkHandler.Resolve(store, Enabled, Row("NpcYell").English, name.English);
+
+        Assert.NotNull(content);
+        Assert.Contains(name.Tc, content.Value.ChineseName);
+        Assert.Contains(name.English, content.Value.ChineseName);
+    }
+
+    [Fact]
+    public void Resolve_LeavesTheNameOff_WhenTheSpeakerNameSettingIsOff()
+    {
+        var store = FixtureStore.Load(ChineseVariant.Traditional);
+        var configuration = new Configuration { ShowInBattleTalk = true, ShowSpeakerName = false };
+
+        var content = BattleTalkHandler.Resolve(store, configuration, Row("NpcYell").English, "Chocobokeep");
+
+        Assert.NotNull(content);
+        Assert.Equal(string.Empty, content.Value.ChineseName);
+    }
+
+    [Theory]
+    [InlineData(GameNpcYell.NpcYellOutputFlags.ShowBattleTalk, true)]
+    [InlineData(GameNpcYell.NpcYellOutputFlags.PrintToLog | GameNpcYell.NpcYellOutputFlags.ShowBattleTalk, true)]
+    [InlineData(GameNpcYell.NpcYellOutputFlags.ShowBalloon, false)]
+    [InlineData(GameNpcYell.NpcYellOutputFlags.PrintToLog, false)]
+    [InlineData(GameNpcYell.NpcYellOutputFlags.None, false)]
+    public void ShowsAsBattleTalk_FollowsTheOutputFlags(GameNpcYell.NpcYellOutputFlags flags, bool expected)
+        => Assert.Equal(expected, BattleTalkHandler.ShowsAsBattleTalk(flags));
+}

@@ -248,6 +248,12 @@ public sealed class ConfigWindow : Window
             ImGui.EndTabItem();
         }
 
+        if (ImGui.BeginTabItem("Battle talk"))
+        {
+            DrawBattleTalkComponentTab();
+            ImGui.EndTabItem();
+        }
+
         if (ImGui.BeginTabItem("Selection"))
         {
             DrawSelectionComponentTab();
@@ -393,6 +399,26 @@ public sealed class ConfigWindow : Window
         ImGui.PopStyleColor();
 
         if (ImGui.Selectable("Open the font setup guide###bubbleFontGuide"))
+            Util.OpenLink(FontSetupUrl);
+    }
+
+    private void DrawBattleTalkComponentTab()
+    {
+        Checkbox("Translate battle talk", _configuration.ShowInBattleTalk,
+            v => _configuration.ShowInBattleTalk = v);
+
+        ImGui.TextDisabled(
+            "Boss shouts, dungeon narration, and duty NPC lines, in the game's own box at the top " +
+            "of the screen. The name follows the speaker name setting on the Talk tab.");
+
+        ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
+        ImGui.TextWrapped(
+            "Battle talk uses the game's own font and needs the font mod. A line with no " +
+            "translation stays English, and so does the line already on screen when the switch is " +
+            "turned off. This is off by default.");
+        ImGui.PopStyleColor();
+
+        if (ImGui.Selectable("Open the font setup guide###battleTalkFontGuide"))
             Util.OpenLink(FontSetupUrl);
     }
 
@@ -893,6 +919,7 @@ public sealed class ConfigWindow : Window
         _configuration.ShowInTalk = defaults.ShowInTalk;
         _configuration.ShowInTalkSubtitle = defaults.ShowInTalkSubtitle;
         _configuration.ShowInChatBubbles = defaults.ShowInChatBubbles;
+        _configuration.ShowInBattleTalk = defaults.ShowInBattleTalk;
         _configuration.NativeTextMode = defaults.NativeTextMode;
         _configuration.NativeTextSharesTranslation = defaults.NativeTextSharesTranslation;
         _configuration.ShowSpeakerName = defaults.ShowSpeakerName;

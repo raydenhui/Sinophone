@@ -1,6 +1,6 @@
 {
   "note": "Real rows from the CN/TC datamining dumps, paired with the English text the game shows. Generated once and checked in so tests are fast and offline. Do not hand-edit; regenerate with scripts/Update-TestFixture.ps1.",
-  "generatedAt": "2026-10-28",
+  "generatedAt": "2026-11-21",
   "sources": {
     "en": "https://github.com/xivapi/ffxiv-datamining (csv/en)",
     "cn": "https://github.com/thewakingsands/ffxiv-datamining-cn",
@@ -39,7 +39,7 @@
       "sheet": "DefaultTalk",
       "rowId": 589847,
       "english": "It is by the blessing of the elementals that we Gridanians dwell in the Twelveswood. As you go about your business, be ever mindful of their presence and respectful of their will.",
-      "cn": "这里是得到森林与元灵认同的神圣之城格里达尼亚。\r\n请胸怀对大自然的感激之情，谨慎地行事吧。　",
+      "cn": "这里是得到森林与元灵认同的神圣之城格里达尼亚。\r\n请胸怀对大自然的感激之情，谨慎地行事吧。\u3000",
       "tc": "這裡是得到森林與聖靈認同的神聖之城格里達尼亞。\r\n請胸懷對大自然的感激之情，謹慎地行事。"
     },
     {
@@ -286,6 +286,118 @@
       "english": "Whoever this once was fought until the bitter end.\nUpon closer inspection, you discover a medical kit.",
       "cn": "看样子是曾经拼命抵抗过，但已经咽气了。\r\n从怀中搜到了军用恢复药。",
       "tc": "看樣子是曾經拼命抵抗過，但已經斷氣了。\r\n從懷中搜到了軍用治療劑。"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 3,
+      "english": "Hush! The anoles draw near!",
+      "cn": "小心！魔物过来了！",
+      "tc": "小心！魔物過來了！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 4,
+      "english": "Allow not a single imp to escape!",
+      "cn": "小魔精要出来了！不要放跑它们！",
+      "tc": "小頑童要出來了！不要放它們走！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 5,
+      "english": "There are too many of them!",
+      "cn": "该死！数量太多了！",
+      "tc": "該死！數量太多了！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 6,
+      "english": "The gnats! They're everywhere!",
+      "cn": "魔物已经冲到那里了！",
+      "tc": "魔物已經衝到那裡了！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 474,
+      "english": "Now, we strike at their heart! Follow me!",
+      "cn": "乘胜追击，打下敌人据点！大家要跟上我华丽的背影哦！",
+      "tc": "乘勝追擊，打下敵人據點！大家要跟上我華麗的背影哦！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 2405,
+      "english": "Welcome, ladies and gentlemen! Thank you for joining us for this drawing of the Jumbo Cactpot.",
+      "cn": "<Unknown60>0234</Unknown60>各位来宾，让你们久等了！\r\n第<Value>IntegerParameter(1)</Value>期仙人仙彩的抽选现在开始！",
+      "tc": "<Unknown60>0234</Unknown60>各位來賓，讓你們久等了！\r\n第<Value>IntegerParameter(1)</Value>期仙人仙彩的抽選現在開始！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 2407,
+      "english": "And the winning number for draw UNKNOWN is...\n0000!",
+      "cn": "第<Value>IntegerParameter(1)</Value>期仙人仙彩的中选号码是……<ZeroPaddedValue(4)>IntegerParameter(2)</ZeroPaddedValue>！",
+      "tc": "第<Value>IntegerParameter(1)</Value>期仙人仙彩的中選號碼是……<ZeroPaddedValue(4)>IntegerParameter(2)</ZeroPaddedValue>！"
+    },
+    {
+      "sheet": "NpcYell",
+      "rowId": 2408,
+      "english": "Whether or not you hit the Cactpot today, just remember: there's always drawing number UNKNOWN to look forward to!",
+      "cn": "第<Value>IntegerParameter(1)</Value>期仙人仙彩也正在举办中，\r\n期待各位的光临！",
+      "tc": "第<Value>IntegerParameter(1)</Value>期仙人仙彩也正在舉辦中，\r\n期待各位的光臨！"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 1,
+      "english": "Exit UNKNOWN?",
+      "cn": "要脱离<Highlight>ObjectParameter(56)</Highlight>吗？",
+      "tc": "要離開<Highlight>ObjectParameter(56)</Highlight>嗎？"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 2,
+      "english": "Exit alone.",
+      "cn": "单独脱离",
+      "tc": "單獨離開"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 3,
+      "english": "Exit with party.",
+      "cn": "全体脱离",
+      "tc": "全體離開"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 4,
+      "english": "Remain here.",
+      "cn": "取消",
+      "tc": "取消"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 5,
+      "english": "Defeat ",
+      "cn": "打倒<Sheet(BNpcName,IntegerParameter(1),0)/>",
+      "tc": "打倒<Sheet(BNpcName,IntegerParameter(1),0)/>"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 6,
+      "english": "???",
+      "cn": "???",
+      "tc": "???"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 7,
+      "english": "Duty Progress",
+      "cn": "任务进行度",
+      "tc": "任務進行度"
+    },
+    {
+      "sheet": "InstanceContentTextData",
+      "rowId": 8,
+      "english": "Leave duty?",
+      "cn": "退出任务",
+      "tc": "退出任務"
     }
   ],
   "scripts": [
