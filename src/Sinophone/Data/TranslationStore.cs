@@ -465,6 +465,33 @@ public sealed partial class TranslationStore
     /// game sometimes uses the full character name and sometimes only the first
     /// name, while the dump writes only the placeholder.
     /// </summary>
+    /// <summary>
+    /// The key with the player's name put back as the dump placeholder, or empty when no name is
+    /// known or the key does not hold it.
+    /// </summary>
+    private string PlayerNamePlaceholderKey(string key)
+    {
+        var fullName = _playerName?.Invoke()?.Trim();
+        if (string.IsNullOrEmpty(fullName))
+            return string.Empty;
+
+        var withFullName = RestorePlaceholder(key, fullName);
+        if (withFullName.Length > 0)
+            return withFullName;
+
+        var separator = fullName.IndexOf(' ');
+        return separator > 0 ? RestorePlaceholder(key, fullName[..separator]) : string.Empty;
+
+        static string RestorePlaceholder(string source, string name)
+        {
+            if (!source.Contains(name, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            var replaced = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(source, name);
+            return ReferenceEquals(replaced, source) ? string.Empty : replaced;
+        }
+    }
+
     private bool TryLookupPlayerNamePlaceholder(string key, out string chineseText)
     {
         chineseText = string.Empty;
@@ -655,6 +682,11 @@ public sealed partial class TranslationStore
         if (key.Length == 0)
             return false;
 
+        // The sheet writes "Player" where the game inserts the character's name, so the live line
+        // never equals the sheet's wording. Put the placeholder back before comparing, or every row
+        // that names the player looks like a slot that does not match.
+        var nameKey = PlayerNamePlaceholderKey(key);
+
         compared = true;
 
         for (var i = 0; i < slots.Length && i < englishSlots.Count; i++)
@@ -664,7 +696,8 @@ public sealed partial class TranslationStore
 
             foreach (var variant in englishSlots[i])
             {
-                if (MacroNormalizer.NormalizeKey(variant) != key)
+                var sheetKey = MacroNormalizer.NormalizeKey(variant);
+                if (sheetKey != key && (nameKey.Length == 0 || sheetKey != nameKey))
                     continue;
 
                 selected = i;

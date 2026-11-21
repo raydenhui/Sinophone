@@ -19,6 +19,26 @@ internal sealed class Probes
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// The integers the game would pass for this line: the numbers the English text shows, in order.
+    /// A line with no number gets none, which is what a client does too, rather than a made-up
+    /// vector that could make a lookup succeed for the wrong reason.
+    /// </summary>
+    internal static IReadOnlyList<int>? GameValues(string english)
+    {
+        var values = new List<int>(4);
+
+        foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(
+                     english, @"\d[\d,]*", System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+        {
+            var digits = match.Value.Replace(",", string.Empty, StringComparison.Ordinal);
+            if (int.TryParse(digits, out var value))
+                values.Add(value);
+        }
+
+        return values.Count == 0 ? null : values;
+    }
+
     /// <summary>The store under test, for probes that call it directly.</summary>
     public TranslationStore Store => _store;
 
@@ -56,12 +76,12 @@ internal sealed class Probes
 
             case SourceKind.Yell:
                 return ChatBubbleHandler.Resolve(
-                    _store, _configuration, english, context, Dynamic.IntegerVectors[0]);
+                    _store, _configuration, english, context, GameValues(english));
 
             case SourceKind.BattleTalkRow:
                 return BattleTalkHandler.Resolve(
                     _store, _configuration, english, speaker, context,
-                    Dynamic.IntegerVectors[0])?.ChineseText;
+                    GameValues(english))?.ChineseText;
 
             case SourceKind.BattleTalkText:
                 return BattleTalkHandler.Resolve(_store, _configuration, english, speaker)?.ChineseText;

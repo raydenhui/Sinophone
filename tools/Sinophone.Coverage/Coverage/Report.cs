@@ -34,8 +34,12 @@ internal static class Report
         markdown.AppendLine("Labels the game builds itself (`8:00 a.m.`, `Lv. UNKNOWN`) are counted apart as");
         markdown.AppendLine("**Skipped**, because no dictionary can key them.");
         markdown.AppendLine();
-        markdown.AppendLine("| Component | Cases | Text | Text coverage | Id | Id coverage | Skipped | Top reason for a miss |");
-        markdown.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
+        markdown.AppendLine("**Exact** is the subset that also matches the Chinese the data holds once runtime values");
+        markdown.AppendLine("are ignored, so a wrong line or a dropped clause shows up even when a translation came back.");
+        markdown.AppendLine();
+        markdown.AppendLine(
+            "| Component | Cases | Text | Text coverage | Exact | Exact coverage | Id coverage | Skipped | Top reason for a miss |");
+        markdown.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
 
         foreach (var name in components)
         {
@@ -47,15 +51,19 @@ internal static class Report
                 : tally.NoChinese > 0 ? $"no Chinese {tally.NoChinese:N0}" : "-";
 
             var byId = tally.Total == 0 ? 0 : (double)tally.ResolvedById / tally.Total;
+            var exact = tally.ExactTotal == 0 ? "-" : $"{(double)tally.Exact / tally.ExactTotal:P1}";
             markdown.AppendLine(
-                $"| {name} | {tally.Total:N0} | {tally.Resolved:N0} | {coverage:P1} | {tally.ResolvedById:N0} | " +
+                $"| {name} | {tally.Total:N0} | {tally.Resolved:N0} | {coverage:P1} | {tally.Exact:N0} | {exact} | " +
                 $"{byId:P1} | {tally.Skipped:N0} | {reason} |");
         }
 
         var byIdTotal = results.Values.Sum(tally => tally.ResolvedById);
+        var exactTotal = results.Values.Sum(tally => tally.Exact);
+        var exactCases = results.Values.Sum(tally => tally.ExactTotal);
         markdown.AppendLine(
             $"| **all** | **{total:N0}** | **{resolved:N0}** | **{(total == 0 ? 0 : (double)resolved / total):P1}** | " +
-            $"**{byIdTotal:N0}** | **{(total == 0 ? 0 : (double)byIdTotal / total):P1}** | " +
+            $"**{exactTotal:N0}** | **{(exactCases == 0 ? "-" : $"{(double)exactTotal / exactCases:P1}")}** | " +
+            $"**{(total == 0 ? 0 : (double)byIdTotal / total):P1}** | " +
             $"**{results.Values.Sum(tally => tally.Skipped):N0}** | |");
         markdown.AppendLine();
 
@@ -96,6 +104,20 @@ internal static class Report
             var tally = results[name];
             if (tally.Misses.Count == 0)
                 continue;
+
+            if (tally.Differences.Count > 0)
+            {
+                markdown.AppendLine($"## {name}: translated but different");
+                markdown.AppendLine();
+
+                foreach (var (expected, actual) in tally.Differences.Take(10))
+                {
+                    markdown.AppendLine($"- data: {OneLine(expected)}");
+                    markdown.AppendLine($"  got:  {OneLine(actual)}");
+                }
+
+                markdown.AppendLine();
+            }
 
             markdown.AppendLine($"## {name}: misses");
             markdown.AppendLine();
