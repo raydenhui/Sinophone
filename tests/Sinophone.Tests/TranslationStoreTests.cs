@@ -793,6 +793,39 @@ public class TranslationStoreTests
         Assert.False(store.TryGetDialogue("Well met, traveler!", out _));
     }
 
+    /// <summary>The real dump lines: one English squeal, several ways to write it in Chinese.</summary>
+    private static Dictionary<string, ScriptEntry> SoundOnlyScripts()
+        => ScriptsWithKeys(
+            ("TEXT_LUCKZC012_03395_BEAVERA03395_000_023", "<squeal> <squeal>", "嗷嗷嗷！"),
+            ("TEXT_LUCKZC013_03396_BEAVERA03396_000_020", "<squeal> <squeal>", "嗷嗷，嗷嗷。"),
+            ("TEXT_AKTKZC004_04213_GIANTBEAVER04213_000_044", "<squeal> <squeal>", "嗷嗷！"));
+
+    [Fact]
+    public void Lookup_AnswersASoundOnlyLineThatSeveralScriptLinesShare()
+    {
+        // A balloon that holds only a sound has no speaker name and no id, so the candidates cannot
+        // be told apart. Any of them says the same thing, so one is answered instead of none.
+        var artifacts = Artifacts(null, Artifact("TC", SoundOnlyScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("<squeal> <squeal>", out var chinese));
+        Assert.Contains(chinese, new[] { "嗷嗷嗷！", "嗷嗷，嗷嗷。", "嗷嗷！" });
+    }
+
+    [Fact]
+    public void Lookup_KeepsASoundMarkerInAMixedLine()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_AKTKZA004_04183_TINYMIQOTE_000_009", "<squeal> You found him!", "嗷嗷！你找到他了！"));
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("<squeal> You found him!", out var chinese));
+        Assert.Equal("嗷嗷！你找到他了！", chinese);
+    }
+
     [Fact]
     public void Cache_KeepsTheScriptLinesThatShareOneEnglishKey()
     {

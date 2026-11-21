@@ -125,6 +125,13 @@ already the sheet row, and the bit is set once the stand is usable. The reader p
 carries `_UNLOCK` only for a locked stand. No stand handler, more than one stand, a row outside the
 sheet, or a read failure leaves it null and the line stays English.
 
+A line that holds only a sound, such as `<squeal> <squeal>`, is the last case. The dumps write the
+sound as a lowercase word in angle brackets, and the game draws it as it stands, so `NormalizeKey`
+keeps it. Several script lines can share that key with different Chinese, for example 嗷嗷嗷！ and
+嗷嗷，嗷嗷。 A balloon has no speaker name and no id, so the candidates cannot be told apart, and
+`MacroNormalizer.IsOnlySoundMarkers` answers with the first one: every candidate says the same
+thing. Before this, the strip left an empty key, so those lines were skipped and never translated.
+
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
 ids, scene data and Lua text pairs, so the mapping can be checked in game before it is

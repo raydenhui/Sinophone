@@ -42,6 +42,95 @@ public static partial class MacroNormalizer
     private static partial Regex EmphasisPattern();
 
     /// <summary>
+    /// Removes SeString macros, but keeps a lowercase word in angle brackets. The dumps write a
+    /// sound a character makes that way, such as <c>&lt;squeal&gt;</c>, and the game draws it as it
+    /// stands, so it is text rather than a macro. Keeping it also gives a line that holds only
+    /// sounds a key at all; stripping every tag left such a line with an empty key, so it was
+    /// skipped and never translated.
+    /// </summary>
+    private static string StripMacros(string text)
+    {
+        var builder = new StringBuilder(text.Length);
+        var index = 0;
+
+        while (index < text.Length)
+        {
+            var open = text.IndexOf('<', index);
+            if (open < 0)
+            {
+                builder.Append(text, index, text.Length - index);
+                break;
+            }
+
+            builder.Append(text, index, open - index);
+
+            var close = text.IndexOf('>', open + 1);
+            if (close < 0)
+            {
+                builder.Append(text, open, text.Length - open);
+                break;
+            }
+
+            if (IsSoundMarker(text.AsSpan(open + 1, close - open - 1)))
+                builder.Append(text, open, close - open + 1);
+
+            index = close + 1;
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// True for a lowercase word such as <c>squeal</c>. Real macros carry a capital, digits, a
+    /// bracket, or a slash (<c>&lt;Sheet(...)/&gt;</c>, <c>&lt;Highlight&gt;</c>), so they are not
+    /// matched; <c>&lt;br&gt;</c> is a lowercase macro but has already been replaced by a space.
+    /// </summary>
+    internal static bool IsSoundMarker(ReadOnlySpan<char> inner)
+    {
+        if (inner.Length < 2)
+            return false;
+
+        foreach (var character in inner)
+        {
+            if (character is < 'a' or > 'z')
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when a key holds nothing but sound markers, such as <c>&lt;squeal&gt; &lt;squeal&gt;</c>.
+    /// Punctuation between the markers is allowed, because a squeal can end in a question mark.
+    /// </summary>
+    internal static bool IsOnlySoundMarkers(string key)
+    {
+        var markers = 0;
+        var index = 0;
+
+        while (index < key.Length)
+        {
+            if (key[index] == '<')
+            {
+                var close = key.IndexOf('>', index + 1);
+                if (close < 0 || !IsSoundMarker(key.AsSpan(index + 1, close - index - 1)))
+                    return false;
+
+                markers++;
+                index = close + 1;
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(key[index]))
+                return false;
+
+            index++;
+        }
+
+        return markers > 0;
+    }
+
+    /// <summary>
     /// What the dumps write where a line names the player. The live game writes the
     /// player's real name there instead, so the two do not match without help.
     /// </summary>
@@ -193,7 +282,7 @@ public static partial class MacroNormalizer
             // Turn <br> into a space before the generic macro strip, which would
             // otherwise glue the words on either side together.
             cleaned = LineBreakPattern().Replace(cleaned, " ");
-            cleaned = MacroPattern().Replace(cleaned, string.Empty);
+            cleaned = StripMacros(cleaned);
         }
 
         if (cleaned.Contains('*'))

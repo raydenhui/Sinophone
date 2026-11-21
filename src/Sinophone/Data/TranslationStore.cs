@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 2;
+    public const int IndexFormatVersion = 3;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
@@ -267,6 +267,15 @@ public sealed partial class TranslationStore
                     cutsceneId, narrowed.Count);
                 return true;
             }
+        }
+
+        if (MacroNormalizer.IsOnlySoundMarkers(key))
+        {
+            chineseText = ResolveDisplay(narrowed[0].Display);
+            _log.Debug(
+                "Dialogue picked one of {Count} lines that hold only a sound ({Key}).",
+                narrowed.Count, key);
+            return true;
         }
 
         if (context.ChocoboTaxiStandUnlocked is { } standUnlocked)
