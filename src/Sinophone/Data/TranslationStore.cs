@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 1;
+    public const int IndexFormatVersion = 2;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
@@ -91,7 +91,38 @@ public sealed partial class TranslationStore
     private int _scriptEntryCount;
 
     /// <summary>One line of a script key that more than one Chinese line shares.</summary>
-    private readonly record struct ScriptCandidate(string Display, string[] SpeakerTokens);
+    /// <remarks>
+    /// <see cref="Keys"/> holds every dump key whose Chinese is <see cref="Display"/>, because two
+    /// keys with the same Chinese are one candidate. The speaker token, the cutscene number, and
+    /// the <c>UNLOCK</c> marker are all read from those keys.
+    /// </remarks>
+    private readonly record struct ScriptCandidate(string Display, string[] SpeakerTokens, string[] Keys)
+    {
+        /// <summary>Adds another dump key that holds the same Chinese line.</summary>
+        public ScriptCandidate WithKey(string scriptKey, string[] tokens)
+        {
+            var knownKeys = Keys;
+            var knownTokens = SpeakerTokens;
+
+            if (Array.IndexOf(knownKeys, scriptKey) >= 0)
+                return this;
+
+            var added = Array.FindAll(tokens, token => Array.IndexOf(knownTokens, token) < 0);
+
+            string[] keys = knownKeys.Length == 0 ? [scriptKey] : [.. knownKeys, scriptKey];
+            string[] allTokens;
+            if (added.Length == 0)
+            {
+                allTokens = knownTokens;
+            }
+            else
+            {
+                allTokens = [.. knownTokens, .. added];
+            }
+
+            return this with { Keys = keys, SpeakerTokens = allTokens };
+        }
+    }
 
     private TranslationStore(
         ChineseVariant primaryVariant,
@@ -162,7 +193,7 @@ public sealed partial class TranslationStore
         if (key.Length == 0)
             return false;
 
-        if (TryLookupAmbiguousScript(key, speakerName, out chineseText))
+        if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText))
             return true;
 
         if (_textLookup.TryGetValue(key, out var stored))
@@ -188,42 +219,99 @@ public sealed partial class TranslationStore
     }
 
     /// <summary>
-    /// Answers a key that several script lines share by matching the speaker name
-    /// against the speaker token in each dump key, such as <c>..._JULLUS</c>. A key
-    /// with no name, or with more than one candidate for that name, stays unanswered
-    /// rather than guessing.
+    /// Answers a key that several script lines share. The speaker name narrows the candidates by
+    /// the token in each dump key, such as <c>..._JULLUS</c>; a cutscene narrows them by the
+    /// cutscene number in a <c>VOICEMAN</c> key. A key with no name and no cutscene, or with more
+    /// than one candidate left, stays unanswered rather than guessing.
     /// </summary>
-    private bool TryLookupAmbiguousScript(string key, string? speakerName, out string chineseText)
+    private bool TryLookupAmbiguousScript(
+        string key,
+        string? speakerName,
+        in DialogueContext context,
+        out string chineseText)
     {
         chineseText = string.Empty;
 
         if (!_ambiguousScriptKeys.TryGetValue(key, out var candidates))
             return false;
 
-        var words = SpeakerWords(speakerName);
-        if (words.Length == 0)
-            return false;
+        var narrowed = candidates;
 
-        string? match = null;
+        var words = SpeakerWords(speakerName);
+        if (words.Length > 0)
+        {
+            var spoken = candidates.FindAll(candidate => CandidateIsSpokenBy(candidate, words));
+            if (spoken.Count > 0)
+                narrowed = spoken;
+        }
+
+        if (narrowed.Count == 1)
+        {
+            chineseText = ResolveDisplay(narrowed[0].Display);
+            _log.Debug(
+                "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}.",
+                candidates.Count, speakerName ?? string.Empty);
+            return true;
+        }
+
+        var cutsceneId = context.CutsceneId;
+        if (cutsceneId != 0)
+        {
+            var match = OnlyMatch(narrowed, candidate => HoldsCutscene(candidate, cutsceneId));
+            if (match is not null)
+            {
+                chineseText = ResolveDisplay(match.Value.Display);
+                _log.Debug(
+                    "Dialogue matched the cutscene {CutsceneId} line out of {Count} script lines " +
+                    "that share a key.",
+                    cutsceneId, narrowed.Count);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The one candidate that matches, or null when none or several do.</summary>
+    private static ScriptCandidate? OnlyMatch(List<ScriptCandidate> candidates, Predicate<ScriptCandidate> matches)
+    {
+        ScriptCandidate? match = null;
+
         foreach (var candidate in candidates)
         {
-            if (!CandidateIsSpokenBy(candidate, words))
+            if (!matches(candidate))
                 continue;
 
             if (match is not null)
-                return false;
+                return null;
 
-            match = candidate.Display;
+            match = candidate;
         }
 
-        if (match is null)
-            return false;
+        return match;
+    }
 
-        chineseText = ResolveDisplay(match);
-        _log.Debug(
-            "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}.",
-            candidates.Count, speakerName ?? string.Empty);
-        return true;
+    /// <summary>True when any of the candidate's dump keys is the line for this cutscene.</summary>
+    private static bool HoldsCutscene(ScriptCandidate candidate, uint cutsceneId)
+        => Array.Exists(candidate.Keys, key => CutsceneIdOf(key) == cutsceneId);
+
+    /// <summary>
+    /// The cutscene number in a <c>VOICEMAN</c> dump key: <c>TEXT_VOICEMAN_06005_003840_THANCRED</c>
+    /// is cutscene 6005. Zero for any other key, so the cutscene step does not apply to it.
+    /// </summary>
+    internal static uint CutsceneIdOf(string? scriptKey)
+    {
+        const string prefix = "TEXT_VOICEMAN_";
+
+        if (scriptKey is null || !scriptKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        var start = prefix.Length;
+        var end = scriptKey.IndexOf('_', start);
+        if (end <= start)
+            return 0;
+
+        return uint.TryParse(scriptKey.AsSpan(start, end - start), out var id) ? id : 0;
     }
 
     /// <summary>
@@ -1192,7 +1280,8 @@ public sealed partial class TranslationStore
 
             added++;
             _scriptEntryCount++;
-            indexedInThisArtifact[key] = new ScriptCandidate(display, KeySpeakerTokens(scriptKey));
+            indexedInThisArtifact[key] = new ScriptCandidate(
+                display, KeySpeakerTokens(scriptKey), string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey]);
 
             // The English dump holds one branch's wording, so keep a key with the
             // branch words collapsed for the others. A line that already matches
@@ -1239,13 +1328,21 @@ public sealed partial class TranslationStore
         string? scriptKey,
         string display)
     {
-        foreach (var candidate in candidates)
+        var tokens = KeySpeakerTokens(scriptKey);
+
+        for (var i = 0; i < candidates.Count; i++)
         {
-            if (string.Equals(candidate.Display, display, StringComparison.Ordinal))
-                return;
+            if (!string.Equals(candidates[i].Display, display, StringComparison.Ordinal))
+                continue;
+
+            if (!string.IsNullOrEmpty(scriptKey))
+                candidates[i] = candidates[i].WithKey(scriptKey, tokens);
+
+            return;
         }
 
-        candidates.Add(new ScriptCandidate(display, KeySpeakerTokens(scriptKey)));
+        candidates.Add(new ScriptCandidate(
+            display, tokens, string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey]));
     }
 
     /// <summary>

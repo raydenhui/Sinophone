@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 1;
+    private const int CacheFormatVersion = 2;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 
@@ -210,6 +210,64 @@ public sealed partial class TranslationStore
         }
 
         WriteStrings(writer, _scriptKeyLookup);
+        WriteAmbiguousCandidates(writer);
+    }
+
+    /// <summary>
+    /// Writes the script lines that share an English key. Without them a cache hit would answer
+    /// those lines from nowhere, because the shared key was removed from the text lookup.
+    /// </summary>
+    private void WriteAmbiguousCandidates(BinaryWriter writer)
+    {
+        writer.Write(_ambiguousScriptKeys.Count);
+
+        foreach (var (key, candidates) in _ambiguousScriptKeys)
+        {
+            writer.Write(key);
+            writer.Write(candidates.Count);
+
+            foreach (var candidate in candidates)
+            {
+                writer.Write(candidate.Display);
+
+                writer.Write(candidate.SpeakerTokens.Length);
+                foreach (var token in candidate.SpeakerTokens)
+                    writer.Write(token);
+
+                writer.Write(candidate.Keys.Length);
+                foreach (var scriptKey in candidate.Keys)
+                    writer.Write(scriptKey);
+            }
+        }
+    }
+
+    private void ReadAmbiguousCandidates(BinaryReader reader)
+    {
+        var keys = reader.ReadInt32();
+
+        for (var i = 0; i < keys; i++)
+        {
+            var key = reader.ReadString();
+            var count = reader.ReadInt32();
+            var candidates = new List<ScriptCandidate>(count);
+
+            for (var j = 0; j < count; j++)
+            {
+                var display = reader.ReadString();
+
+                var tokens = new string[reader.ReadInt32()];
+                for (var t = 0; t < tokens.Length; t++)
+                    tokens[t] = reader.ReadString();
+
+                var dumpKeys = new string[reader.ReadInt32()];
+                for (var k = 0; k < dumpKeys.Length; k++)
+                    dumpKeys[k] = reader.ReadString();
+
+                candidates.Add(new ScriptCandidate(display, tokens, dumpKeys));
+            }
+
+            _ambiguousScriptKeys.Add(key, candidates);
+        }
     }
 
     private void ReadCacheBody(BinaryReader reader)
@@ -272,6 +330,7 @@ public sealed partial class TranslationStore
         }
 
         ReadStrings(reader, _scriptKeyLookup);
+        ReadAmbiguousCandidates(reader);
     }
 
     private static void WriteNullableUshort(BinaryWriter writer, ushort? value)

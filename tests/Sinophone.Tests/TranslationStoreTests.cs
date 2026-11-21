@@ -690,6 +690,97 @@ public class TranslationStoreTests
         Assert.Equal("梅蒂恩……", chinese);
     }
 
+    [Fact]
+    public void CutsceneIdOf_ReadsTheCutsceneNumberFromAVoiceManKey()
+    {
+        Assert.Equal(6005u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_06005_003840_THANCRED"));
+        Assert.Equal(6005u, TranslationStore.CutsceneIdOf("text_voiceman_06005_003840_thancred"));
+
+        Assert.Equal(0u, TranslationStore.CutsceneIdOf("TEXT_JOBPLD650_02573_ALDIS_000_052"));
+        Assert.Equal(0u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_"));
+        Assert.Equal(0u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_NOT_A_NUMBER_X"));
+        Assert.Equal(0u, TranslationStore.CutsceneIdOf(null));
+    }
+
+    /// <summary>The real Endwalker pair: one English line used by two cutscenes.</summary>
+    private const string SharedVoiceLine = "That's why...it's too soon for this to end.";
+
+    private static Dictionary<string, ScriptEntry> SharedCutsceneScripts()
+        => ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06005_003840_THANCRED", SharedVoiceLine, "所以這顆星球……還不能就這樣終結。"),
+            ("TEXT_VOICEMAN_06006_006170_THANCRED", SharedVoiceLine, "這顆星球……還不能就這樣終結"));
+
+    [Fact]
+    public void Lookup_PicksTheLineForTheCutsceneThatIsPlaying()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", SharedCutsceneScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue(SharedVoiceLine, out _));
+
+        var context = new DialogueContext(null, null, CutsceneId: 6005);
+        Assert.True(store.TryGetDialogue(SharedVoiceLine, in context, out var chinese));
+        Assert.Equal("所以這顆星球……還不能就這樣終結。", chinese);
+    }
+
+    [Fact]
+    public void Lookup_PicksTheCutsceneLine_WhenTheSpeakerMatchesBothLines()
+    {
+        // Thancred speaks both lines, so only the cutscene can tell them apart.
+        var artifacts = Artifacts(null, Artifact("TC", SharedCutsceneScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue(SharedVoiceLine, default, "Thancred", out _));
+
+        var context = new DialogueContext(null, null, CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue(SharedVoiceLine, in context, "Thancred", out var chinese));
+        Assert.Equal("這顆星球……還不能就這樣終結", chinese);
+    }
+
+    [Fact]
+    public void Lookup_StaysUnanswered_WhenTheCutsceneHoldsBothLines()
+    {
+        // A cutscene that is not the one either line belongs to must not choose.
+        var artifacts = Artifacts(null, Artifact("TC", SharedCutsceneScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(null, null, CutsceneId: 9999);
+        Assert.False(store.TryGetDialogue(SharedVoiceLine, in context, out _));
+    }
+
+    [Fact]
+    public void Cache_KeepsTheScriptLinesThatShareOneEnglishKey()
+    {
+        var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-index-{Guid.NewGuid():N}.bin");
+        var log = new FakePluginLog();
+
+        try
+        {
+            TranslationStore.SaveCache(path, "inputs", store, new PluginLog(log, new Configuration(), LogCategory.Dialogue));
+
+            Assert.True(TranslationStore.TryLoadCache(
+                path, "inputs", [], new PluginLog(log, new Configuration(), LogCategory.Dialogue),
+                key => key, null, out var loaded));
+
+            Assert.NotNull(loaded);
+            Assert.Equal(1, loaded.AmbiguousScriptKeyCount);
+            Assert.False(loaded.TryGetDialogue("You bastard!", out _));
+            Assert.True(loaded.TryGetDialogue("You bastard!", default, "Jullus", out var chinese));
+            Assert.Equal("芝諾斯……你這個混蛋！！", chinese);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static Dictionary<string, ScriptEntry> DuplicateScripts()
         => ScriptsWithKeys(
             ("TEXT_VOICEMAN_05004_004230_THANCRED", "You bastard!", "愛梅特賽爾克……你！"),

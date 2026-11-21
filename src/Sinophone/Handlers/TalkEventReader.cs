@@ -34,6 +34,7 @@ internal sealed class TalkEventReader
 
         var scriptKeys = new List<string>();
         var rows = new List<DialogueRowId>();
+        var cutsceneId = ReadCutsceneId(framework);
 
         foreach (var handler in handlers)
         {
@@ -53,7 +54,42 @@ internal sealed class TalkEventReader
 
         return new DialogueContext(
             selectedRow,
-            scriptKeys.Count == 0 ? null : scriptKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+            scriptKeys.Count == 0 ? null : scriptKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            cutsceneId);
+    }
+
+    /// <summary>
+    /// The cutscene the game is playing, or 0 when it plays none. A <c>VOICEMAN</c> dump key
+    /// carries the same number, so one English line used in two cutscenes can be told apart.
+    /// </summary>
+    /// <remarks>
+    /// The cutscene runs as a task under the event scene module. Only the task the game is playing
+    /// counts; a list that holds another task type, or a structure that moved, leaves the id at 0
+    /// and the lookup behaves as it did before.
+    /// </remarks>
+    private unsafe uint ReadCutsceneId(EventFramework* framework)
+    {
+        try
+        {
+            var tasks = framework->EventSceneModule.TaskManager.Tasks;
+
+            for (var i = 0; i < tasks.Count; i++)
+            {
+                var task = tasks[i].Value;
+                if (task is null || task->Type != EventSceneTaskType.PlayCutScene)
+                    continue;
+
+                var cutsceneId = ((PlayCutSceneTask*)task)->CutsceneId;
+                if (cutsceneId != 0)
+                    return cutsceneId;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Talk event reader: could not read the cutscene id; using text fallback.");
+        }
+
+        return 0;
     }
 
     /// <summary>

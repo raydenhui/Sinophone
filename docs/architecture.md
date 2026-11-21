@@ -101,11 +101,20 @@ current company block should render.
 Several script lines can share one English line. The dumps pair by text key, and a generic line such
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
 different NPC. The text index never answers such a key: `TranslationStore` keeps the candidates in
-`_ambiguousScriptKeys` and picks one only when the speaker name matches the speaker token in the dump
-key, such as `..._JULLUS` for "Jullus". A two-part name is one token in the key (`..._GRAHATIA` for
-"G'raha Tia"), so the whole name without its punctuation is matched as well as each word. A key with
-no name, or with more than one candidate for that name, stays unanswered and the line stays English. The id path is not affected: the game can still
-name the exact script key, which always wins.
+`_ambiguousScriptKeys` and narrows them in two steps. First the speaker name against the speaker
+token in the dump key, such as `..._JULLUS` for "Jullus"; a two-part name is one token in the key
+(`..._GRAHATIA` for "G'raha Tia"), so the whole name without its punctuation is matched as well as
+each word. Then, when the line is from a cutscene, the cutscene number the game is playing against
+the number in a `VOICEMAN` key: `TEXT_VOICEMAN_06005_003840_THANCRED` is cutscene 6005. A key with no
+name and no cutscene, or with more than one candidate left, stays unanswered and the line stays
+English. The id path is not affected: the game can still name the exact script key, which always
+wins.
+
+The cutscene number comes from `PlayCutSceneTask.CutsceneId`, the task with `EventSceneTaskType.
+PlayCutScene` under `EventFramework.EventSceneModule.TaskManager.Tasks`. It is read on the addon event
+and travels in `DialogueContext.CutsceneId`; 0 means no cutscene, and every read failure leaves it at
+0 so the lookup behaves as before. Each candidate keeps the dump keys that hold its Chinese
+(`ScriptCandidate.Keys`), because a line used by two cutscenes needs both keys to be told apart.
 
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
 than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
@@ -427,7 +436,9 @@ runs in the background; the store already in memory keeps serving until the new 
   2026-11-01 data: parse is about 1.1 s, the sheet reads are about 0.4 s in total, and indexing
   about 1 s with one variant. Do not move the sheet reads into the worker task; that breaks the
   rule above.
-- The finished index is cached in `Sinophone.index.bin` in the config directory. The next load reads
+- The finished index is cached in `Sinophone.index.bin` in the config directory, including the script
+  lines that share one English key, so the speaker and cutscene steps still work on a cache hit. The
+  next load reads
   that file instead of parsing the artifact, reading the live sheets, and indexing. A cache is used
   only when its key matches: variant, fallback setting, conversion, game data version, the identity
   of each artifact (file size and write time, or a SHA-256 of the embedded copy's bytes), and
