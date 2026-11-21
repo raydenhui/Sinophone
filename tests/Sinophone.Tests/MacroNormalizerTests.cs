@@ -44,6 +44,39 @@ public class MacroNormalizerTests
     }
 
     [Fact]
+    public void NormalizeKey_KeepsASoundMarker()
+    {
+        // The dumps write a sound a character makes as a lowercase word in angle brackets, and the
+        // game draws it as it stands. Stripping it left a line that holds only sounds with an empty
+        // key, so that line never matched anything.
+        Assert.Equal("<squeal> <squeal>", MacroNormalizer.NormalizeKey("<squeal> <squeal>"));
+    }
+
+    [Fact]
+    public void NormalizeKey_KeepsASoundMarkerBesideSpokenWords()
+    {
+        Assert.Equal(
+            "<squeal> You found him!",
+            MacroNormalizer.NormalizeKey("<squeal> You found him!"));
+    }
+
+    [Fact]
+    public void NormalizeKey_StripsAMacroBesideASoundMarker()
+    {
+        Assert.Equal("<sigh>", MacroNormalizer.NormalizeKey("<Sheet(Key)/><sigh>"));
+    }
+
+    [Theory]
+    [InlineData("<squeal> <squeal>", true)]
+    [InlineData("<squeal>?", true)]
+    [InlineData("<squeal> <squeal>!", true)]
+    [InlineData("<squeal> You found him!", false)]
+    [InlineData("Squeal!", false)]
+    [InlineData("", false)]
+    public void IsOnlySoundMarkers_AnswersForRealDumpText(string key, bool expected)
+        => Assert.Equal(expected, MacroNormalizer.IsOnlySoundMarkers(key));
+
+    [Fact]
     public void NormalizeKey_CollapsesLineBreaksToSingleSpace()
     {
         var actual = MacroNormalizer.NormalizeKey("One\r\nTwo\nThree");
