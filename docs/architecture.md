@@ -49,6 +49,8 @@ Chinese --(ChineseConverter)--> converted Chinese, when the setting is on
 converted Chinese --(OverlayWindow)--> screen
 ```
 
+See [translation-workflow.md](translation-workflow.md) for sequence and flow diagrams of data loading, lookup fallbacks, and each surface handler.
+
 Some dialogue has no Lumina row at all. It lives in the game's script dumps, which the dumps
 repositories store under `custom/`, `cut_scene/`, `quest/`, and a few smaller folders. `ScriptDump`
 reads those files, pairs them across languages by text key (`TEXT_...`), and writes a `Scripts`
