@@ -672,6 +672,44 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AnswersASharedKey_WhenTheLinesDifferOnlyInPunctuation()
+    {
+        // The real pair from cutscene VoiceMan 06006: same English, same words, one closing mark.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_001230_KRILE", "You must triumph.", "一定要凱旋。"),
+            ("TEXT_VOICEMAN_06006_006180_KRILE", "You must triumph.", "一定要凱旋"));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(Artifact("TC", scripts)),
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue("You must triumph.", default, "Krile", out var chinese));
+        Assert.Equal("一定要凱旋。", chinese);
+    }
+
+    [Fact]
+    public void Lookup_StillRefusesASharedKey_WhenTheLinesDiffer()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_TEST_000_001_KRILE", "You must triumph.", "一定要凱旋。"),
+            ("TEXT_TEST_000_002_KRILE", "You must triumph.", "你一定要贏。"));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(Artifact("TC", scripts)),
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.False(store.TryGetDialogue("You must triumph.", default, "Krile", out _));
+    }
+
+    [Fact]
     public void Lookup_UsesTheCutsceneScene_ToPickASharedOptionLine()
     {
         // The real keys from a cutscene choice: the same English option sits in several scenes.
