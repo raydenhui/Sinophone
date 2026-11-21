@@ -394,12 +394,16 @@ premature interface.
   and only looks up a text it has not seen; a line with no translation is remembered so it is not
   retried every frame. Sizing is `BubbleLayout.GrowTo`, which never touches the text node: the node's
   width and flags are what the game wraps at, and changing them makes the game rewrite the line with
-  hard breaks so later lookups see fragments. The padding around the text belongs to the balloon texture, so
-  it comes from the nine-grid's own slice offsets (`LeftOffset` + `RightOffset`, `TopOffset` +
-  `BottomOffset`); measuring the background against the text node instead is wrong whenever the game
-  has not laid that background out for the line yet, and the bubble then grows far too big. The nine-grid
-  and the bubble's res node grow to the text plus that padding, in width and height, and the sizes
-  come back when the setting is turned off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
+  hard breaks so later lookups see fragments. The padding around the text comes from the smaller of two
+  sources: the background minus the text node (the game's real margin, but wrong whenever the game
+  has not laid that background out for the line yet) and the nine-grid's slice offsets
+  (`LeftOffset` + `RightOffset`, `TopOffset` + `BottomOffset`, the texture's borders, which bound the
+  margin from above). Neither alone works: the measurement alone inflates the bubble on a stale
+  background, and the borders alone over-pad a short line, which is what left the tail inside the
+  bubble. The nine-grid and the bubble's res node grow to the text plus that padding. Extra width is
+  centred so the tail stays in the middle, and extra height grows upward so the bottom edge the tail
+  hangs under does not move. The sizes and the position come back when the setting is turned off and
+  on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
   restore plus the rewrite that follows rebuilds the node's font cache, which hitches every time a
   bubble appears or vanishes. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
   so the bubble and battle talk surfaces never both write one line.
