@@ -128,6 +128,22 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public bool ShowInSelectionDialogs { get; set; }
 
+    /// <summary>
+    /// Turns every component on. A dev build calls this once, so testing a new feature does not
+    /// start from a mostly-off install; a release config keeps the off defaults.
+    /// </summary>
+    public void EnableEveryComponent()
+    {
+        Enabled = true;
+        ShowInTalk = true;
+        ShowInTalkSubtitle = true;
+        ShowInChatBubbles = true;
+        ShowInBattleTalk = true;
+        ShowInSelectionDialogs = true;
+        ShowTargetName = true;
+        ShowItemName = true;
+    }
+
     /// <summary>Translate the Yes/No prompt and its buttons.</summary>
     public bool SelectionYesNo { get; set; } = true;
 

@@ -100,6 +100,16 @@ public sealed class Plugin : IDalamudPlugin
         _configuration.CustomFontPath ??= string.Empty;
         _log = new PluginLog(Log, _configuration, LogCategory.Plugin);
 
+        if (PluginInterface.IsDev && _configuration.Version < 3)
+        {
+            // A dev load turns every component on once. Release configs keep the off defaults,
+            // and a component turned off afterwards stays off because this runs once.
+            _configuration.EnableEveryComponent();
+            _configuration.Version = 3;
+            PluginInterface.SavePluginConfig(_configuration);
+            _log.Debug("Dev build: every component is on.");
+        }
+
         if (_configuration.Version < 2)
         {
             // Selection dialogs used to be tied to the Talk native text switch.
