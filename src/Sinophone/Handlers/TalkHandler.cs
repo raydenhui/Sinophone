@@ -800,12 +800,19 @@ public sealed class TalkHandler : IDisposable
         if (string.IsNullOrWhiteSpace(englishText))
             return null;
 
-        // A dump alias such as "(-Voice from the Past-)" is the speaker's real label. Battle
-        // talk can pass the player's name in the name field instead, so the alias wins whenever
-        // the line carries one.
-        var alias = MacroNormalizer.ExtractSpeakerPrefix(englishText);
-        if (alias.Length > 0)
-            englishName = alias;
+
+        var hasLineAlias = store.TryGetLineSpeakerAlias(englishText, out var aliasEnglish, out var aliasChinese);
+        if (hasLineAlias)
+        {
+            englishName = aliasEnglish;
+        }
+        else
+        {
+            var alias = MacroNormalizer.ExtractSpeakerPrefix(englishText);
+            if (alias.Length > 0)
+                englishName = alias;
+        }
+
 
         var hasText = store.TryGetDialogue(englishText, in context, englishName, out var chineseText);
 
@@ -814,7 +821,12 @@ public sealed class TalkHandler : IDisposable
 
         var chineseName = string.Empty;
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
-            store.TryGetName(englishName, out chineseName);
+        {
+            if (!hasLineAlias)
+                store.TryGetName(englishName, out chineseName);
+            else
+                chineseName = aliasChinese;
+        }
 
         var speakerName = configuration.ShowSpeakerName
             ? FormatSpeakerName(chineseName, englishName)

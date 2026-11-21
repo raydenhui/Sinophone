@@ -94,6 +94,30 @@ public class BattleTalkHandlerTests
     }
 
     [Fact]
+    public void Resolve_UsesTheLineAlias_WhenTheAliasIsShared()
+    {
+        // "All" is used by several groups. The line's own alias must win over the global name.
+        var json = """
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{},"Scripts":{
+               "TEXT_FESEST103_00559_MOTTE_000_352":{
+                 "English":"(-All-)Happy birthday!!","Text":"(-宴會的來賓們-)生日快樂！！"},
+               "TEXT_AKTKMG115_04464_SCIONS_000_022":{
+                 "English":"(-All-)Aye!","Text":"(-拂曉的同伴們-)好！"}}}
+            """;
+        var store = TranslationStore.Load(
+            [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
+
+        Assert.NotNull(store);
+        var content = BattleTalkHandler.Resolve(store, Enabled, "(-All-)Aye!", "All");
+
+        Assert.NotNull(content);
+        Assert.Equal("好！", content.Value.ChineseText);
+        Assert.Equal("拂曉的同伴們 (All)", content.Value.ChineseName);
+    }
+
+
+    [Fact]
     public void Resolve_ReturnsNull_WhenTheSettingIsOff()
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);
