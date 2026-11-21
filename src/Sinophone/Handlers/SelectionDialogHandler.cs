@@ -237,21 +237,10 @@ public sealed class SelectionDialogHandler : IDisposable
                 {
                     _reportedMiss[nodeAddress] = source;
 
-                    if (!store.HasAddonPromptLike(source))
-                    {
-                        // No row in the data starts like this. The live client is newer than the
-                        // dumps, so there is no Chinese to show yet.
-                        _log.Debug(
-                            "Selection dialog {Addon} node {NodeId}: the data has no row for this " +
-                            "prompt yet (the dumps may be behind the game): {Text}",
-                            addonName, nodeId, Excerpt(source));
-                        continue;
-                    }
-
                     _log.Debug(
                         "Selection dialog {Addon} node {NodeId}: no translation for {Text} " +
-                        "({Length} chars, {Templates:N0} addon templates)",
-                        addonName, nodeId, Excerpt(source), source.Length, store.AddonTemplateCount);
+                        "({Length} chars) — {Trace}",
+                        addonName, nodeId, Excerpt(source), source.Length, DescribeMiss(store, source));
                 }
 
                 continue;
@@ -421,6 +410,30 @@ public sealed class SelectionDialogHandler : IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Which lookup step failed, for a prompt that stayed English. Each step is re-run on its own
+    /// so the log says whether the label, the dialogue text, the template, or the resolve after the
+    /// template is the one that gave up.
+    /// </summary>
+    private static string DescribeMiss(TranslationStore store, string text)
+    {
+        var plain = MacroNormalizer.CleanForDisplay(text);
+
+        var label = store.TryGetAddonLabel(plain, out _);
+        var dialogue = store.TryGetDialogue(text, out _);
+        var template = store.TryGetAddonText(plain, out var chinese, out var captures, out var indices);
+
+        if (!template)
+        {
+            return $"label {label}, dialogue {dialogue}, template false, " +
+                   $"{store.AddonTemplateCount:N0} templates, row like this: {store.HasAddonPromptLike(text)}";
+        }
+
+        var resolved = ResolveAddonText(chinese, plain, captures, store, indices);
+        return $"template true ({captures.Length} captures, {chinese.Length} chars), " +
+               $"resolved {resolved.Length} chars";
     }
 
     /// <summary>
