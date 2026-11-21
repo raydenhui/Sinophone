@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 3;
+    private const int CacheFormatVersion = 4;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 

@@ -318,7 +318,9 @@ premature interface.
   to the playing scene and the addon exposes no branch flag, so the store uses the first (default)
   branch instead of leaving the line English. A chocobokeep's greeting is the same English line
   for a stand that just became usable and for every later visit, so `UIState.IsChocoboTaxiStandUnlocked`
-  on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. An
+  on the `ChocoboTaxiStand` handler's row picks the `_UNLOCK` variant only for a locked stand. A
+  sheet row and script lines can share one English line; the sheet text stays as the text fallback,
+  while the script identity steps pick the script line when they can. An
   unnamed or unclear speaker leaves the line English instead of showing another scene's text.
   The English script dumps mark italics with one asterisk and bold with two; the game draws that emphasis with a SeString macro, so
   `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
