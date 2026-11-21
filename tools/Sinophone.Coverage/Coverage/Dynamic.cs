@@ -56,6 +56,17 @@ internal static partial class Dynamic
     [GeneratedRegex(@"^Lv\.", RegexOptions.CultureInvariant)]
     private static partial Regex LevelPattern();
 
+    /// <summary>
+    /// Fills the dump's <c>UNKNOWN</c> placeholder with a value, which is what the game shows where
+    /// the Addon sheet writes the word. A number is enough: the template matches any value there,
+    /// and the report only asks whether the line asked the store a question it could answer.
+    /// </summary>
+    public static string FillUnknownPlaceholders(string english, string value = "42")
+        => UnknownPattern().Replace(english, value);
+
+    [GeneratedRegex(@"UNKNOWN", RegexOptions.CultureInvariant)]
+    private static partial Regex UnknownPattern();
+
     /// <summary>The categories a line carries. Empty for a plain line.</summary>
     public static string[] Tags(string english)
     {

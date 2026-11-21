@@ -82,6 +82,9 @@ It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
   because that is what the game reads out of the cutscene path when the line plays in one.
 - Counts labels the game builds itself (`8:00 a.m.`, `Lv. UNKNOWN`) as **Skipped**, not as misses:
   no dictionary can key them, so counting them would understate the number.
+- Builds the Addon match template from the dump text, where the game fills a value at the literal
+  word `UNKNOWN`, so the parameterised prompt path is reachable offline. Rows whose English is only
+  placeholders are still counted apart, because the client builds those labels itself.
 - Splits script misses by why the line was not answered: `ambiguous: no speaker`, `one speaker`,
   `several speakers`, `cutscene`, or `not indexed`. The first needs an id the game does not have;
   the last three are what the speaker and cutscene narrowing recover in game.
