@@ -85,6 +85,10 @@ It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
 - Splits script misses by why the line was not answered: `ambiguous: no speaker`, `one speaker`,
   `several speakers`, `cutscene`, or `not indexed`. The first needs an id the game does not have;
   the last three are what the speaker and cutscene narrowing recover in game.
+- Builds the runtime-built cases from real rows: a line that writes the `Player Player`
+  placeholder gets a fixed test name, a line with a double-space gap gets a fixed value, and the
+  result is looked up exactly as the game does. The labels the client formats itself (clock, date,
+  level) are listed as expected to stay English instead of being counted as misses.
 - Reads the speaker alias out of the dump line (`(-Retainer-)`, `(-???-)`) and uses it as the
   speaker, because the game draws that name in the name node and not in the text.
 - Writes a small baseline with `-Baseline`, which `-Gate` compares. A data update changes the

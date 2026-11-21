@@ -1,6 +1,6 @@
 {
   "Variant": "TC",
-  "GeneratedAt": "2026-11-21T18:41:34.5156232+08:00",
+  "GeneratedAt": "2026-11-21T19:00:19.4520882+08:00",
   "Components": {
     "Talk": {
       "Total": 28380,
@@ -40,9 +40,15 @@
     },
     "Talk (scripts)": {
       "Total": 267115,
-      "Resolved": 259065,
-      "ResolvedById": 259065,
+      "Resolved": 259066,
+      "ResolvedById": 259066,
       "Skipped": 247
+    },
+    "Runtime text": {
+      "Total": 925,
+      "Resolved": 909,
+      "ResolvedById": 0,
+      "Skipped": 5
     }
   }
 }

@@ -97,7 +97,10 @@ var store = TranslationStore.Load(
     options.Variant == "cn" ? ChineseVariant.Simplified : ChineseVariant.Traditional,
     useFallback: false,
     _ => File.OpenRead(artifactPath),
-    log);
+    log,
+    fallbackResource: null,
+    displayResolver: null,
+    playerName: () => RuntimeCases.PlayerName);
 
 if (store is null)
 {
@@ -112,7 +115,7 @@ Console.WriteLine($"artifact {Path.GetFileName(artifactPath)}, game version {art
 Console.WriteLine();
 
 var results = runner.Run();
-Report.Write(outputDirectory, options.Variant.ToUpperInvariant(), artifact.GameVersion, results);
+Report.Write(outputDirectory, options.Variant.ToUpperInvariant(), artifact.GameVersion, results, runner.Runtime);
 
 Console.WriteLine($"{"component",-16} {"cases",10} {"text",10} {"text %",8} {"id",10} {"id %",8}");
 foreach (var (name, tally) in results.OrderBy(entry => entry.Key, StringComparer.Ordinal))

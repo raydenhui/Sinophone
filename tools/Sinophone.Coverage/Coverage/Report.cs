@@ -10,7 +10,8 @@ internal static class Report
         string outputDirectory,
         string variant,
         string gameVersion,
-        Dictionary<string, Tally> results)
+        Dictionary<string, Tally> results,
+        IReadOnlyList<Runner.RuntimeOutcome> runtimeOutcomes)
     {
         Directory.CreateDirectory(outputDirectory);
 
@@ -113,9 +114,49 @@ internal static class Report
 
         markdown.AppendLine("## Runtime-built text");
         markdown.AppendLine();
-        markdown.AppendLine("Not measured yet. Text the game assembles at runtime (\"You obtained 3 × …\") has no source");
-        markdown.AppendLine("row to enumerate, so it needs its own cases captured in game. The hook for them is");
-        markdown.AppendLine("`Runner.RuntimeCases`, which is empty today.");
+        markdown.AppendLine("Text the game assembles, with values chosen in `RuntimeCases.cs`. A line marked `must`");
+        markdown.AppendLine("counts as a miss when it stays English; `client label` is a label the Chinese client builds");
+        markdown.AppendLine("in its own UI, so English is the expected answer.");
+        markdown.AppendLine();
+        var must = runtimeOutcomes.Where(entry => entry.Case.MustTranslate).ToList();
+        var labels = runtimeOutcomes.Where(entry => !entry.Case.MustTranslate).ToList();
+        var translated = must.Count(entry => entry.Translated);
+
+        markdown.AppendLine(
+            $"{translated:N0} of {must.Count:N0} runtime-built lines translate " +
+            $"({(must.Count == 0 ? 0 : (double)translated / must.Count):P1}). " +
+            $"{labels.Count:N0} client labels checked, expected to stay English.");
+
+        markdown.AppendLine();
+
+        var missed = must.Where(entry => !entry.Translated).ToList();
+        if (missed.Count > 0)
+        {
+            markdown.AppendLine("Lines that stay English:");
+            markdown.AppendLine();
+
+            foreach (var (runtimeCase, _) in missed.Take(30))
+            {
+                markdown.AppendLine(
+                    $"- `{runtimeCase.Category}` {runtimeCase.Component}: {OneLine(runtimeCase.English)}");
+            }
+
+            if (missed.Count > 30)
+                markdown.AppendLine($"- … and {missed.Count - 30} more");
+
+            markdown.AppendLine();
+        }
+
+        markdown.AppendLine("Client labels, expected to stay English:");
+        markdown.AppendLine();
+
+        foreach (var (runtimeCase, isTranslated) in labels)
+        {
+            markdown.AppendLine(
+                $"- `{runtimeCase.Category}` {OneLine(runtimeCase.English)} " +
+                $"— {(isTranslated ? "translated" : "English")} ({runtimeCase.Note})");
+        }
+
         markdown.AppendLine();
 
         File.WriteAllText(Path.Combine(outputDirectory, "coverage.md"), markdown.ToString());
