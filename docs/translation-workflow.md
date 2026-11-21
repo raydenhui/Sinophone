@@ -166,10 +166,11 @@ flowchart TD
 #### Details of each fallback layer
 
 1. **ID-first lookup (`TryGetDialogueById`)**:
-   - **Script keys**: Exact case-insensitive match in `_scriptKeyLookup` using `TEXT_...` keys read from `LuaEventHandler.LuaTexts`.
+   - **Script keys**: Exact case-insensitive match in `_scriptKeyLookup` using `TEXT_...` keys read from `LuaEventHandler.LuaTexts`. The key is used only when the dump paired it with the same English line; the live Lua map can reuse a key for another menu line. A long shared prefix or suffix is accepted, because the dump can resolve a race or other player word to one value while the live line uses another.
    - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live English variants via `SheetCatalog` and picks the slot whose normalized text matches `englishText`. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
 2. **Ambiguous script disambiguation (`TryLookupAmbiguousScript`)**:
    - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `_textLookup` and stored in `_ambiguousScriptKeys`.
+   - A sheet row can also share an English line with script lines, such as `NpcYell` and a cutscene line. The sheet text stays in `_textLookup` as the fallback, and the script candidates are added to `_ambiguousScriptKeys`, so the speaker, scene, or script hint picks the script line when it can.
    - Narrowing runs in five steps:
      1. **Speaker tokens**: Matches normalized speaker words (and full punctuation-free name, e.g. `G'raha Tia` -> `GRAHATIA`) against key tokens (`KeySpeakerTokens`).
      2. **Cutscene ID**: Matches `context.CutsceneId` against `TEXT_VOICEMAN_<id>_...`.
@@ -318,6 +319,7 @@ Covers `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, and `CutSc
 - `CutSceneSelectString` options are `VOICEMAN` script lines, and one English option can sit in several scenes. The handler reads the live cutscene scene through `TalkEventReader.ReadContext` and passes it with the lookup, so the scene number picks the right line; with no scene the store refuses the shared key and the option stays English.
 - The live cutscene task can be gone when the choices appear. Every option in one dialog comes from the same cutscene, so the handler asks `TranslationStore.TryGetCutsceneId` for each option and uses the scene that one of them names. `TryGetCutsceneId` answers only when every script key holding that English text is a `VOICEMAN` key from the same scene; a line that also sits in a quest, or in two scenes, names none. If two options name different scenes, the handler does not narrow at all.
 - A dialog can also use the same English option in many event scripts, such as `What do you do here?`. The handler collects the active Lua handler's `LuaKey` and every script key an option exposes, and passes them as `DialogueContext.ScriptKeyHints`. The store keeps candidates whose key names the same script family. Hints are kept for the open dialog, so a prompt processed after an option still narrows it on the next retry. A hint that matches nothing leaves the line English.
+- `ReadContext` walks the event handler map, so its result is cached per dialog text for a refresh and reused by later nodes and the twelve retry frames. The candidate-row list is logged only when it changes, not for every node and retry.
 - On `PreDraw`, calls `Reapply` on tracked node addresses and `TranslateLate` up to `MaxLateAttempts = 12` times (handles `CutSceneSelectString` options populated after `PostSetup`).
 - On `PreFinalize` (not `PostHide`/`PostClose`, to avoid clearing recycled nodes), clears tracked addresses.
 

@@ -210,6 +210,7 @@ public sealed partial class TranslationStore
         }
 
         WriteStrings(writer, _scriptKeyLookup);
+        WriteStrings(writer, _scriptKeyEnglishLookup);
         WriteScriptScenes(writer);
         WriteLineSpeakerAliases(writer);
         WriteAmbiguousCandidates(writer);
@@ -369,6 +370,7 @@ public sealed partial class TranslationStore
         }
 
         ReadStrings(reader, _scriptKeyLookup);
+        ReadStrings(reader, _scriptKeyEnglishLookup);
         ReadScriptScenes(reader);
         ReadLineSpeakerAliases(reader);
         ReadAmbiguousCandidates(reader);

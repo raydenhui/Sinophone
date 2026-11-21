@@ -29,6 +29,13 @@ public sealed partial class TranslationStore
     public const int IndexFormatVersion = 9;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Keys added by a sheet row, such as <c>NpcYell</c>. A script line with the same English
+    /// text is a different line; the sheet text stays as the text fallback while the script
+    /// candidates can still be chosen by their speaker, scene, or script family.
+    /// </summary>
+    private readonly HashSet<string> _sheetTextKeys = new(StringComparer.Ordinal);
     // Names are matched without case: the sheet stores generic NPC names in lower
     // case ("skywatcher") and the game shows them capitalised ("Skywatcher").
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
@@ -73,6 +80,9 @@ public sealed partial class TranslationStore
 
     /// <summary>Script translations keyed by the dump's text key, when the game exposes it.</summary>
     private readonly Dictionary<string, string> _scriptKeyLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The normalized English line each script key was paired with in the dump.</summary>
+    private readonly Dictionary<string, string> _scriptKeyEnglishLookup = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Script lines that share one English key but have different Chinese, such as the
@@ -224,7 +234,7 @@ public sealed partial class TranslationStore
         // Second chances, only after a miss so the common line stays one hit. The
         // game fills in the player's name where the dumps have a placeholder, and
         // script lines from the English dump hold one gender's wording.
-        if (TryLookupPlayerNamePlaceholder(key, out chineseText))
+        if (TryLookupPlayerNamePlaceholder(key, in context, speakerName, out chineseText))
             return true;
 
         if (TryLookupScriptTemplate(key, out chineseText))
@@ -370,15 +380,19 @@ public sealed partial class TranslationStore
             return true;
         }
 
-        // The line stays English. Name the dump keys, because a report of a missing line cannot
-        // say which scenes collided from a count alone.
-        _log.Debug(
-            "Dialogue line has {Count} script candidates and none was chosen ({Speaker}, cutscene " +
-            "{CutsceneId}): {Keys}.",
-            candidates.Count,
-            speakerName ?? string.Empty,
-            cutsceneId,
-            string.Join(", ", candidates.Select(Describe)));
+        // A sheet row may still answer this key by text after the script candidates fail.
+        if (!_textLookup.ContainsKey(key))
+        {
+            // The line stays English. Name the dump keys, because a report of a missing line
+            // cannot say which scenes collided from a count alone.
+            _log.Debug(
+                "Dialogue line has {Count} script candidates and none was chosen ({Speaker}, cutscene " +
+                "{CutsceneId}): {Keys}.",
+                candidates.Count,
+                speakerName ?? string.Empty,
+                cutsceneId,
+                string.Join(", ", candidates.Select(Describe)));
+        }
 
         return false;
     }
@@ -783,7 +797,11 @@ public sealed partial class TranslationStore
         }
     }
 
-    private bool TryLookupPlayerNamePlaceholder(string key, out string chineseText)
+    private bool TryLookupPlayerNamePlaceholder(
+        string key,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         chineseText = string.Empty;
 
@@ -791,7 +809,7 @@ public sealed partial class TranslationStore
         if (string.IsNullOrEmpty(fullName))
             return false;
 
-        if (TryPlayerNameVariant(key, fullName, out chineseText))
+        if (TryPlayerNameVariant(key, fullName, in context, speakerName, out chineseText))
             return true;
 
         var separator = fullName.IndexOf(' ');
@@ -802,7 +820,7 @@ public sealed partial class TranslationStore
         if (string.Equals(firstName, fullName, StringComparison.Ordinal))
             return false;
 
-        if (TryPlayerNameVariant(key, firstName, out chineseText))
+        if (TryPlayerNameVariant(key, firstName, in context, speakerName, out chineseText))
             return true;
 
         // A line can write both forms: the dump puts "Player Player" where the game shows the full
@@ -814,16 +832,21 @@ public sealed partial class TranslationStore
             firstName);
 
         return !ReferenceEquals(combined, key)
-               && TryLookupWithGenderFallback(combined, out chineseText);
+               && TryLookupWithGenderFallback(combined, in context, speakerName, out chineseText);
     }
 
-    private bool TryPlayerNameVariant(string key, string playerName, out string chineseText)
+    private bool TryPlayerNameVariant(
+        string key,
+        string playerName,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         chineseText = string.Empty;
 
         var doublePlaceholder = MacroNormalizer.RestorePlayerNamePlaceholder(key, playerName);
         if (!ReferenceEquals(doublePlaceholder, key)
-            && TryLookupWithGenderFallback(doublePlaceholder, out chineseText))
+            && TryLookupWithGenderFallback(doublePlaceholder, in context, speakerName, out chineseText))
         {
             return true;
         }
@@ -831,7 +854,7 @@ public sealed partial class TranslationStore
         var singlePlaceholder = MacroNormalizer.RestoreSinglePlayerNamePlaceholder(key, playerName);
         return !ReferenceEquals(singlePlaceholder, key)
                && !string.Equals(singlePlaceholder, doublePlaceholder, StringComparison.Ordinal)
-               && TryLookupWithGenderFallback(singlePlaceholder, out chineseText);
+               && TryLookupWithGenderFallback(singlePlaceholder, in context, speakerName, out chineseText);
     }
 
     private bool TryLookupScriptTemplate(string key, out string chineseText)
@@ -850,9 +873,16 @@ public sealed partial class TranslationStore
         return false;
     }
 
-    private bool TryLookupWithGenderFallback(string key, out string chineseText)
+    private bool TryLookupWithGenderFallback(
+        string key,
+        in DialogueContext context,
+        string? speakerName,
+        out string chineseText)
     {
         chineseText = string.Empty;
+
+        if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText))
+            return true;
 
         if (_textLookup.TryGetValue(key, out var stored))
         {
@@ -867,19 +897,72 @@ public sealed partial class TranslationStore
         return true;
     }
 
+    /// <summary>
+    /// True when two English lines are close enough to be the same dump line. The game can
+    /// substitute a race, class, or other player word that the dump resolved to one value; those
+    /// lines share a long prefix or suffix. A reused menu key names a completely different line
+    /// and shares neither.
+    /// </summary>
+    private static bool IsCloseEnough(string a, string b)
+    {
+        if (string.Equals(a, b, StringComparison.Ordinal))
+            return true;
+
+        var length = Math.Min(a.Length, b.Length);
+        if (length < 12)
+            return false;
+
+        var prefix = 0;
+        while (prefix < length && a[prefix] == b[prefix])
+            prefix++;
+
+        if (prefix >= 12)
+            return true;
+
+        var suffix = 0;
+        while (suffix < length && a[a.Length - 1 - suffix] == b[b.Length - 1 - suffix])
+            suffix++;
+
+        return suffix >= 12;
+    }
+
     private bool TryGetDialogueById(string? englishText, in DialogueContext context, out string chineseText)
     {
         chineseText = string.Empty;
 
         if (context.ScriptKeys is not null)
         {
+            var liveKey = MacroNormalizer.NormalizeKey(englishText);
             foreach (var scriptKey in context.ScriptKeys)
             {
                 if (string.IsNullOrWhiteSpace(scriptKey))
                     continue;
 
-                if (!_scriptKeyLookup.TryGetValue(scriptKey.Trim(), out var script))
+                var trimmed = scriptKey.Trim();
+                if (!_scriptKeyLookup.TryGetValue(trimmed, out var script))
                     continue;
+
+                // The live Lua text map can reuse a key for another line. Trust the key only
+                // when the dump paired it with the same English line. Put the player name back
+                // and collapse gender/time wording first, because those differences are expected.
+                if (_scriptKeyEnglishLookup.TryGetValue(trimmed, out var pairedKey))
+                {
+                    var liveForCompare = PlayerNamePlaceholderKey(liveKey);
+                    if (liveForCompare.Length == 0)
+                        liveForCompare = liveKey;
+
+                    if (!string.Equals(
+                            CollapseBranchWords(liveForCompare),
+                            CollapseBranchWords(pairedKey),
+                            StringComparison.Ordinal)
+                        && !IsCloseEnough(liveForCompare, pairedKey))
+                    {
+                        _log.Debug(
+                            "Dialogue ignored script key {ScriptKey}: it names {Paired}, not {Live}.",
+                            trimmed, pairedKey, liveKey);
+                        continue;
+                    }
+                }
 
                 chineseText = ResolveDisplay(script);
                 _log.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
@@ -1528,6 +1611,8 @@ public sealed partial class TranslationStore
                         if (target.TryAdd(key, display))
                         {
                             indexedSlots++;
+                            if (ReferenceEquals(target, _textLookup))
+                                _sheetTextKeys.Add(key);
                         }
                         else if (HasJapaneseKana(target[key]) && !HasJapaneseKana(display))
                         {
@@ -1712,7 +1797,10 @@ public sealed partial class TranslationStore
             // exposes it through the event handler, so keep it separate from the
             // English key and let an id lookup win over duplicate text.
             if (!string.IsNullOrWhiteSpace(scriptKey))
+            {
                 _scriptKeyLookup.TryAdd(scriptKey, display);
+                _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
+            }
 
             if (_ambiguousScriptKeys.TryGetValue(key, out var known))
             {
@@ -1751,9 +1839,28 @@ public sealed partial class TranslationStore
 
             if (!_textLookup.TryAdd(key, display))
             {
-                // The configured variant already owns this line. Its collapsed key is
-                // built, and the other variant's Chinese only conflicts with it, so
-                // the whole index would look ambiguous.
+                if (_sheetTextKeys.Contains(key)
+                    && !string.Equals(_textLookup[key], display, StringComparison.Ordinal))
+                {
+                    // A sheet row owns this English text, but a script line also uses it and
+                    // says something else. Keep the sheet text as the text fallback and let
+                    // the script candidates be selected by their own identity.
+                    if (_ambiguousScriptKeys.TryGetValue(key, out var sheetCandidates))
+                    {
+                        AddScriptCandidate(sheetCandidates, scriptKey, display);
+                    }
+                    else
+                    {
+                        _ambiguousScriptKeys[key] = [new ScriptCandidate(
+                            display,
+                            KeySpeakerTokens(scriptKey),
+                            string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey])];
+                    }
+                }
+
+                // Otherwise the configured variant already owns this line. Its collapsed key
+                // is built, and the other variant's Chinese only conflicts with it, so the
+                // whole index would look ambiguous.
                 continue;
             }
 

@@ -705,6 +705,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AnswersAnAmbiguousLine_WhenThePlayerNameIsTheOnlyDifference()
+    {
+        // "Are you ready, Player?" is shared by several speakers. The live line has the real
+        // name, and the placeholder step has to reach the ambiguous script step after restoring it.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_AKTKMG115_04464_ALPHINAUD_000_010",
+             "Are you ready, Player?",
+             "<Highlight>ObjectParameter(1)</Highlight>……你準備好了嗎？"),
+            ("TEXT_STMBDR301_03154_CID_000_050",
+             "Are you ready, Player?",
+             "那麼……怎麼樣，<Highlight>ObjectParameter(1)</Highlight>，\n準備好了嗎？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Nedyar Sol");
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue("Are you ready, Nedyar?", in context, "Alphinaud", out var chinese));
+        Assert.Equal("……你準備好了嗎？", chinese);
+    }
+
+    [Fact]
     public void Lookup_AnswersASheetRow_WhoseEnglishNamesTheOtherGender()
     {
         // DefaultTalk 598565: the dump holds "Ah, Mistress Player" and the game shows
@@ -861,6 +889,50 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AcceptsAScriptKey_WhenOnlyAPlayerWordDiffers()
+    {
+        // The dump resolved the deliverer's race to Hyur; the live line says Viera. The rest of
+        // the line is identical, so the key is still the same line.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_CMNDEFMOGLETTER_00002_LETTERMOOGLE_000_001",
+             "Well, if it isn't our favorite delivery Hyur! No new letters for you today, kupo!",
+             "現在還沒有給你這個後輩的新郵件咕波。"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(
+            ScriptKeys: ["TEXT_CMNDEFMOGLETTER_00002_LETTERMOOGLE_000_001"]);
+
+        Assert.True(store.TryGetDialogue(
+            "Well, if it isn't our favorite delivery Viera! No new letters for you today, kupo!",
+            in context,
+            out var chinese));
+        Assert.Equal("現在還沒有給你這個後輩的新郵件咕波。", chinese);
+    }
+
+    [Fact]
+    public void Lookup_IgnoresAScriptKey_WhenTheDumpPairedItWithAnotherLine()
+    {
+        // The live Lua map can reuse a menu key for another line. The dump paired this key with
+        // "Madam?", not with the discard prompt, so the key must not answer for it.
+        var scripts = ScriptsWithKeys(
+            ("TEXT_CMNDEFRETAINERBELL_00544_ENTER2_ROEGADYN_FEMALE_TYPE3",
+             "Madam?",
+             "哼，你難道打算再派給我一些工作嗎？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+
+        Assert.NotNull(store);
+        var context = new DialogueContext(
+            ScriptKeys: ["TEXT_CMNDEFRETAINERBELL_00544_ENTER2_ROEGADYN_FEMALE_TYPE3"]);
+
+        Assert.False(store.TryGetDialogue("Discard the pot of metallic orange dye?", in context, out _));
+    }
+
+    [Fact]
     public void Lookup_AnswersByScriptKey_WhenTheEnglishKeyIsAmbiguous()
     {
         var artifacts = Artifacts(null, Artifact("TC", DuplicateScripts()));
@@ -961,6 +1033,41 @@ public class TranslationStoreTests
         var context = new DialogueContext(ScriptKeyHints: [hint]);
         Assert.True(store.TryGetDialogue("What do you do here?", in context, out var chinese));
         Assert.Equal("你是做什麼的？", chinese);
+    }
+
+    [Fact]
+    public void Lookup_PrefersTheScriptLine_WhenASheetRowSharesItsEnglish()
+    {
+        // NpcYell row 13169 has the same English text but a different, unrelated Chinese line.
+        // The sheet text stays as the text fallback, while the speaker picks the script line.
+        var descriptor = new FakeSheetDescriptor("NpcYell", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [13169] = ["Did you find anything?"],
+            });
+
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06006_005320_ALPHINAUD", "Did you find anything?", "啊，是你們。\n有什麼發現嗎？"),
+            ("TEXT_HEAVNA702_01664_ESTINIEN_000_092", "Did you find anything?", "有什麼發現嗎？"));
+
+        var json = Artifact("TC", scripts,
+            ("NpcYell", "Text", 13169, "艾佈雷爾諾……\n有什麼收穫嗎？"));
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(json),
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        // Without a speaker the sheet text is the old fallback.
+        Assert.True(store.TryGetDialogue("Did you find anything?", out var fallback));
+        Assert.Equal("艾佈雷爾諾……\n有什麼收穫嗎？", fallback);
+
+        var context = new DialogueContext(CutsceneId: 6006);
+        Assert.True(store.TryGetDialogue("Did you find anything?", in context, "Alphinaud", out var chinese));
+        Assert.Equal("啊，是你們。\n有什麼發現嗎？", chinese);
     }
 
     [Fact]
