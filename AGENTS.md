@@ -462,6 +462,7 @@ premature interface.
 - [AGENTS.md format](https://agents.md/)
 - [docs/architecture.md](docs/architecture.md) — file map, data flow, id matching, native mode.
 - [docs/translation-workflow.md](docs/translation-workflow.md) — data loading, lookup order, fallbacks, and per-surface hook workflows with diagrams.
+- [docs/release-1.0-checklist.md](docs/release-1.0-checklist.md) — the gates 1.0.0 has to pass.
 - [docs/testing.md](docs/testing.md) — unit, integration, fixture, and in-game testing.
 - [docs/logging-and-performance.md](docs/logging-and-performance.md) — log levels and per-frame rules.
 - [docs/text-coverage.md](docs/text-coverage.md) — which game sheets carry text, which are indexed,

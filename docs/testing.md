@@ -106,6 +106,12 @@ enumerate; `Runner.RuntimeCases` is the empty hook for it. And the run pairs the
 was built from, so it measures the matcher, not the live client's version skew: the report prints
 the artifact's game version, and a dump newer than the artifact will show up as misses.
 
+### Coverage of the release
+
+[docs/release-1.0-checklist.md](release-1.0-checklist.md) holds the gates 1.0.0 has to pass, and
+each item names how to verify it. The coverage run and the in-game checklist are the two objective
+measures the release is judged against.
+
 ### In-game testing
 
 Some behavior can only be checked in the game: overlay position, font rendering, and how the
