@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 8;
+    public const int IndexFormatVersion = 9;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
 
@@ -39,6 +39,13 @@ public sealed partial class TranslationStore
     // Names are matched without case: the sheet stores generic NPC names in lower
     // case ("skywatcher") and the game shows them capitalised ("Skywatcher").
     private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The speaker alias attached to one exact script line. The alias is not unique: "All" is
+    /// used by a party, a group of guests, and other crowds, each with its own Chinese label, so
+    /// the line has to name its own alias instead of a global name lookup.
+    /// </summary>
+    private readonly Dictionary<string, SpeakerAlias> _lineSpeakerAliases = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Script lines under a key with the branch words collapsed: pronouns, nouns of
@@ -116,6 +123,8 @@ public sealed partial class TranslationStore
     /// keys with the same Chinese are one candidate. The speaker token, the cutscene number, and
     /// the <c>UNLOCK</c> marker are all read from those keys.
     /// </remarks>
+    private readonly record struct SpeakerAlias(string English, string Chinese);
+
     private readonly record struct ScriptCandidate(string Display, string[] SpeakerTokens, string[] Keys)
     {
         /// <summary>Adds another dump key that holds the same Chinese line.</summary>
@@ -1231,6 +1240,25 @@ public sealed partial class TranslationStore
     }
 
     /// <summary>
+    /// The speaker alias attached to this exact script line, if it has one. A generic alias such
+    /// as "All" is used by several different groups with different Chinese labels, so the line's
+    /// own alias is the only one that names the speaker correctly.
+    /// </summary>
+    public bool TryGetLineSpeakerAlias(string? englishText, out string englishName, out string chineseName)
+    {
+        englishName = string.Empty;
+        chineseName = string.Empty;
+
+        var key = MacroNormalizer.NormalizeKey(englishText);
+        if (key.Length == 0 || !_lineSpeakerAliases.TryGetValue(key, out var alias))
+            return false;
+
+        englishName = alias.English;
+        chineseName = alias.Chinese;
+        return chineseName.Length > 0;
+    }
+
+    /// <summary>
     /// Builds a store for the configured variant. Returns null when neither the
     /// primary nor the fallback artifact could be read. The opener decides where
     /// artifacts come from; the plugin prefers downloaded files and falls back to
@@ -1743,6 +1771,13 @@ public sealed partial class TranslationStore
             var display = PrepareDisplay(entry.Text);
             if (display.Length == 0)
                 continue;
+
+            if (englishAlias.Length > 0 && chineseAlias.Length > 0)
+            {
+                var aliasText = MacroNormalizer.CleanForDisplay(chineseAlias);
+                if (aliasText.Length > 0)
+                    _lineSpeakerAliases.TryAdd(key, new SpeakerAlias(englishAlias.Trim(), aliasText));
+            }
 
             NoteScriptScene(scenesInThisArtifact, sceneConflicts, key, scriptKey);
 

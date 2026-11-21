@@ -326,7 +326,11 @@ premature interface.
   while the script identity steps pick the script line when they can. An
   unnamed or unclear speaker leaves the line English instead of showing another scene's text.
   The English script dumps mark italics with one asterisk and bold with two; the game draws that emphasis with a SeString macro, so
-  `NormalizeKey` strips the asterisks and `TalkHandler.ExtractPlainText` drops the macro
+  `NormalizeKey` strips the asterisks and a leading `(-Alias-)` speaker prefix, and
+  `TalkHandler.ExtractPlainText` drops the macro. The alias is also the speaker name: battle
+  talk can put the player's name in the name field, so the alias replaces it before the name
+  lookup. A generic alias such as `All` is shared by several groups, so the alias is stored with
+  the English line and that line's own Chinese label wins over the global name lookup.
   from the text node before lookup. The dumps write client macros the datamining tool cannot
   name as `<Unknown60>0262</Unknown60>`. The payload is binary data, not text, so
   `CleanForDisplay` drops the whole pair instead of leaving `0262` in the line.

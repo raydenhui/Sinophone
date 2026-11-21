@@ -12,6 +12,14 @@ public class MacroNormalizerTests
         => Assert.Equal(string.Empty, MacroNormalizer.NormalizeKey(input));
 
     [Fact]
+    public void NormalizeKey_StripsLeadingSpeakerPrefix()
+    {
+        Assert.Equal(
+            "If you need a push, I'll be right there behind you.",
+            MacroNormalizer.NormalizeKey("(-Voice from the Past-)If you need a push, I'll be right there behind you."));
+    }
+
+    [Fact]
     public void NormalizeKey_StripsSeStringMacros()
     {
         var actual = MacroNormalizer.NormalizeKey("Hello <b>there</b>");

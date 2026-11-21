@@ -408,6 +408,20 @@ public sealed class BattleTalkHandler : IDisposable
         if (string.IsNullOrWhiteSpace(englishText))
             return null;
 
+
+        var hasLineAlias = store.TryGetLineSpeakerAlias(englishText, out var aliasEnglish, out var aliasChinese);
+        if (hasLineAlias)
+        {
+            englishName = aliasEnglish;
+        }
+        else
+        {
+            var alias = MacroNormalizer.ExtractSpeakerPrefix(englishText);
+            if (alias.Length > 0)
+                englishName = alias;
+        }
+
+
         // Battle talk has no overlay, so a miss is not a decision to hide: the game's own line
         // simply stays. Only a translated line is replaced.
         if (!store.TryGetDialogue(englishText, in context, englishName, out var chineseText))
@@ -415,7 +429,12 @@ public sealed class BattleTalkHandler : IDisposable
 
         var chineseName = string.Empty;
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
-            store.TryGetName(englishName, out chineseName);
+        {
+            if (!hasLineAlias)
+                store.TryGetName(englishName, out chineseName);
+            else
+                chineseName = aliasChinese;
+        }
 
         var speakerName = configuration.ShowSpeakerName
             ? TalkHandler.FormatSpeakerName(chineseName, englishName)

@@ -1,3 +1,6 @@
+using System.IO.Compression;
+using System.Text;
+
 using Sinophone.Data;
 using Sinophone.Handlers;
 
@@ -61,6 +64,58 @@ public class BattleTalkHandlerTests
         Assert.NotNull(content);
         Assert.Equal(Tc(row), content.Value.ChineseText);
     }
+
+    [Fact]
+    public void Resolve_TranslatesTheSpeakerAliasFromAScriptLine()
+    {
+        // Battle talk can pass the dump's alias with the line. The script line also names the
+        // speaker, so the game's English name is translated from the same alias.
+        var json = """
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{},"Scripts":{
+               "TEXT_AKTKMG114_04463_PASSER_000_090":{
+                 "English":"(-Voice from the Past-)If you need a push, I'll be right there behind you.",
+                 "Text":"(-劃過耳畔的聲音-)如果你決定前進，就由我來支援你。"}}}
+            """;
+        var store = TranslationStore.Load(
+            [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
+
+        Assert.NotNull(store);
+        // Battle talk can put the player's name in the name field; the dump alias wins.
+        var content = BattleTalkHandler.Resolve(
+            store,
+            Enabled,
+            "(-Voice from the Past-)If you need a push, I'll be right there behind you.",
+            "Nedyar Sol");
+
+        Assert.NotNull(content);
+        Assert.Equal("如果你決定前進，就由我來支援你。", content.Value.ChineseText);
+        Assert.Equal("劃過耳畔的聲音 (Voice from the Past)", content.Value.ChineseName);
+    }
+
+    [Fact]
+    public void Resolve_UsesTheLineAlias_WhenTheAliasIsShared()
+    {
+        // "All" is used by several groups. The line's own alias must win over the global name.
+        var json = """
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{},"Scripts":{
+               "TEXT_FESEST103_00559_MOTTE_000_352":{
+                 "English":"(-All-)Happy birthday!!","Text":"(-宴會的來賓們-)生日快樂！！"},
+               "TEXT_AKTKMG115_04464_SCIONS_000_022":{
+                 "English":"(-All-)Aye!","Text":"(-拂曉的同伴們-)好！"}}}
+            """;
+        var store = TranslationStore.Load(
+            [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
+
+        Assert.NotNull(store);
+        var content = BattleTalkHandler.Resolve(store, Enabled, "(-All-)Aye!", "All");
+
+        Assert.NotNull(content);
+        Assert.Equal("好！", content.Value.ChineseText);
+        Assert.Equal("拂曉的同伴們 (All)", content.Value.ChineseName);
+    }
+
 
     [Fact]
     public void Resolve_ReturnsNull_WhenTheSettingIsOff()
@@ -127,4 +182,17 @@ public class BattleTalkHandlerTests
     [InlineData(GameNpcYell.NpcYellOutputFlags.None, false)]
     public void ShowsAsBattleTalk_FollowsTheOutputFlags(GameNpcYell.NpcYellOutputFlags flags, bool expected)
         => Assert.Equal(expected, BattleTalkHandler.ShowsAsBattleTalk(flags));
+
+    private static Stream ToGzipStream(string json)
+    {
+        var output = new MemoryStream();
+        using (var gzip = new GZipStream(output, CompressionMode.Compress, leaveOpen: true))
+        using (var writer = new StreamWriter(gzip, new UTF8Encoding(false)))
+        {
+            writer.Write(json);
+        }
+
+        output.Position = 0;
+        return output;
+    }
 }

@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 4;
+    private const int CacheFormatVersion = 5;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 
@@ -212,6 +212,7 @@ public sealed partial class TranslationStore
         WriteStrings(writer, _scriptKeyLookup);
         WriteStrings(writer, _scriptKeyEnglishLookup);
         WriteScriptScenes(writer);
+        WriteLineSpeakerAliases(writer);
         WriteAmbiguousCandidates(writer);
     }
 
@@ -270,6 +271,24 @@ public sealed partial class TranslationStore
 
             _ambiguousScriptKeys.Add(key, candidates);
         }
+    }
+
+    private void WriteLineSpeakerAliases(BinaryWriter writer)
+    {
+        writer.Write(_lineSpeakerAliases.Count);
+        foreach (var (key, alias) in _lineSpeakerAliases)
+        {
+            writer.Write(key);
+            writer.Write(alias.English);
+            writer.Write(alias.Chinese);
+        }
+    }
+
+    private void ReadLineSpeakerAliases(BinaryReader reader)
+    {
+        var count = reader.ReadInt32();
+        for (var i = 0; i < count; i++)
+            _lineSpeakerAliases.Add(reader.ReadString(), new SpeakerAlias(reader.ReadString(), reader.ReadString()));
     }
 
     private void WriteScriptScenes(BinaryWriter writer)
@@ -353,6 +372,7 @@ public sealed partial class TranslationStore
         ReadStrings(reader, _scriptKeyLookup);
         ReadStrings(reader, _scriptKeyEnglishLookup);
         ReadScriptScenes(reader);
+        ReadLineSpeakerAliases(reader);
         ReadAmbiguousCandidates(reader);
     }
 
