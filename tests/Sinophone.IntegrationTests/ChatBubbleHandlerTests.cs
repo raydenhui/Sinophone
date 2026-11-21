@@ -22,49 +22,26 @@ public class ChatBubbleHandlerTests
     }
 
     [Fact]
-    public void SelectPadding_UsesTheBalloonBorders_WhenTheyAreSet()
+    public void TargetSize_CarriesTheTextGrowth_OverToTheBackground()
     {
-        var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(76, 15, 116, 63);
-
-        Assert.Equal((76, 15), padding);
-        Assert.Contains("borders", source);
+        // The background the game drew is the English text plus its margin: 200 = 96 + 104.
+        // The Chinese needs 150, so the background needs 150 + 104.
+        Assert.Equal(254, ChatBubbleHandler.BubbleLayout.TargetSize(200, 96, 150));
     }
 
     [Fact]
-    public void SelectPadding_KeepsTheMeasuredMargin_WhenTheBordersAreLarger()
+    public void TargetSize_ShrinksForAShorterLine_SoTheGrowStepKeepsTheGameSize()
     {
-        // The real balloon: the game's margin is 76 by 15, while the texture borders are 76 by 46.
-        // Using the borders alone added 31px of height and pushed the tail inside the bubble.
-        var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(76, 46, 76, 15);
-
-        Assert.Equal((76, 15), padding);
-        Assert.Contains("measured", source);
+        // Only ever grows, so a target below the current size leaves the game's layout alone.
+        Assert.Equal(164, ChatBubbleHandler.BubbleLayout.TargetSize(200, 96, 60));
     }
 
     [Fact]
-    public void SelectPadding_UsesTheBorders_WhenTheBackgroundHasNotBeenLaidOut()
+    public void TargetSize_LeavesTheBackgroundAlone_WhenTheEnglishSizeIsUnreadable()
     {
-        // A stale background reports no margin at all; the borders are the only bound left.
-        var (padding, _) = ChatBubbleHandler.BubbleLayout.SelectPadding(76, 46, 0, 0);
-
-        Assert.Equal((76, 46), padding);
-    }
-
-    [Fact]
-    public void SelectPadding_FallsBackToTheMeasuredBackground_WhenTheBordersAreUnset()
-    {
-        var (padding, source) = ChatBubbleHandler.BubbleLayout.SelectPadding(0, 0, 116, 63);
-
-        Assert.Equal((116, 63), padding);
-        Assert.Contains("measured", source);
-    }
-
-    [Fact]
-    public void SelectPadding_NeverReturnsANegativePadding()
-    {
-        var (padding, _) = ChatBubbleHandler.BubbleLayout.SelectPadding(0, 0, -40, -2);
-
-        Assert.Equal((0, 0), padding);
+        // A node the game has not laid out reports no English size; guessing a margin from that
+        // is what made the text spill out of both sides of the bubble.
+        Assert.Equal(200, ChatBubbleHandler.BubbleLayout.TargetSize(200, 0, 150));
     }
 
     [Fact]
