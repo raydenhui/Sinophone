@@ -51,6 +51,23 @@ public class ConfigurationTests
     }
 
     [Fact]
+    public void EnableEveryComponent_TurnsOnEverySwitch()
+    {
+        var config = new Configuration();
+
+        config.EnableEveryComponent();
+
+        Assert.True(config.Enabled);
+        Assert.True(config.ShowInTalk);
+        Assert.True(config.ShowInTalkSubtitle);
+        Assert.True(config.ShowInChatBubbles);
+        Assert.True(config.ShowInBattleTalk);
+        Assert.True(config.ShowInSelectionDialogs);
+        Assert.True(config.ShowTargetName);
+        Assert.True(config.ShowItemName);
+    }
+
+    [Fact]
     public void Version_StartsAtTwo()
         => Assert.Equal(2, new Configuration().Version);
 

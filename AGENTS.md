@@ -27,6 +27,9 @@ Three ideas explain the whole plugin:
 The project is in early development. Expect the config format, artifact format, and sheet list
 to change.
 
+A dev build (`PluginInterface.IsDev`) turns every component on once, so testing does not start
+from a mostly-off install. Release builds keep the off defaults.
+
 ## Architecture
 
 The plugin is a data pipeline plus a runtime lookup plus addon handlers. DataPrep builds
