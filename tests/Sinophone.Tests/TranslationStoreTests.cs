@@ -672,6 +672,34 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Lookup_AnswersASheetRow_WhoseEnglishNamesTheOtherGender()
+    {
+        // DefaultTalk 598565: the dump holds "Ah, Mistress Player" and the game shows
+        // "Ah, Master Nedyar" to a male character, so only one branch's wording is indexed.
+        const string sheet = "Ah, Mistress Player. I have been made aware of your coming.";
+        const string live = "Ah, Master Nedyar. I have been made aware of your coming.";
+
+        var descriptor = new FakeSheetDescriptor("DefaultTalk", "Text", false,
+            new Dictionary<uint, string[]>
+            {
+                [598565] = [sheet, "0", "0"],
+            });
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Traditional,
+            false,
+            _ => ToGzipStream(Artifact("TC", ("DefaultTalk", "Text", 598565,
+                "<Highlight>ObjectParameter(1)</Highlight>大人。事情我都聽說了。"))),
+            new FakePluginLog(),
+            playerName: () => "Nedyar");
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(live, out var chinese));
+        Assert.Contains("大人", chinese);
+    }
+
+    [Fact]
     public void Lookup_AnswersASharedKey_WhenTheLinesDifferOnlyInPunctuation()
     {
         // The real pair from cutscene VoiceMan 06006: same English, same words, one closing mark.

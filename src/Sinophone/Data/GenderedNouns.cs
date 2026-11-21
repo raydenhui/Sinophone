@@ -82,6 +82,10 @@ public static class GenderedNouns
         return stem.Equals("lad", StringComparison.OrdinalIgnoreCase)
                || stem.Equals("lass", StringComparison.OrdinalIgnoreCase)
                || stem.Equals("sir", StringComparison.OrdinalIgnoreCase)
-               || stem.Equals("madam", StringComparison.OrdinalIgnoreCase);
+               || stem.Equals("madam", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("master", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("mistress", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("milord", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("milady", StringComparison.OrdinalIgnoreCase);
     }
 }
