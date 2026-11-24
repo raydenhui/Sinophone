@@ -111,7 +111,10 @@ public class HarnessTabStateTests
     }
 
     [Fact]
-    public void SubTabs_AreUnique()        => Assert.Equal(HarnessTabState.SubTabs.Length, HarnessTabState.SubTabs.Distinct(StringComparer.Ordinal).Count());
+    public void SubTabs_AreUnique()
+        => Assert.Equal(
+            HarnessTabState.SubTabs.Length,
+            HarnessTabState.SubTabs.Distinct(StringComparer.Ordinal).Count());
 
     [Fact]
     public void SubTabs_HoldTheMergedProbes()
