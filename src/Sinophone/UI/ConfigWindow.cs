@@ -822,13 +822,18 @@ public sealed class ConfigWindow : Window
         var talkCases = host.BuildCases(HarnessSurface.Talk, _harness.CaseLimit, _harness.UseStoreCases);
         var bubbleCases = host.BuildCases(HarnessSurface.ChatBubble, _harness.CaseLimit, _harness.UseStoreCases);
 
+        // An armed run measures the line on screen, so it really runs one case.
+        var talkToRun = _harness.InjectTalkLines
+            ? talkCases
+            : HarnessCatalog.SingleLine(talkCases);
+
         ImGui.BeginDisabled(host.IsRunning);
 
         if (ImGui.Button("Run Talk cases"))
-            StartRun(talkCases, _ => host.StartTalkRun(talkCases, _harness.InjectTalkLines, _harness.CaptureFrames));
+            StartRun(talkToRun, _ => host.StartTalkRun(talkCases, _harness.InjectTalkLines, _harness.CaptureFrames));
 
         ImGui.SameLine();
-        ImGui.TextDisabled($"{talkCases.Count} case(s), Talk {(host.IsTalkOpen ? "open" : "closed")}.");
+        ImGui.TextDisabled($"{talkToRun.Count} case(s), Talk {(host.IsTalkOpen ? "open" : "closed")}.");
 
         if (ImGui.Button("Run bubble cases"))
         {
@@ -874,14 +879,8 @@ public sealed class ConfigWindow : Window
 
         ImGui.TextDisabled(_harness.InjectTalkLines
             ? "Each case is written into the addon. Talk must be open."
-            : "Start while the line you want is on screen. One line is measured per run.");
-
-        if (!_harness.InjectTalkLines && !_harness.UseStoreCases)
-        {
-            ImGui.TextColored(WarningColor,
-                "Waiting mode needs lines from the loaded data, because it compares the drawn " +
-                "text with their Chinese.");
-        }
+            : "Start while the line you want is on screen. One line is measured per run, using " +
+              "the English the plugin logged for it.");
 
         Section("Cases");
         if (_harnessHost is { } talkHost)

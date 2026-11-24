@@ -45,7 +45,8 @@ public class HarnessSettleTests
         settle.Observe("ab");
         Assert.False(settle.IsSettled);
 
-        for (var index = 0; index < HarnessSettle.SettleFrames - 1; index++)
+        // The change already counted as the first repeat, so two more leave it one short.
+        for (var index = 0; index < HarnessSettle.SettleFrames - 2; index++)
             Assert.False(settle.Observe("ab"));
 
         Assert.True(settle.Observe("ab"));
@@ -85,7 +86,7 @@ public class HarnessSettleTests
         settle.Observe(null);
 
         Assert.Equal(0, settle.Changes);
-        Assert.Single(settle.Samples);
+        Assert.Empty(settle.Samples);
     }
 
     [Fact]

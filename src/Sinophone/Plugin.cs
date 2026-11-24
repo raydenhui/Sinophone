@@ -177,6 +177,7 @@ public sealed class Plugin : IDalamudPlugin
                 GameGui,
                 TextureProvider,
                 TextureReadback,
+                chinese => _chatLogRestorer.TryGetEnglish(chinese, out var english) ? english : null,
                 () => Path.Combine(PluginInterface.GetPluginConfigDirectory(), "harness"),
                 Log)
             : null;

@@ -19,6 +19,7 @@ public sealed class TalkHarnessDriver : IHarnessDriver
     private readonly Func<HarnessDialogSnapshot?> _snapshot;
     private readonly Action<string>? _inject;
     private readonly Action? _clear;
+    private readonly Func<string, string?>? _englishForChinese;
     private readonly HarnessLineTracker _tracker = new();
     private string? _injected;
     private bool _armed;
@@ -27,15 +28,19 @@ public sealed class TalkHarnessDriver : IHarnessDriver
     /// <paramref name="snapshot"/> reads the current Talk line, or null when Talk is not open.
     /// <paramref name="inject"/> puts an English line into the addon; leave it out to wait for
     /// the developer to talk. <paramref name="clear"/> forgets that line when the run ends.
+    /// <paramref name="englishForChinese"/> finds the English line the plugin logged for a drawn
+    /// Chinese line, which is how a played line gets a source to compare against.
     /// </summary>
     public TalkHarnessDriver(
         Func<HarnessDialogSnapshot?> snapshot,
         Action<string>? inject = null,
-        Action? clear = null)
+        Action? clear = null,
+        Func<string, string?>? englishForChinese = null)
     {
         _snapshot = snapshot;
         _inject = inject;
         _clear = clear;
+        _englishForChinese = englishForChinese;
     }
 
     /// <summary>True when each case waits for the developer to talk instead of injecting.</summary>
@@ -52,17 +57,8 @@ public sealed class TalkHarnessDriver : IHarnessDriver
 
         if (IsArmed)
         {
-            // A played line carries no English the window keeps, so the check compares the
-            // drawn text with the case's expected Chinese. A case with no expectation would
-            // accept any text, including an untranslated line, so it cannot be judged.
-            if (string.IsNullOrEmpty(harnessCase.ExpectedChinese))
-            {
-                reason = "An armed run needs a case from the loaded data, which knows the Chinese.";
-                return false;
-            }
-
-            // The source line is whatever the developer plays, so the tracker has nothing to
-            // compare with until the first frame. It is reset on the first sample below.
+            // The source line is whatever the developer played, so the tracker has nothing to
+            // compare with until the first frame resolves the English. It is reset there.
             reason = string.Empty;
             return true;
         }
@@ -88,13 +84,31 @@ public sealed class TalkHarnessDriver : IHarnessDriver
             return new HarnessMeasurement { SkipReason = "The Talk window closed." };
 
         var drawn = snapshot.Text;
-        var english = IsArmed ? snapshot.English : _injected;
 
-        if (IsArmed && !_armed)
+        string? english;
+        if (IsArmed)
         {
-            // The first sample of a played line is its English, so that is the source.
-            _tracker.Reset(drawn);
-            _armed = true;
+            // The node holds the Chinese, so the English is the line the plugin logged when
+            // it laid this line out. No record means the plugin never translated the line.
+            english = _englishForChinese?.Invoke(drawn);
+            if (string.IsNullOrEmpty(english))
+            {
+                return new HarnessMeasurement
+                {
+                    Drawn = drawn,
+                    SkipReason = "No translation reached this line, so there is no English to compare with.",
+                };
+            }
+
+            if (!_armed)
+            {
+                _tracker.Reset(english);
+                _armed = true;
+            }
+        }
+        else
+        {
+            english = _injected;
         }
 
         _tracker.Observe(drawn);
@@ -103,7 +117,7 @@ public sealed class TalkHarnessDriver : IHarnessDriver
         {
             Drawn = drawn,
             English = english,
-            Expected = harnessCase.ExpectedChinese,
+            Expected = IsArmed ? null : harnessCase.ExpectedChinese,
             RenderedLines = snapshot.Lines,
             TextWidth = snapshot.TextWidth,
             TextHeight = snapshot.TextHeight,

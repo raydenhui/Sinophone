@@ -16,6 +16,7 @@ public sealed class HarnessHost : IDisposable
     private readonly HarnessCapture? _capture;
     private readonly TalkHarnessSurface _talkSurface;
     private readonly HarnessSession _session;
+    private readonly Func<string, string?> _englishForChinese;
 
     public HarnessHost(
         Configuration configuration,
@@ -23,12 +24,14 @@ public sealed class HarnessHost : IDisposable
         IGameGui gameGui,
         ITextureProvider textures,
         ITextureReadbackProvider readback,
+        Func<string, string?> englishForChinese,
         Func<string> reportDirectory,
         IPluginLog log)
     {
         _configuration = configuration;
         _log = new PluginLog(log, configuration, LogCategory.Diagnostics);
         _talkSurface = new TalkHarnessSurface(gameGui, _log);
+        _englishForChinese = englishForChinese;
 
         _session = new HarnessSession(
             getStore,
@@ -95,7 +98,9 @@ public sealed class HarnessHost : IDisposable
                         _log.Warning("Testing tab: could not inject a line; the case will read the window as it is.");
                 },
                 _talkSurface.ClearInjected)
-            : new TalkHarnessDriver(() => _talkSurface.Snapshot(null));
+            : new TalkHarnessDriver(
+                () => _talkSurface.Snapshot(null),
+                englishForChinese: _englishForChinese);
 
         driver.Capture = captureFrames ? _capture : null;
         _talkSurface.ClearInjected();

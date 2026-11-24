@@ -3,6 +3,9 @@
 This branch was written on Linux with no .NET SDK, so it has not been compiled or run. These are
 the commands that verify it. Run them in order; each one either passes or tells you what broke.
 
+The glyph probe reads `AtkFontManager`, which landed in FFXIVClientStructs in October 2026. Use a
+current Dalamud (15.0.4.1 or later); an older dev install fails to compile the engine half.
+
 ## 1. Build and test (no game needed)
 
 ```powershell
@@ -52,7 +55,8 @@ pwsh -File scripts/Deploy-DevPlugin.ps1 -DevPluginPath <dev-plugin-folder>
 
 In game, `/sinophone` → **Testing**. Expected:
 
-- The tab exists only because Dalamud loaded a dev plugin.
+- The tab is present in this build; the run controls are enabled only because Dalamud loaded a
+  dev plugin. Loading the same DLL as a normal plugin shows the tab with runs off.
 - Sub-tabs: Runs, Talk, Chat bubbles, Native text, Talk probe, Results.
 - Native text and Talk probe behave as they did before.
 
@@ -81,6 +85,13 @@ Expected: the box shows the Chinese, and the Results rows say Passed. A line tha
 Failed with "The game replaced the translation".
 
 If every row fails with "The Talk window is not open", the addon was closed between cases.
+
+3. Turn **Write the English line into Talk** off. Talk to an NPC, and while the line is on screen,
+   start a run. It measures one line.
+
+Expected: the row passes when the box shows Chinese. A line the plugin could not translate is
+Skipped with "No translation reached this line", not passed. The run does not put the player's own
+line back, so talk through the line again before checking it yourself.
 
 ## 7. What to report back
 

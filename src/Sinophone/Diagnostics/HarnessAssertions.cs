@@ -92,9 +92,11 @@ public static class HarnessAssertions
     /// non-empty text that is not the English line passes.
     /// </summary>
     /// <remarks>
-    /// Line breaks are ignored on both sides. The native Talk writer wraps a long line and puts
-    /// the break in the text, while the store holds the line as one string; the break is a
-    /// display detail, and <see cref="NoLeadingClosingMark"/> checks it separately.
+    /// Line breaks are ignored when the Chinese is compared: the native Talk writer wraps a long
+    /// line and puts the break in the text, while the store holds the line as one string. When
+    /// the English is compared, a break counts as the space it replaced, because the game wraps
+    /// the English line at a space. The break itself is a display detail, and
+    /// <see cref="NoLeadingClosingMark"/> checks it separately.
     /// </remarks>
     public static HarnessFinding Translated(string? drawn, string? expected, string? english)
     {
@@ -110,7 +112,7 @@ public static class HarnessAssertions
         }
 
         if (!string.IsNullOrEmpty(english) &&
-            string.Equals(WithoutBreaks(drawn), WithoutBreaks(english), StringComparison.Ordinal))
+            string.Equals(BreaksAsSpaces(drawn), BreaksAsSpaces(english), StringComparison.Ordinal))
         {
             return new HarnessFinding(HarnessCheck.Translated, false,
                 "The English line was drawn; no translation reached the surface.");
@@ -194,5 +196,14 @@ public static class HarnessAssertions
     private static string WithoutBreaks(string text)
         => text.Contains('\n') || text.Contains('\r')
             ? text.Replace("\r", string.Empty).Replace("\n", string.Empty)
+            : text;
+
+    /// <summary>
+    /// Reads a break as the space it replaced. The English client wraps a line in the text and
+    /// keeps the space it broke at, so a drawn English line matches a one-line source.
+    /// </summary>
+    private static string BreaksAsSpaces(string text)
+        => text.Contains('\n') || text.Contains('\r')
+            ? text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ')
             : text;
 }

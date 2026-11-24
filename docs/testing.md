@@ -154,10 +154,12 @@ switch, fails a test instead of shipping developer code in a release.
 
 **What a run cannot do.** An injected line has no live event handler behind it, so the id-first
 lookup is not exercised. Only an armed Talk run, where the harness measures the line on screen,
-covers it; start that run while the line is visible, and it measures one line per run. A Talk run
-reads the addon's own text node, so it needs native text mode: with the overlay, the node keeps the
-English line and every case fails. A bubble run needs chat bubble translation on. A run also needs
-the game, so it is not part of CI.
+covers it; start that run while the line is visible, and it measures one line per run. It gets the
+English for the shown Chinese from the line the plugin logged when it laid it out, so a line the
+plugin did not translate is skipped rather than passed. A Talk run reads the addon's own text node,
+so it needs native text mode: with the overlay, the node keeps the English line and every case
+fails. A bubble run needs chat bubble translation on. A run also needs the game, so it is not part
+of CI.
 
 ### In-game testing
 
