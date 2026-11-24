@@ -2,8 +2,7 @@ The testing tab drives Talk and chat bubbles. The other surfaces still have no r
 to them is still checked by hand. This note covers the rest, with the drive path for each so the
 work is one decision per surface rather than an investigation.
 
-Planned as one issue ("test(testing): drive the remaining surfaces from the harness"), opened
-when the repository allows it.
+Planned as one issue, "test(testing): drive the remaining surfaces from the harness" (#198).
 
 ## What the harness already gives a new surface
 
