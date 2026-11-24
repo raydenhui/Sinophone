@@ -990,6 +990,10 @@ public sealed class ConfigWindow : Window
         if (!string.IsNullOrEmpty(path))
             ImGui.TextDisabled($"Saved to {path}");
 
+        var captures = _harnessHost.Captured.Count;
+        if (captures > 0)
+            ImGui.TextDisabled($"{captures} screenshot(s) in {_harnessHost.ReportDirectory}");
+
         ImGui.Spacing();
         if (!ImGui.BeginTable("##harnessResults", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
             return;

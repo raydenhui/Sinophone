@@ -1,7 +1,5 @@
 #if SINOPHONE_TESTING
 using System.Text;
-using Dalamud.Interface.Textures;
-using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace Sinophone.Diagnostics;
 
@@ -9,15 +7,18 @@ namespace Sinophone.Diagnostics;
 /// Takes a PNG of the game screen so a case can be reviewed later.
 /// </summary>
 /// <remarks>
-/// The capture is of the game's own viewport with Dalamud's windows left out, because the
-/// question is what the game drew, not what the plugin drew on top of it. Everything here is
-/// behind <c>SINOPHONE_TESTING</c>.
+/// Nothing here blocks the game thread. Capturing a viewport finishes a frame later, so
+/// <see cref="Request"/> only starts the work and <see cref="Pump"/> collects it. That means a
+/// capture shows the frame after the case settled, which is the same line while a surface holds
+/// it. A capture never fails a case; the first failure is logged and captures stay off.
 /// </remarks>
 public sealed class HarnessCapture
 {
     private readonly ITextureProvider _textures;
     private readonly ITextureReadbackProvider _readback;
     private readonly PluginLog _log;
+    private readonly Queue<Task<string?>> _pending = new();
+    private readonly List<string> _captured = [];
     private bool _reportedFailure;
 
     public HarnessCapture(ITextureProvider textures, ITextureReadbackProvider readback, PluginLog log)
@@ -27,20 +28,26 @@ public sealed class HarnessCapture
         _log = log;
     }
 
-    /// <summary>Where captures go. Created on first use.</summary>
+    /// <summary>Where captures go. Created on first use. Empty disables capturing.</summary>
     public string Directory { get; init; } = string.Empty;
 
-    /// <summary>True when the services needed for a capture are present.</summary>
+    /// <summary>True when the folder is set, so a capture can be requested.</summary>
     public bool IsAvailable => Directory.Length > 0;
 
+    /// <summary>Paths written so far.</summary>
+    public IReadOnlyList<string> Captured => _captured;
+
+    /// <summary>Captures still in flight.</summary>
+    public int PendingCount => _pending.Count;
+
     /// <summary>
-    /// Grabs the frame and writes it next to the report. Returns the path written, or null when
-    /// the capture failed. A failure is logged once; a run should not fill the log with it.
+    /// Starts a capture of the current frame and saves it as <paramref name="name"/>. Returns at
+    /// once; the file appears after the next render.
     /// </summary>
-    public string? Save(string name)
+    public void Request(string name)
     {
         if (!IsAvailable)
-            return null;
+            return;
 
         try
         {
@@ -50,7 +57,7 @@ public sealed class HarnessCapture
             if (container == Guid.Empty)
             {
                 ReportUnavailable("no PNG encoder is available");
-                return null;
+                return;
             }
 
             var args = new ImGuiViewportTextureArgs
@@ -59,10 +66,32 @@ public sealed class HarnessCapture
                 TakeBeforeImGuiRender = true,
             };
 
-            using var wrap = _textures.CreateFromImGuiViewportAsync(args, name).GetAwaiter().GetResult();
+            _pending.Enqueue(CaptureAndSave(args, container, Path.Combine(Directory, Sanitize(name) + ".png")));
+        }
+        catch (Exception ex)
+        {
+            ReportUnavailable(ex.Message);
+        }
+    }
 
-            var path = Path.Combine(Directory, Sanitize(name) + ".png");
-            _readback.SaveToFileAsync(wrap, container, path).GetAwaiter().GetResult();
+    /// <summary>Collects finished captures. Call once per frame.</summary>
+    public void Pump()
+    {
+        while (_pending.Count > 0 && _pending.Peek().IsCompleted)
+        {
+            var task = _pending.Dequeue();
+
+            if (task.Status == TaskStatus.RanToCompletion && task.Result is { } path)
+                _captured.Add(path);
+        }
+    }
+
+    private async Task<string?> CaptureAndSave(ImGuiViewportTextureArgs args, Guid container, string path)
+    {
+        try
+        {
+            using var wrap = await _textures.CreateFromImGuiViewportAsync(args).ConfigureAwait(false);
+            await _readback.SaveToFileAsync(wrap, container, path).ConfigureAwait(false);
             return path;
         }
         catch (Exception ex)
@@ -93,14 +122,13 @@ public sealed class HarnessCapture
 
         _reportedFailure = true;
         _log.Warning("Testing tab: could not capture the screen ({Reason}); captures are off.", reason);
+    }
 
     private static string Sanitize(string name)
     {
         var builder = new StringBuilder(name.Length);
         foreach (var ch in name)
-        {
             builder.Append(char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '-');
-        }
 
         return builder.Length == 0 ? "capture" : builder.ToString();
     }

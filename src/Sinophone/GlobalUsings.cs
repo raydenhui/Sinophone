@@ -19,6 +19,7 @@ global using Dalamud.Game.Command;
 global using Dalamud.Game.Player;
 global using Dalamud.Interface;
 global using Dalamud.Interface.ManagedFontAtlas;
+global using Dalamud.Interface.Textures;
 global using Dalamud.Interface.Utility;
 global using Dalamud.Interface.Windowing;
 global using Dalamud.IoC;

@@ -27,10 +27,7 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
     /// <summary>Target a bubble is shown above.</summary>
     public HarnessBubbleTarget Target => _target;
 
-    /// <summary>Paths of captures taken during this run.</summary>
-    public List<string> Captures { get; } = [];
-
-    /// <summary>When set, a screenshot is taken for each case that settles.</summary>
+    /// <summary>When set, a screenshot is requested for each case that settles.</summary>
     public HarnessCapture? Capture { get; set; }
 
     /// <summary>
@@ -91,9 +88,7 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
     {
         if (Capture is not null)
         {
-            var path = Capture.Save($"bubble-{harnessCase.Id}");
-            if (path is not null)
-                Captures.Add(path);
+            Capture.Request($"bubble-{harnessCase.Id}");
         }
 
         ChatBubbleHarness.Close(_target);

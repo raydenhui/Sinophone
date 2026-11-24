@@ -65,8 +65,15 @@ public sealed class HarnessHost : IDisposable
     /// <summary>True when the Talk window is open.</summary>
     public bool IsTalkOpen => _talkSurface.IsOpen;
 
-    /// <summary>Ticks the run once per frame.</summary>
-    public void Tick() => _session.Tick();
+    /// <summary>Ticks the run once per frame, and collects any finished capture.</summary>
+    public void Tick()
+    {
+        _session.Tick();
+        _capture?.Pump();
+    }
+
+    /// <summary>Paths of screenshots written so far.</summary>
+    public IReadOnlyList<string> Captured => _capture?.Captured ?? [];
 
     /// <summary>Stops the current run.</summary>
     public void Cancel(string reason) => _session.Cancel(reason);

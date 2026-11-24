@@ -39,9 +39,6 @@ public sealed class TalkHarnessDriver : IHarnessDriver
     /// <summary>When set, a screenshot is taken for each settled case.</summary>
     public HarnessCapture? Capture { get; set; }
 
-    /// <summary>Paths of captures taken during this run.</summary>
-    public List<string> Captures { get; } = [];
-
     public bool Begin(HarnessCase harnessCase, out string reason)
     {
         _injected = null;
@@ -103,16 +100,18 @@ public sealed class TalkHarnessDriver : IHarnessDriver
         };
     }
 
+    /// <summary>
+    /// Takes a screenshot while the line is still on screen, then forgets the injected line so a
+    /// later sample is read as it was played.
+    /// </summary>
     public void End(HarnessCase harnessCase)
     {
+        if (Capture is not null)
+        {
+            Capture.Request($"talk-{harnessCase.Id}");
+        }
+
         _injected = null;
-
-        if (Capture is null)
-            return;
-
-        var path = Capture.Save($"talk-{harnessCase.Id}");
-        if (path is not null)
-            Captures.Add(path);
     }
 
     public void Finish() => _injected = null;
