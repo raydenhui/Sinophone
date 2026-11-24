@@ -150,10 +150,27 @@ keeps it. Several script lines can share that key with different Chinese, for ex
 thing. Before this, the strip left an empty key, so those lines were skipped and never translated.
 
 To add a surface, prefer a handler-specific reader and reuse `DialogueContext` rather
-than adding a second lookup path. The `Talk probe` tab in Debug builds logs the event
+than adding a second lookup path. The **Testing** tab's `Talk probe` sub-tab logs the event
 ids, scene data and Lua text pairs, so the mapping can be checked in game before it is
 trusted. Do not read game memory on a per-frame path; these reads happen on addon
 events only.
+
+### Testing tab
+
+`Diagnostics/` holds a developer harness plus two probes. The tab appears only when the build
+defines `SINOPHONE_TESTING` and Dalamud loaded the plugin as a dev plugin.
+
+- **Always compiled:** `HarnessCase`, `HarnessSettle`, `HarnessAssertions`, `HarnessMeasurement`,
+  `HarnessLineTracker`, `HarnessRun`, `HarnessSession`, `HarnessReport`, `HarnessCatalog`, and
+  `UI/HarnessTabState`. These carry no game types, so `Test.ps1` covers them against a Release
+  build. Put every rule here, not in the draw code.
+- **`SINOPHONE_TESTING` only:** `HarnessHost`, the surface drivers, `TalkHarnessSurface`,
+  `ChatBubbleHarness`, `GlyphProbe`, and `HarnessCapture`. A release DLL holds none of it.
+- **Probes:** `NativeTextProbe` and `TalkContextProbe`, on their own sub-tabs.
+
+A run sends `HarnessCase` values through an `IHarnessDriver`, one per frame, and stops a case when
+its text has not changed for `HarnessSettle.SettleFrames` samples. `HarnessAssertions` then turns
+the measurement into findings. A new surface is one driver class.
 
 ### Overlay window
 
@@ -287,7 +304,7 @@ know leaves the English line in place.
 
 - Node 2 is the speaker name and node 3 is the dialogue in the `Talk` addon, confirmed from the
   live addon log. These are the fallback write targets, used when the `AtkValue` hook could not be
-  placed. Re-confirm with the debug probe in `Diagnostics/NativeTextProbe.cs` (Debug builds only)
+  placed. Re-confirm with the `Native text` sub-tab of the Testing tab (testing builds only)
   before changing either constant.
 - The game's font has no CJK glyphs. Without a font mod the line shows the missing-glyph character,
   so the settings section warns and links the README font setup. The plugin cannot detect the mod.
