@@ -161,9 +161,10 @@ events only.
 defines `SINOPHONE_TESTING` and Dalamud loaded the plugin as a dev plugin.
 
 - **Always compiled:** `HarnessCase`, `HarnessSettle`, `HarnessAssertions`, `HarnessMeasurement`,
-  `HarnessLineTracker`, `HarnessRun`, `HarnessSession`, `HarnessReport`, `HarnessCatalog`, and
-  `UI/HarnessTabState`. These carry no game types, so `Test.ps1` covers them against a Release
-  build. Put every rule here, not in the draw code.
+  `HarnessLineTracker`, `HarnessRun`, `HarnessSession`, `HarnessReport`, `HarnessCatalog`,
+  `HarnessBubbleTarget`, `HarnessNamePlateSelection`, `HarnessBuild`, and `UI/HarnessTabState`.
+  These carry no game types, so `Test.ps1` covers them against a Release build. Put every rule
+  here, not in the draw code.
 - **`SINOPHONE_TESTING` only:** `HarnessHost`, the surface drivers, `TalkHarnessSurface`,
   `ChatBubbleHarness`, `GlyphProbe`, and `HarnessCapture`. A release DLL holds none of it.
 - **Probes:** `NativeTextProbe` and `TalkContextProbe`, on their own sub-tabs.

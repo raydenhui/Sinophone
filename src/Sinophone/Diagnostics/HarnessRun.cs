@@ -86,8 +86,14 @@ public sealed class HarnessRun
 
         if (_settle.HasTimedOut)
         {
-            Complete(current, HarnessOutcome.Failed, _lastMeasurement,
-                $"The text did not settle within {HarnessSettle.TimeoutFrames} frames.");
+            // An empty node never settles on purpose: the game may not have laid the line out
+            // yet. When the wait runs out with nothing drawn, say so; reading "did not settle"
+            // would point the developer at the reveal instead of at the surface.
+            var detail = string.IsNullOrEmpty(_settle.Last)
+                ? $"Nothing was drawn within {HarnessSettle.TimeoutFrames} frames."
+                : $"The text did not settle within {HarnessSettle.TimeoutFrames} frames.";
+
+            Complete(current, HarnessOutcome.Failed, _lastMeasurement, detail);
             return true;
         }
 
@@ -148,8 +154,10 @@ public sealed class HarnessRun
     private void Complete(HarnessCase current, HarnessOutcome outcome, HarnessMeasurement measurement, string? detail)
     {
         // The driver takes its screenshot here, while the surface still shows the line, and
-        // puts the surface back afterwards.
-        _driver.End(current);
+        // puts the surface back afterwards. A case whose Begin failed never changed a surface,
+        // so it has nothing to put back and nothing worth a screenshot.
+        if (_caseStarted)
+            _driver.End(current);
 
         _report.Add(new HarnessResult(
             current.Id,

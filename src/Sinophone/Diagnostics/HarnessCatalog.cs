@@ -107,7 +107,15 @@ public static class HarnessCatalog
         var pairs = new List<(string English, string Chinese)>(limit * 4);
 
         for (var index = 0; index < entries.Count; index += stride)
-            pairs.Add(entries[index]);
+        {
+            var english = entries[index].English;
+
+            // Ask the store for the line rather than using the stored Chinese: the answer is
+            // what the plugin draws, with conditionals resolved and the conversion applied,
+            // so a case's expectation matches the surface.
+            if (store.TryGetDialogue(english, out var chinese) && !string.IsNullOrWhiteSpace(chinese))
+                pairs.Add((english, chinese));
+        }
 
         return FromPairs(surface, pairs, limit, maxEnglish);
     }

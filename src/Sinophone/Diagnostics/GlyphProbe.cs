@@ -14,9 +14,6 @@ namespace Sinophone.Diagnostics;
 /// </remarks>
 public static unsafe class GlyphProbe
 {
-    /// <summary>Characters skip: whitespace and the marks the font is not expected to hold.</summary>
-    private const string SkipCharacters = " \t\r\n　";
-
     /// <summary>
     /// Characters in <paramref name="text"/> with no glyph in <paramref name="fontType"/>.
     /// Returns -1 when the font manager is not reachable, so a missing structure is reported as
@@ -43,7 +40,8 @@ public static unsafe class GlyphProbe
         var missing = 0;
         foreach (var rune in text.EnumerateRunes())
         {
-            if (char.IsWhiteSpace(rune.ToString()[0]) || SkipCharacters.Contains((char)rune.Value))
+            // Space has no glyph in a font that lays it out as an advance.
+            if (Rune.IsWhiteSpace(rune))
                 continue;
 
             if (fontSet->GetGlyph((uint)rune.Value, font) is null)

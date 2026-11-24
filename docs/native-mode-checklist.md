@@ -87,6 +87,17 @@ and write down which build was running when a row failed.
 | Hover an item the tooltip cannot show, such as one in a menu that draws its own name | The overlay appears instead of the tooltip being changed |
 | An item with a long English name | The whole name fits in the tooltip header, wraps into no narrow column, and the rest of the tooltip layout is unchanged |
 
+## Using the Testing tab
+
+A dev plugin build has a **Testing** tab in the settings window. The **Talk** sub-tab can write a
+case's English line into an open Talk window and check it every frame; the **Chat bubbles** sub-tab
+starts a bubble above a picked object. Both write a JSON report, and a PNG per case when screenshots
+are on. Use a run as the first pass over the rows above. A run cannot see whether the font mod is
+installed or judge whether the text reads well, so the eye check still decides.
+
+A run writes into the live addon and does not put the player's own line back. Talk to an NPC again
+after a run before judging a row.
+
 ## Done when
 
 - Every row above has been checked and the result is written in the pull request.

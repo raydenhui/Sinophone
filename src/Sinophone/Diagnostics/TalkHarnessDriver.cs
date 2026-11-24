@@ -18,6 +18,7 @@ public sealed class TalkHarnessDriver : IHarnessDriver
 {
     private readonly Func<HarnessDialogSnapshot?> _snapshot;
     private readonly Action<string>? _inject;
+    private readonly Action? _clear;
     private readonly HarnessLineTracker _tracker = new();
     private string? _injected;
     private bool _armed;
@@ -25,12 +26,16 @@ public sealed class TalkHarnessDriver : IHarnessDriver
     /// <summary>
     /// <paramref name="snapshot"/> reads the current Talk line, or null when Talk is not open.
     /// <paramref name="inject"/> puts an English line into the addon; leave it out to wait for
-    /// the developer to talk.
+    /// the developer to talk. <paramref name="clear"/> forgets that line when the run ends.
     /// </summary>
-    public TalkHarnessDriver(Func<HarnessDialogSnapshot?> snapshot, Action<string>? inject = null)
+    public TalkHarnessDriver(
+        Func<HarnessDialogSnapshot?> snapshot,
+        Action<string>? inject = null,
+        Action? clear = null)
     {
         _snapshot = snapshot;
         _inject = inject;
+        _clear = clear;
     }
 
     /// <summary>True when each case waits for the developer to talk instead of injecting.</summary>
@@ -114,7 +119,11 @@ public sealed class TalkHarnessDriver : IHarnessDriver
         _injected = null;
     }
 
-    public void Finish() => _injected = null;
+    public void Finish()
+    {
+        _injected = null;
+        _clear?.Invoke();
+    }
 }
 
 /// <summary>What the Talk window looks like at one moment.</summary>

@@ -14,7 +14,7 @@ public class HarnessSessionTests
     private static HarnessMeasurement Translated => new() { Drawn = "你好", English = "Hello" };
 
     private static HarnessSession Session(Func<string>? directory = null)
-        => new(() => null, directory ?? (static () => string.Empty));
+        => new(() => null, directory ?? new Func<string>(static () => string.Empty));
 
     private static void Drain(HarnessSession session, int frames = 100)
     {
@@ -150,6 +150,29 @@ public class HarnessSessionTests
 
         Assert.NotEmpty(cases);
         Assert.All(cases, static harnessCase => Assert.Equal(HarnessSurface.Talk, harnessCase.Surface));
+    }
+
+    [Fact]
+    public void BuildCases_IsCached_ForTheSameRequest()
+    {
+        var session = Session();
+
+        var first = session.BuildCases(HarnessSurface.Talk, 10, fromStore: false);
+        var second = session.BuildCases(HarnessSurface.Talk, 10, fromStore: false);
+
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void BuildCases_KeepsEachRequestApart()
+    {
+        var session = Session();
+
+        var talk = session.BuildCases(HarnessSurface.Talk, 10, fromStore: false);
+        var bubbles = session.BuildCases(HarnessSurface.ChatBubble, 10, fromStore: false);
+
+        Assert.NotSame(talk, bubbles);
+        Assert.All(bubbles, static harnessCase => Assert.Equal(HarnessSurface.ChatBubble, harnessCase.Surface));
     }
 
     [Fact]

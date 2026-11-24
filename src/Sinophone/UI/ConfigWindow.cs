@@ -739,7 +739,6 @@ public sealed class ConfigWindow : Window
             if (!ImGui.BeginTabItem(HarnessTabState.SubTabs[index]))
                 continue;
 
-            _harness.SelectedTab = index;
             switch (HarnessTabState.SubTabs[index])
             {
                 case "Runs":
@@ -793,7 +792,7 @@ public sealed class ConfigWindow : Window
     }
 
     /// <summary>Starts a run and records what the tab should say about it.</summary>
-    private void StartRun(List<HarnessCase> cases, Func<int, bool> start)
+    private void StartRun(IReadOnlyList<HarnessCase> cases, Func<int, bool> start)
     {
         var running = _harnessHost?.IsRunning ?? false;
         var started = cases.Count > 0 && HarnessTabState.CanStart(running, cases.Count) && start(cases.Count);
@@ -882,6 +881,20 @@ public sealed class ConfigWindow : Window
         {
             var cases = talkHost.BuildCases(HarnessSurface.Talk, _harness.CaseLimit, _harness.UseStoreCases);
             DrawHarnessCaseList(cases);
+
+            if (!_configuration.Enabled || !_configuration.ShowInTalk)
+            {
+                ImGui.TextColored(WarningColor,
+                    "Talk translation is off in the components, so a run will draw the English line.");
+            }
+
+            if (!_configuration.NativeTextMode)
+            {
+                ImGui.TextColored(WarningColor,
+                    "Native text mode is off, so this reads the game's own node, which stays English. " +
+                    "The overlay is not measured by a run.");
+            }
+
             ImGui.Spacing();
             if (ImGui.Button("Run these Talk cases"))
                 StartRun(cases, _ => talkHost.StartTalkRun(cases, _harness.InjectTalkLines, _harness.CaptureFrames));
@@ -917,10 +930,10 @@ public sealed class ConfigWindow : Window
         }
         else
         {
-            var names = _harness.Targets.Select(static target => $"{target.Name} ({target.Kind})").ToArray();
+            var names = _harness.TargetLabels;
             var index = _harness.TargetIndex;
             ImGui.SetNextItemWidth(-1f);
-            if (ImGui.Combo("##bubbleTarget", ref index, names, names.Length))
+            if (ImGui.Combo("##bubbleTarget", ref index, names))
                 _harness.TargetIndex = index;
         }
 
@@ -956,6 +969,13 @@ public sealed class ConfigWindow : Window
         {
             var cases = bubbleHost.BuildCases(HarnessSurface.ChatBubble, _harness.CaseLimit, _harness.UseStoreCases);
             DrawHarnessCaseList(cases);
+
+            if (!_configuration.Enabled || !_configuration.ShowInChatBubbles)
+            {
+                ImGui.TextColored(WarningColor,
+                    "Chat bubble translation is off in the components, so a run will draw the English line.");
+            }
+
             ImGui.Spacing();
             if (ImGui.Button("Run these bubble cases"))
             {
@@ -979,21 +999,20 @@ public sealed class ConfigWindow : Window
 
     private void DrawHarnessResultsTab()
     {
-        var report = _harnessHost?.LastReport;
-        if (report is null)
+        if (_harnessHost is not { } host || host.LastReport is not { } report)
         {
             ImGui.TextDisabled("No run has finished yet.");
             return;
         }
 
         ImGui.TextColored(SectionColor, report.Summary());
-        var path = _harness.LastReportPath ?? _harnessHost.LastReportPath;
+        var path = _harness.LastReportPath ?? host.LastReportPath;
         if (!string.IsNullOrEmpty(path))
             ImGui.TextDisabled($"Saved to {path}");
 
-        var captures = _harnessHost.Captured.Count;
+        var captures = host.Captured.Count;
         if (captures > 0)
-            ImGui.TextDisabled($"{captures} screenshot(s) in {_harnessHost.ReportDirectory}");
+            ImGui.TextDisabled($"{captures} screenshot(s) in {host.ReportDirectory}");
 
         ImGui.Spacing();
         if (!ImGui.BeginTable("##harnessResults", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
@@ -1033,7 +1052,7 @@ public sealed class ConfigWindow : Window
             _ => new Vector4(1f, 0.72f, 0.35f, 1f),
         };
 
-    private void DrawHarnessCaseList(List<HarnessCase> cases)
+    private void DrawHarnessCaseList(IReadOnlyList<HarnessCase> cases)
     {
         if (cases.Count == 0)
         {
@@ -1065,13 +1084,13 @@ public sealed class ConfigWindow : Window
 
     private void RefreshHarnessTargets()
     {
-        _harness.Targets.Clear();
-
         if (_objectTable is null)
+        {
+            _harness.SetTargets([]);
             return;
+        }
 
-        _harness.Targets.AddRange(ChatBubbleHarness.VisibleTargets(_objectTable));
-        _harness.TargetIndex = Math.Clamp(_harness.TargetIndex, 0, Math.Max(0, _harness.Targets.Count - 1));
+        _harness.SetTargets(ChatBubbleHarness.VisibleTargets(_objectTable));
     }
 #endif
 

@@ -1,9 +1,10 @@
 #if SINOPHONE_TESTING
+using Dalamud.Game.ClientState.Objects.Types;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
-// Lumina also has a sheet called Character; the harness only wants the game struct.
+// Lumina also has a sheet called Character; the harness only wants the game structs.
 using GameCharacter = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
+using GameUtf8String = FFXIVClientStructs.FFXIV.Client.System.String.Utf8String;
 
 namespace Sinophone.Diagnostics;
 
@@ -45,9 +46,12 @@ public static unsafe class ChatBubbleHarness
 
         try
         {
+            // The game copies the text into the balloon, so the UTF-8 buffer only has to live
+            // for the call. Passing a CStringPointer is the shape the other balloon drivers use.
             var character = (GameCharacter*)target.Address;
+            using var utf8Text = *GameUtf8String.FromString(text);
             character->YellBalloon.OpenBalloon(
-                text,
+                utf8Text,
                 duration,
                 softOpen: true,
                 openDelay: 0f,
@@ -129,6 +133,10 @@ public static unsafe class ChatBubbleHarness
             if (name.Length == 0)
                 continue;
 
+            // A yell balloon is a field of the character struct, so a door or a summoning bell
+            // must not be driven: its object is not a character and the write would run past it.
+            if (obj is not ICharacter)
+                continue;
             if (player is not null && obj.Address == player.Address)
                 continue;
 

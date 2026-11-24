@@ -91,6 +91,11 @@ public static class HarnessAssertions
     /// Checks that the drawn text is the expected translation. With no expectation, any
     /// non-empty text that is not the English line passes.
     /// </summary>
+    /// <remarks>
+    /// Line breaks are ignored on both sides. The native Talk writer wraps a long line and puts
+    /// the break in the text, while the store holds the line as one string; the break is a
+    /// display detail, and <see cref="NoLeadingClosingMark"/> checks it separately.
+    /// </remarks>
     public static HarnessFinding Translated(string? drawn, string? expected, string? english)
     {
         if (string.IsNullOrWhiteSpace(drawn))
@@ -98,14 +103,14 @@ public static class HarnessAssertions
 
         if (!string.IsNullOrEmpty(expected))
         {
-            return string.Equals(drawn, expected, StringComparison.Ordinal)
+            return string.Equals(WithoutBreaks(drawn), WithoutBreaks(expected), StringComparison.Ordinal)
                 ? new HarnessFinding(HarnessCheck.Translated, true, "The expected Chinese was drawn.")
                 : new HarnessFinding(HarnessCheck.Translated, false,
                     $"Expected \"{Excerpt(expected, 0)}\" but drew \"{Excerpt(drawn!, 0)}\".");
         }
 
         if (!string.IsNullOrEmpty(english) &&
-            string.Equals(drawn, english, StringComparison.Ordinal))
+            string.Equals(WithoutBreaks(drawn), WithoutBreaks(english), StringComparison.Ordinal))
         {
             return new HarnessFinding(HarnessCheck.Translated, false,
                 "The English line was drawn; no translation reached the surface.");
@@ -154,13 +159,16 @@ public static class HarnessAssertions
             findings.Add(NoRevert(measurement.Reverts));
 
         // Glyphs needs the game font, so the engine side reports it. A surface that cannot
-        // read the font leaves the count at zero, which passes as "not measured".
+        // read the font reports -1, which is "not measured" and not a font problem.
         if (checks.HasFlag(HarnessCheck.Glyphs))
         {
-            findings.Add(measurement.MissingGlyphs > 0
-                ? new HarnessFinding(HarnessCheck.Glyphs, false,
-                    $"{measurement.MissingGlyphs} character(s) have no glyph in the game font.")
-                : new HarnessFinding(HarnessCheck.Glyphs, true, "Every character has a glyph."));
+            findings.Add(measurement.MissingGlyphs switch
+            {
+                < 0 => new HarnessFinding(HarnessCheck.Glyphs, true, "The game font could not be read."),
+                > 0 => new HarnessFinding(HarnessCheck.Glyphs, false,
+                    $"{measurement.MissingGlyphs} character(s) have no glyph in the game font."),
+                _ => new HarnessFinding(HarnessCheck.Glyphs, true, "Every character has a glyph."),
+            });
         }
 
         return findings;
@@ -181,4 +189,10 @@ public static class HarnessAssertions
         var excerpt = text.Substring(start, length).Replace('\n', ' ');
         return start > 0 ? "..." + excerpt : excerpt;
     }
+
+    /// <summary>Strips the line breaks a display adds, so a wrapped line still compares equal.</summary>
+    private static string WithoutBreaks(string text)
+        => text.Contains('\n') || text.Contains('\r')
+            ? text.Replace("\r", string.Empty).Replace("\n", string.Empty)
+            : text;
 }

@@ -76,8 +76,8 @@ public sealed unsafe class TalkHarnessSurface
             text,
             english,
             HarnessAssertions.ExplicitLines(text),
-            textWidth > 0 ? textWidth : node->AtkResNode.Width,
-            textHeight > 0 ? textHeight : node->AtkResNode.Height,
+            textWidth,
+            textHeight,
             node->AtkResNode.Width,
             node->AtkResNode.Height,
             GlyphProbe.CountMissing(text, node->FontType));

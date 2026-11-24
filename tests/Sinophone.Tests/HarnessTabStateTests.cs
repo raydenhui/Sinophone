@@ -1,3 +1,4 @@
+using Sinophone.Diagnostics;
 using Sinophone.UI;
 
 namespace Sinophone.Tests;
@@ -72,8 +73,45 @@ public class HarnessTabStateTests
     }
 
     [Fact]
-    public void SubTabs_AreUnique()
-        => Assert.Equal(HarnessTabState.SubTabs.Length, HarnessTabState.SubTabs.Distinct(StringComparer.Ordinal).Count());
+    public void SetTargets_BuildsThePickerLabels()
+    {
+        var state = new HarnessTabState();
+
+        state.SetTargets(
+        [
+            new HarnessBubbleTarget("Player One", 1, "player"),
+            new HarnessBubbleTarget("Wandering Minstrel", 2, "npc"),
+        ]);
+
+        Assert.Equal(new[] { "Player One (player)", "Wandering Minstrel (npc)" }, state.TargetLabels);
+    }
+
+    [Fact]
+    public void SetTargets_KeepsThePickedRowInRange()
+    {
+        var state = new HarnessTabState { TargetIndex = 9 };
+
+        state.SetTargets([new HarnessBubbleTarget("Only One", 1, "npc")]);
+
+        Assert.Equal(0, state.TargetIndex);
+        Assert.Equal("Only One", state.SelectedTarget.Name);
+    }
+
+    [Fact]
+    public void SetTargets_WithNothing_ClearsTheLabels()
+    {
+        var state = new HarnessTabState();
+        state.SetTargets([new HarnessBubbleTarget("One", 1, "npc")]);
+
+        state.SetTargets([]);
+
+        Assert.Empty(state.Targets);
+        Assert.Empty(state.TargetLabels);
+        Assert.False(state.SelectedTarget.IsUsable);
+    }
+
+    [Fact]
+    public void SubTabs_AreUnique()        => Assert.Equal(HarnessTabState.SubTabs.Length, HarnessTabState.SubTabs.Distinct(StringComparer.Ordinal).Count());
 
     [Fact]
     public void SubTabs_HoldTheMergedProbes()

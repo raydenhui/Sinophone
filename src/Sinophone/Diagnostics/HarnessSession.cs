@@ -17,6 +17,12 @@ public sealed class HarnessSession : IDisposable
     private HarnessRun? _run;
     private bool _disposed;
 
+    // Building cases from the store sorts every sheet text, which is far too much work to
+    // repeat while the config window draws every frame. The cache is dropped when the store
+    // instance changes, so a data update shows the new lines.
+    private readonly Dictionary<(HarnessSurface Surface, int Limit, bool FromStore), List<HarnessCase>> _caseCache = [];
+    private TranslationStore? _caseCacheStore;
+
     /// <param name="getStore">The loaded store, or null before one is ready.</param>
     /// <param name="reportDirectory">Where reports go. Empty disables writing.</param>
     /// <param name="logInfo">Info log, or null to stay quiet.</param>
@@ -102,14 +108,35 @@ public sealed class HarnessSession : IDisposable
         _run = null;
     }
 
-    /// <summary>Builds cases from the loaded store, or the fixed sample, for one surface.</summary>
-    public List<HarnessCase> BuildCases(HarnessSurface surface, int limit, bool fromStore)
+    /// <summary>
+    /// Builds cases from the loaded store, or the fixed sample, for one surface. The result is
+    /// cached until the settings or the store change, because the tab asks on every frame.
+    /// </summary>
+    public IReadOnlyList<HarnessCase> BuildCases(HarnessSurface surface, int limit, bool fromStore)
     {
-        if (fromStore)
-            return HarnessCatalog.FromStore(surface, _getStore(), limit);
+        var store = fromStore ? _getStore() : null;
+        if (!ReferenceEquals(store, _caseCacheStore))
+        {
+            _caseCache.Clear();
+            _caseCacheStore = store;
+        }
 
-        var cases = new List<HarnessCase>();
-        cases.AddRange(HarnessCatalog.BuiltIn.Where(harnessCase => harnessCase.Surface == surface));
+        var key = (surface, limit, fromStore);
+        if (_caseCache.TryGetValue(key, out var cached))
+            return cached;
+
+        List<HarnessCase> cases;
+        if (fromStore)
+        {
+            cases = HarnessCatalog.FromStore(surface, store, limit);
+        }
+        else
+        {
+            cases = [];
+            cases.AddRange(HarnessCatalog.BuiltIn.Where(harnessCase => harnessCase.Surface == surface));
+        }
+
+        _caseCache[key] = cases;
         return cases;
     }
 

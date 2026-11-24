@@ -63,6 +63,18 @@ public class HarnessRunTests
     }
 
     [Fact]
+    public void Tick_Fails_WhenTheSurfaceDrawsNothing()
+    {
+        var driver = new FakeHarnessDriver().Repeating(new HarnessMeasurement { Drawn = null });
+
+        var run = new HarnessRun([Case("one")], driver);
+        Drain(run, HarnessSettle.TimeoutFrames + 10);
+
+        Assert.Equal(HarnessOutcome.Failed, run.Report.Results[0].Outcome);
+        Assert.Contains("Nothing was drawn", run.Report.Results[0].Detail);
+    }
+
+    [Fact]
     public void Tick_Skips_WhenTheDriverCannotBegin()
     {
         var driver = new FakeHarnessDriver { RefuseReason = "Talk is not open." };
@@ -102,14 +114,15 @@ public class HarnessRunTests
     }
 
     [Fact]
-    public void Tick_EndsEveryCase_IncludingSkippedOnes()
+    public void Tick_DoesNotEndACaseThatNeverStarted()
     {
         var driver = new FakeHarnessDriver { RefuseReason = "nothing to drive" };
 
         var run = new HarnessRun([Case("one"), Case("two")], driver);
         Drain(run);
 
-        Assert.Equal(new[] { "one", "two" }, driver.Ended);
+        Assert.Equal(new[] { "one", "two" }, driver.Begun);
+        Assert.Empty(driver.Ended);
     }
 
     [Fact]
@@ -193,8 +206,9 @@ public class HarnessRunTests
 
         run.Cancel("Stopped by the developer.");
 
+        // The first case was started but never measured, so it is skipped with the rest.
         Assert.Equal(
-            new[] { HarnessOutcome.Skipped, HarnessOutcome.Skipped },
+            new[] { HarnessOutcome.Skipped, HarnessOutcome.Skipped, HarnessOutcome.Skipped },
             run.Report.Results.Select(static result => result.Outcome).ToArray());
         Assert.All(run.Report.Results, result => Assert.Equal("Stopped by the developer.", result.Detail));
         Assert.True(run.IsFinished);

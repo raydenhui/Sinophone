@@ -103,6 +103,20 @@ public class HarnessSettleTests
     }
 
     [Fact]
+    public void Observe_TimesOut_WhenTheNodeStaysEmpty()
+    {
+        var settle = new HarnessSettle();
+
+        var stopped = false;
+        for (var index = 0; index < HarnessSettle.TimeoutFrames && !stopped; index++)
+            stopped = settle.Observe(null);
+
+        Assert.True(stopped);
+        Assert.True(settle.HasTimedOut);
+        Assert.False(settle.IsSettled);
+    }
+
+    [Fact]
     public void Observe_DoesNotTimeOut_BeforeTheLimit()
     {
         var settle = new HarnessSettle();

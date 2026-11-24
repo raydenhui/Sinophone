@@ -153,6 +153,14 @@ public class HarnessAssertionsTests
         => Assert.True(HarnessAssertions.Translated("你好", "你好", "Hello").Passed);
 
     [Fact]
+    public void Translated_IgnoresTheLineBreaksTheDisplayAdds()
+        => Assert.True(HarnessAssertions.Translated("你好\n世界", "你好世界", "Hello, world.").Passed);
+
+    [Fact]
+    public void Translated_IgnoresLineBreaks_WhenComparingWithTheEnglish()
+        => Assert.False(HarnessAssertions.Translated("Hello\nworld", null, "Hello world").Passed);
+
+    [Fact]
     public void Translated_Fails_WhenItDoesNotMatchTheExpectedChinese()
     {
         var finding = HarnessAssertions.Translated("你好", "再見", "Hello");
@@ -250,6 +258,17 @@ public class HarnessAssertionsTests
 
         Assert.False(findings[0].Passed);
         Assert.Contains("2", findings[0].Detail);
+    }
+
+    [Fact]
+    public void Run_PassesGlyphs_WhenTheFontCouldNotBeRead()
+    {
+        var measurement = new HarnessMeasurement { Drawn = "歷閱臺灣", MissingGlyphs = -1 };
+
+        var findings = HarnessAssertions.Run(HarnessCheck.Glyphs, measurement);
+
+        Assert.True(findings[0].Passed);
+        Assert.Contains("could not be read", findings[0].Detail);
     }
 
     [Fact]

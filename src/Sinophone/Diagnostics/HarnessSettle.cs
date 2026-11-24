@@ -22,6 +22,7 @@ public sealed class HarnessSettle
     private readonly List<string> _samples = [];
     private string _last = string.Empty;
     private int _repeats;
+    private int _observations;
 
     /// <summary>How many times the text changed during the wait.</summary>
     public int Changes { get; private set; }
@@ -29,8 +30,8 @@ public sealed class HarnessSettle
     /// <summary>True once the text repeated <see cref="SettleFrames"/> times.</summary>
     public bool IsSettled { get; private set; }
 
-    /// <summary>True when no text settled within <see cref="TimeoutFrames"/> samples.</summary>
-    public bool HasTimedOut => _samples.Count >= TimeoutFrames && !IsSettled;
+    /// <summary>True when nothing settled after <see cref="TimeoutFrames"/> looks.</summary>
+    public bool HasTimedOut => _observations >= TimeoutFrames && !IsSettled;
 
     /// <summary>The last text seen.</summary>
     public string Last => _last;
@@ -44,6 +45,7 @@ public sealed class HarnessSettle
         _samples.Clear();
         _last = string.Empty;
         _repeats = 0;
+        _observations = 0;
         Changes = 0;
         IsSettled = false;
     }
@@ -55,6 +57,7 @@ public sealed class HarnessSettle
     public bool Observe(string? text)
     {
         var value = text ?? string.Empty;
+        _observations++;
 
         if (!string.Equals(value, _last, StringComparison.Ordinal))
         {

@@ -77,7 +77,7 @@ public sealed class HarnessHost : IDisposable
     public void Cancel(string reason) => _session.Cancel(reason);
 
     /// <summary>Builds cases for one surface.</summary>
-    public List<HarnessCase> BuildCases(HarnessSurface surface, int limit, bool fromStore)
+    public IReadOnlyList<HarnessCase> BuildCases(HarnessSurface surface, int limit, bool fromStore)
         => _session.BuildCases(surface, limit, fromStore);
 
     /// <summary>
@@ -93,7 +93,8 @@ public sealed class HarnessHost : IDisposable
                 {
                     if (!_talkSurface.Inject(english))
                         _log.Warning("Testing tab: could not inject a line; the case will read the window as it is.");
-                })
+                },
+                _talkSurface.ClearInjected)
             : new TalkHarnessDriver(() => _talkSurface.Snapshot(null));
 
         driver.Capture = captureFrames ? _capture : null;

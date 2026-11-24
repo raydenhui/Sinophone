@@ -100,8 +100,23 @@ public sealed class HarnessReport
 
         try
         {
-            var report = JsonSerializer.Deserialize<HarnessReport>(json, JsonOptions);
-            return report is null || report.Version != FormatVersion ? null : report;
+            // A stray JSON object is not a report, and deserializing it would leave every
+            // property at its default and look like a valid empty run. Require the two keys a
+            // reader depends on before trusting the rest.
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty(nameof(Version), out var version)
+                || !version.TryGetInt32(out var versionNumber)
+                || versionNumber != FormatVersion
+                || !root.TryGetProperty(nameof(Results), out var results)
+                || results.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            return JsonSerializer.Deserialize<HarnessReport>(json, JsonOptions);
         }
         catch (JsonException)
         {

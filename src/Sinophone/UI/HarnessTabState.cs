@@ -23,9 +23,6 @@ public sealed class HarnessTabState
         "Results",
     ];
 
-    /// <summary>Index into <see cref="SubTabs"/>.</summary>
-    public int SelectedTab { get; set; }
-
     /// <summary>How many cases a store-backed run builds.</summary>
     public int CaseLimit { get; set; } = HarnessCatalog.DefaultSampleSize;
 
@@ -43,6 +40,21 @@ public sealed class HarnessTabState
 
     /// <summary>The targets listed the last time the picker was refreshed.</summary>
     public List<HarnessBubbleTarget> Targets { get; } = [];
+
+    /// <summary>
+    /// Picker labels for <see cref="Targets"/>. Kept here so the draw code does not build the
+    /// array on every frame while the tab is open.
+    /// </summary>
+    public string[] TargetLabels { get; private set; } = [];
+
+    /// <summary>Replaces the picker's targets and keeps the selected row in range.</summary>
+    public void SetTargets(IEnumerable<HarnessBubbleTarget> targets)
+    {
+        Targets.Clear();
+        Targets.AddRange(targets);
+        TargetLabels = Targets.Select(static target => $"{target.Name} ({target.Kind})").ToArray();
+        TargetIndex = Math.Clamp(TargetIndex, 0, Math.Max(0, Targets.Count - 1));
+    }
 
     /// <summary>Report path from the last run, when it was written.</summary>
     public string? LastReportPath { get; set; }

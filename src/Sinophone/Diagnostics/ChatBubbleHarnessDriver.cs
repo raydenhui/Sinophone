@@ -14,7 +14,6 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
     private readonly HarnessBubbleTarget _target;
     private readonly Func<string?>? _text;
     private readonly HarnessLineTracker _tracker = new();
-    private string? _injected;
 
     public ChatBubbleHarnessDriver(HarnessBubbleTarget target, Func<string?>? text = null)
     {
@@ -41,7 +40,6 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
         }
 
         var text = _text?.Invoke() ?? harnessCase.English;
-        _injected = text;
         _tracker.Reset(text);
 
         return ChatBubbleHarness.Open(_target, text, out reason);
@@ -76,6 +74,10 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
             English = harnessCase.English,
             Expected = harnessCase.ExpectedChinese,
             Reverts = _tracker.Reverts,
+
+            // The balloon has no text node to ask for a font type, so the glyph check is
+            // reported as not measured instead of claiming every character has one.
+            MissingGlyphs = -1,
         };
     }
 
@@ -93,10 +95,6 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
         ChatBubbleHarness.Close(_target);
     }
 
-    public void Finish()
-    {
-        ChatBubbleHarness.Close(_target);
-        _injected = null;
-    }
+    public void Finish() => ChatBubbleHarness.Close(_target);
 }
 #endif
