@@ -19,32 +19,30 @@ public class CommandTests
         => Assert.Equal("Toggle", Plugin.ParseCommand(null).ToString());
 
     /// <summary>
-    /// The native test subcommands exist only in debug builds. A release build must
-    /// not recognise them, so a user cannot reach probe code that was compiled out.
+    /// The native test subcommands exist only in a testing build. A release build must not
+    /// recognise them, so a user cannot reach probe code that was compiled out. The test asks
+    /// the plugin assembly which build it is, so one test covers both configurations.
     /// </summary>
-#if DEBUG
     [Theory]
     [InlineData("native", "NativeTest")]
     [InlineData("native restore", "NativeRestore")]
     [InlineData(" Native Restore ", "NativeRestore")]
     [InlineData("native  restore", "Unknown")] // Internal whitespace is not collapsed.
-#else
-    [Theory]
-    [InlineData("native", "Unknown")]
-    [InlineData("native restore", "Unknown")]
-    [InlineData(" Native Restore ", "Unknown")]
-#endif
-    public void ParseCommand_HandlesNativeTestPerBuild(string arguments, string expected)
-        => Assert.Equal(expected, Plugin.ParseCommand(arguments).ToString());
+    public void ParseCommand_HandlesNativeTestPerBuild(string arguments, string testingBuildResult)
+    {
+        var expected = Sinophone.Diagnostics.HarnessBuild.IsTesting
+            ? testingBuildResult
+            : "Unknown";
+
+        Assert.Equal(expected, Plugin.ParseCommand(arguments).ToString());
+    }
 
     [Fact]
     public void UsageText_AdvertisesNativeTestPerBuild()
     {
-#if DEBUG
-        Assert.Contains("native", Plugin.UsageText);
-#else
-        Assert.DoesNotContain("native", Plugin.UsageText);
-#endif
+        var advertises = Sinophone.Diagnostics.HarnessBuild.IsTesting;
+
+        Assert.Equal(advertises, Plugin.UsageText.Contains("native"));
         Assert.Contains("/sinophone", Plugin.UsageText);
     }
 }
