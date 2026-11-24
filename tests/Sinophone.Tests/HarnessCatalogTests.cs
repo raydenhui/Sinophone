@@ -161,4 +161,24 @@ public class HarnessCatalogTests
     [Fact]
     public void FromStore_WithNoStore_ReturnsNothing()
         => Assert.Empty(HarnessCatalog.FromStore(HarnessSurface.Talk, null));
+
+    [Fact]
+    public void SingleLine_TakesTheFirstCase()
+    {
+        var cases = HarnessCatalog.FromPairs(HarnessSurface.Talk, [("Hello", "你好"), ("Bye", "再見")]);
+
+        var single = HarnessCatalog.SingleLine(cases);
+
+        Assert.Single(single);
+        Assert.Equal("Hello", single[0].English);
+    }
+
+    [Fact]
+    public void SingleLine_LeavesAnEmptyOrOneCaseListAlone()
+    {
+        Assert.Empty(HarnessCatalog.SingleLine([]));
+
+        var one = HarnessCatalog.FromPairs(HarnessSurface.Talk, [("Hello", "你好")]);
+        Assert.Same(one, HarnessCatalog.SingleLine(one));
+    }
 }

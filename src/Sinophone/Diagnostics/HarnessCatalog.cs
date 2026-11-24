@@ -132,6 +132,13 @@ public static class HarnessCatalog
             _ => "long",
         };
 
+    /// <summary>
+    /// The cases an armed Talk run takes. The driver measures the line that is on screen, so a
+    /// second case would measure the same line again; an armed run takes one.
+    /// </summary>
+    public static IReadOnlyList<HarnessCase> SingleLine(IReadOnlyList<HarnessCase> cases)
+        => cases.Count <= 1 ? cases : new[] { cases[0] };
+
     private static IReadOnlyList<string> TagsFor(string english)
         => [LengthTag(english)];
 }

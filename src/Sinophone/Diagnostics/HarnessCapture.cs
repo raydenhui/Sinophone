@@ -92,6 +92,7 @@ public sealed class HarnessCapture
         {
             using var wrap = await _textures.CreateFromImGuiViewportAsync(args).ConfigureAwait(false);
             await _readback.SaveToFileAsync(wrap, container, path).ConfigureAwait(false);
+            _log.Debug("Testing tab: saved a capture to {Path}.", path);
             return path;
         }
         catch (Exception ex)

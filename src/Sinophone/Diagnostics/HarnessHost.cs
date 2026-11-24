@@ -99,7 +99,12 @@ public sealed class HarnessHost : IDisposable
 
         driver.Capture = captureFrames ? _capture : null;
         _talkSurface.ClearInjected();
-        return _session.Start(cases, driver, _configuration.Variant.ToString(), _configuration.LastDataVersion);
+
+        // An armed run reads whatever line is on screen, so more than one case would measure
+        // the same line again.
+        var casesToRun = injectLines ? cases : HarnessCatalog.SingleLine(cases);
+
+        return _session.Start(casesToRun, driver, _configuration.Variant.ToString(), _configuration.LastDataVersion);
     }
 
     /// <summary>Starts a chat bubble run above one character.</summary>

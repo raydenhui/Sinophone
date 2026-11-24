@@ -874,7 +874,14 @@ public sealed class ConfigWindow : Window
 
         ImGui.TextDisabled(_harness.InjectTalkLines
             ? "Each case is written into the addon. Talk must be open."
-            : "Each case waits for you to talk to an NPC, then measures that line.");
+            : "Start while the line you want is on screen. One line is measured per run.");
+
+        if (!_harness.InjectTalkLines && !_harness.UseStoreCases)
+        {
+            ImGui.TextColored(WarningColor,
+                "Waiting mode needs lines from the loaded data, because it compares the drawn " +
+                "text with their Chinese.");
+        }
 
         Section("Cases");
         if (_harnessHost is { } talkHost)

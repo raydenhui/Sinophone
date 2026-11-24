@@ -52,6 +52,15 @@ public sealed class TalkHarnessDriver : IHarnessDriver
 
         if (IsArmed)
         {
+            // A played line carries no English the window keeps, so the check compares the
+            // drawn text with the case's expected Chinese. A case with no expectation would
+            // accept any text, including an untranslated line, so it cannot be judged.
+            if (string.IsNullOrEmpty(harnessCase.ExpectedChinese))
+            {
+                reason = "An armed run needs a case from the loaded data, which knows the Chinese.";
+                return false;
+            }
+
             // The source line is whatever the developer plays, so the tracker has nothing to
             // compare with until the first frame. It is reset on the first sample below.
             reason = string.Empty;
