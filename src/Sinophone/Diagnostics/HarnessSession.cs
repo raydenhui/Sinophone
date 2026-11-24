@@ -121,7 +121,8 @@ public sealed class HarnessSession : IDisposable
             _caseCacheStore = store;
         }
 
-        var key = (surface, limit, fromStore);
+        // The fixed sample does not depend on the limit, so it gets one entry per surface.
+        var key = (surface, fromStore ? limit : 0, fromStore);
         if (_caseCache.TryGetValue(key, out var cached))
             return cached;
 
