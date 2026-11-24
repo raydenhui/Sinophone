@@ -40,10 +40,11 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
             return false;
         }
 
-        _injected = _text?.Invoke() ?? harnessCase.English;
-        _tracker.Reset(_injected);
+        var text = _text?.Invoke() ?? harnessCase.English;
+        _injected = text;
+        _tracker.Reset(text);
 
-        return ChatBubbleHarness.Open(_target, _injected, out reason);
+        return ChatBubbleHarness.Open(_target, text, out reason);
     }
 
     /// <summary>

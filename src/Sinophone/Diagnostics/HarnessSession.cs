@@ -104,9 +104,14 @@ public sealed class HarnessSession : IDisposable
 
     /// <summary>Builds cases from the loaded store, or the fixed sample, for one surface.</summary>
     public List<HarnessCase> BuildCases(HarnessSurface surface, int limit, bool fromStore)
-        => fromStore
-            ? HarnessCatalog.FromStore(surface, _getStore(), limit)
-            : [.. HarnessCatalog.BuiltIn.Where(harnessCase => harnessCase.Surface == surface)];
+    {
+        if (fromStore)
+            return HarnessCatalog.FromStore(surface, _getStore(), limit);
+
+        var cases = new List<HarnessCase>();
+        cases.AddRange(HarnessCatalog.BuiltIn.Where(harnessCase => harnessCase.Surface == surface));
+        return cases;
+    }
 
     /// <summary>Writes a report next to the plugin config.</summary>
     public string? SaveReport(HarnessReport report)
