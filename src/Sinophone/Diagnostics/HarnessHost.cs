@@ -1,6 +1,4 @@
 #if SINOPHONE_TESTING
-using Dalamud.Interface.Textures;
-
 namespace Sinophone.Diagnostics;
 
 /// <summary>

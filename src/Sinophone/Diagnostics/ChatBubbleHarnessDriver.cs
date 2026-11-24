@@ -1,6 +1,4 @@
 #if SINOPHONE_TESTING
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
-
 namespace Sinophone.Diagnostics;
 
 /// <summary>

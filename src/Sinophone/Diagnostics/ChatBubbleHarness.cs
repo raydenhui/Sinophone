@@ -1,8 +1,9 @@
 #if SINOPHONE_TESTING
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+
 // Lumina also has a sheet called Character; the harness only wants the game struct.
 using GameCharacter = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 
 namespace Sinophone.Diagnostics;
 
