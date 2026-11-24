@@ -79,8 +79,8 @@ public sealed class TalkHarnessDriver : IHarnessDriver
 
     public HarnessMeasurement Measure(HarnessCase harnessCase)
     {
-        var snapshot = _snapshot();
-        if (snapshot is null)
+        // The snapshot is a nullable struct, so unwrap it here; a null is a closed window.
+        if (_snapshot() is not { } snapshot)
             return new HarnessMeasurement { SkipReason = "The Talk window closed." };
 
         var drawn = snapshot.Text;
