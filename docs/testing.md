@@ -147,6 +147,11 @@ Add a surface by writing one `IHarnessDriver` and a sub-tab; the checks, the set
 report come with it. `docs/proposals/testing-tab-surfaces.md` lists the surfaces and their drive
 paths.
 
+`HarnessBuild.IsTesting` says which half this assembly has. `HarnessBuildTests` checks it against
+the types the build should contain, so a change that moves a game type into the core, or drops the
+switch, fails a test instead of shipping developer code in a release.
+
+
 **What a run cannot do.** An injected line has no live event handler behind it, so the id-first
 lookup is not exercised. Only an armed Talk run, where you talk to an NPC and the harness measures
 that line, covers it. A run also needs the game, so it is not part of CI.
