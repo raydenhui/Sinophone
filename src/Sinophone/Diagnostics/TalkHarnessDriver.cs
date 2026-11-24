@@ -18,7 +18,7 @@ public sealed class TalkHarnessDriver : IHarnessDriver
 {
     private readonly Func<HarnessDialogSnapshot?> _snapshot;
     private readonly Action<string>? _inject;
-    private readonly Action? _clear;
+    private readonly System.Action? _clear;
     private readonly Func<string, string?>? _englishForChinese;
     private readonly HarnessLineTracker _tracker = new();
     private string? _injected;
@@ -34,7 +34,7 @@ public sealed class TalkHarnessDriver : IHarnessDriver
     public TalkHarnessDriver(
         Func<HarnessDialogSnapshot?> snapshot,
         Action<string>? inject = null,
-        Action? clear = null,
+        System.Action? clear = null,
         Func<string, string?>? englishForChinese = null)
     {
         _snapshot = snapshot;
