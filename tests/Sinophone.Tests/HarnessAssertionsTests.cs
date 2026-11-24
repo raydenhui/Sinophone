@@ -19,7 +19,7 @@ public class HarnessAssertionsTests
 
     [Theory]
     [InlineData("<Sheet(ClassJob,IntegerParameter(1),0)> Oath")]
-    [InlineData("You obtained <StringParameter(1)>.", "StringParameter")]
+    [InlineData("You obtained <StringParameter(1)>.")]
     [InlineData("<Unknown60>0262</Unknown60>")]
     [InlineData("At <Time(...)/> we leave.")]
     [InlineData("<If(PlayerParameter(4))>him<Else/>her<EndIf>")]

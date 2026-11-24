@@ -39,8 +39,10 @@ public sealed unsafe class TalkHarnessSurface
     }
 
     /// <summary>
-    /// The current line, or null when Talk is not open. The English half is the injected line
-    /// for an injected case, and the text node's own English for a line the developer played.
+    /// The current line, or null when Talk is not open. The English half is the injected line for
+    /// an injected case. A played line carries no English the window keeps, so
+    /// <paramref name="expectedEnglish"/> is used when the caller knows it; otherwise the caller
+    /// takes the first sample of the line as its English.
     /// </summary>
     public HarnessDialogSnapshot? Snapshot(string? expectedEnglish)
     {

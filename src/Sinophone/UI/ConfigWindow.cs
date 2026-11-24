@@ -819,21 +819,22 @@ public sealed class ConfigWindow : Window
             return;
         }
 
-        var talkCases = _harnessHost.BuildCases(HarnessSurface.Talk, _harness.CaseLimit, _harness.UseStoreCases);
-        var bubbleCases = _harnessHost.BuildCases(HarnessSurface.ChatBubble, _harness.CaseLimit, _harness.UseStoreCases);
+        var host = _harnessHost;
+        var talkCases = host.BuildCases(HarnessSurface.Talk, _harness.CaseLimit, _harness.UseStoreCases);
+        var bubbleCases = host.BuildCases(HarnessSurface.ChatBubble, _harness.CaseLimit, _harness.UseStoreCases);
 
-        ImGui.BeginDisabled(_harnessHost.IsRunning);
+        ImGui.BeginDisabled(host.IsRunning);
 
         if (ImGui.Button("Run Talk cases"))
-            StartRun(talkCases, _ => _harnessHost.StartTalkRun(talkCases, _harness.InjectTalkLines, _harness.CaptureFrames));
+            StartRun(talkCases, _ => host.StartTalkRun(talkCases, _harness.InjectTalkLines, _harness.CaptureFrames));
 
         ImGui.SameLine();
-        ImGui.TextDisabled($"{talkCases.Count} case(s), Talk {( _harnessHost.IsTalkOpen ? "open" : "closed")}.");
+        ImGui.TextDisabled($"{talkCases.Count} case(s), Talk {(host.IsTalkOpen ? "open" : "closed")}.");
 
         if (ImGui.Button("Run bubble cases"))
         {
             var target = _harness.SelectedTarget;
-            StartRun(bubbleCases, _ => _harnessHost.StartBubbleRun(bubbleCases, target, _harness.CaptureFrames));
+            StartRun(bubbleCases, _ => host.StartBubbleRun(bubbleCases, target, _harness.CaptureFrames));
         }
 
         ImGui.SameLine();
@@ -877,13 +878,13 @@ public sealed class ConfigWindow : Window
             : "Each case waits for you to talk to an NPC, then measures that line.");
 
         Section("Cases");
-        if (_harnessHost is not null)
+        if (_harnessHost is { } talkHost)
         {
-            var cases = _harnessHost.BuildCases(HarnessSurface.Talk, _harness.CaseLimit, _harness.UseStoreCases);
+            var cases = talkHost.BuildCases(HarnessSurface.Talk, _harness.CaseLimit, _harness.UseStoreCases);
             DrawHarnessCaseList(cases);
             ImGui.Spacing();
             if (ImGui.Button("Run these Talk cases"))
-                StartRun(cases, _ => _harnessHost.StartTalkRun(cases, _harness.InjectTalkLines, _harness.CaptureFrames));
+                StartRun(cases, _ => talkHost.StartTalkRun(cases, _harness.InjectTalkLines, _harness.CaptureFrames));
         }
         else
         {
@@ -951,15 +952,15 @@ public sealed class ConfigWindow : Window
         ImGui.TextWrapped($"Bubble holds: {(read.Text.Length == 0 ? "(nothing)" : read.Text)} [{read.State}]");
 
         Section("Cases");
-        if (_harnessHost is not null)
+        if (_harnessHost is { } bubbleHost)
         {
-            var cases = _harnessHost.BuildCases(HarnessSurface.ChatBubble, _harness.CaseLimit, _harness.UseStoreCases);
+            var cases = bubbleHost.BuildCases(HarnessSurface.ChatBubble, _harness.CaseLimit, _harness.UseStoreCases);
             DrawHarnessCaseList(cases);
             ImGui.Spacing();
             if (ImGui.Button("Run these bubble cases"))
             {
                 var target = _harness.SelectedTarget;
-                StartRun(cases, _ => _harnessHost.StartBubbleRun(cases, target, _harness.CaptureFrames));
+                StartRun(cases, _ => bubbleHost.StartBubbleRun(cases, target, _harness.CaptureFrames));
             }
         }
         else
