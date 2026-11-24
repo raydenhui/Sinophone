@@ -37,7 +37,7 @@ public sealed class TalkHarnessDriver : IHarnessDriver
     public bool IsArmed => _inject is null;
 
     /// <summary>When set, a screenshot is taken for each settled case.</summary>
-    public HarnessCapture? Capture { get; init; }
+    public HarnessCapture? Capture { get; set; }
 
     /// <summary>Paths of captures taken during this run.</summary>
     public List<string> Captures { get; } = [];

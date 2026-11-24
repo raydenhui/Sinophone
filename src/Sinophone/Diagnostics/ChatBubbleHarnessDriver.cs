@@ -31,7 +31,7 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
     public List<string> Captures { get; } = [];
 
     /// <summary>When set, a screenshot is taken for each case that settles.</summary>
-    public HarnessCapture? Capture { get; init; }
+    public HarnessCapture? Capture { get; set; }
 
     /// <summary>
     /// Starts the bubble. The case's English line is what the bubble is given, so the handler
@@ -83,15 +83,20 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
         };
     }
 
-    /// <summary>Takes a screenshot of the settled bubble, when capture is on.</summary>
+    /// <summary>
+    /// Takes a screenshot of the settled bubble, when capture is on, then closes the bubble so
+    /// the next case starts from a clean window.
+    /// </summary>
     public void End(HarnessCase harnessCase)
     {
-        if (Capture is null)
-            return;
+        if (Capture is not null)
+        {
+            var path = Capture.Save($"bubble-{harnessCase.Id}");
+            if (path is not null)
+                Captures.Add(path);
+        }
 
-        var path = Capture.Save($"bubble-{harnessCase.Id}");
-        if (path is not null)
-            Captures.Add(path);
+        ChatBubbleHarness.Close(_target);
     }
 
     public void Finish()

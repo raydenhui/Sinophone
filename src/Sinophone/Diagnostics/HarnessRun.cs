@@ -147,6 +147,8 @@ public sealed class HarnessRun
 
     private void Complete(HarnessCase current, HarnessOutcome outcome, HarnessMeasurement measurement, string? detail)
     {
+        // The driver takes its screenshot here, while the surface still shows the line, and
+        // puts the surface back afterwards.
         _driver.End(current);
 
         _report.Add(new HarnessResult(

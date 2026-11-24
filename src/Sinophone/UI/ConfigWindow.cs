@@ -664,7 +664,7 @@ public sealed class ConfigWindow : Window
 #if SINOPHONE_TESTING
         LogGroup("Debug probes", _configuration.LogDiagnostics,
             v => _configuration.LogDiagnostics = v,
-            "The Talk and native text probes in debug builds.");
+            "The testing tab's own messages in developer builds.");
 #endif
     }
 

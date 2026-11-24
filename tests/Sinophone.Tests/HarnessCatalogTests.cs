@@ -52,8 +52,8 @@ public class HarnessCatalogTests
         ]);
 
         Assert.Equal(2, cases.Count);
-        Assert.Equal(["Hello", "Bye"], cases.Select(static harnessCase => harnessCase.English));
-        Assert.Equal(["你好", "再見"], cases.Select(static harnessCase => harnessCase.ExpectedChinese));
+        Assert.Equal(new[] { "Hello", "Bye" }, cases.Select(static harnessCase => harnessCase.English).ToArray());
+        Assert.Equal(new string?[] { "你好", "再見" }, cases.Select(static harnessCase => harnessCase.ExpectedChinese).ToArray());
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class HarnessCatalogTests
             ("Bye", "再見"),
         ]);
 
-        Assert.Equal(["Bye"], cases.Select(static harnessCase => harnessCase.English));
+        Assert.Equal(new[] { "Bye" }, cases.Select(static harnessCase => harnessCase.English).ToArray());
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class HarnessCatalogTests
             ("Plain line", "普通的一行"),
         ]);
 
-        Assert.Equal(["Plain line"], cases.Select(static harnessCase => harnessCase.English));
+        Assert.Equal(new[] { "Plain line" }, cases.Select(static harnessCase => harnessCase.English).ToArray());
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class HarnessCatalogTests
 
         var cases = HarnessCatalog.FromPairs(HarnessSurface.Talk, pairs, maxEnglish: 400);
 
-        Assert.Equal(["Short"], cases.Select(static harnessCase => harnessCase.English));
+        Assert.Equal(new[] { "Short" }, cases.Select(static harnessCase => harnessCase.English).ToArray());
     }
 
     [Fact]

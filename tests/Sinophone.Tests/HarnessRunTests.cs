@@ -97,8 +97,8 @@ public class HarnessRunTests
         var run = new HarnessRun([Case("one"), Case("two")], driver);
         Drain(run);
 
-        Assert.Equal(["one", "two"], driver.Begun);
-        Assert.Equal(["one", "two"], driver.Ended);
+        Assert.Equal(new[] { "one", "two" }, driver.Begun);
+        Assert.Equal(new[] { "one", "two" }, driver.Ended);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class HarnessRunTests
         var run = new HarnessRun([Case("one"), Case("two")], driver);
         Drain(run);
 
-        Assert.Equal(["one", "two"], driver.Ended);
+        Assert.Equal(new[] { "one", "two" }, driver.Ended);
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public class HarnessRunTests
         run.Cancel("Stopped by the developer.");
 
         Assert.Equal(
-            [HarnessOutcome.Skipped, HarnessOutcome.Skipped],
-            run.Report.Results.Select(static result => result.Outcome));
+            new[] { HarnessOutcome.Skipped, HarnessOutcome.Skipped },
+            run.Report.Results.Select(static result => result.Outcome).ToArray());
         Assert.All(run.Report.Results, result => Assert.Equal("Stopped by the developer.", result.Detail));
         Assert.True(run.IsFinished);
     }

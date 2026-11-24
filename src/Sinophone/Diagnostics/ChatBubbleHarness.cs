@@ -1,19 +1,10 @@
 #if SINOPHONE_TESTING
-using Dalamud.Interface.Textures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+// Lumina also has a sheet called Character; the harness only wants the game struct.
+using GameCharacter = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 
 namespace Sinophone.Diagnostics;
-
-/// <summary>A game object a bubble can be shown above.</summary>
-/// <param name="Name">Name shown in the picker.</param>
-/// <param name="Address">Address of the game object, or zero when it cannot be driven.</param>
-/// <param name="Kind">What the object is, for the picker label.</param>
-public readonly record struct HarnessBubbleTarget(string Name, nint Address, string Kind)
-{
-    /// <summary>True when the target has a character struct a bubble can be started on.</summary>
-    public bool IsUsable => Address != 0;
-}
 
 /// <summary>
 /// Shows a chat bubble above a picked character and reads the result back.
@@ -53,7 +44,7 @@ public static unsafe class ChatBubbleHarness
 
         try
         {
-            var character = (Character*)target.Address;
+            var character = (GameCharacter*)target.Address;
             character->YellBalloon.OpenBalloon(
                 text,
                 duration,
@@ -82,7 +73,7 @@ public static unsafe class ChatBubbleHarness
 
         try
         {
-            ((Character*)target.Address)->YellBalloon.CloseBalloon();
+            ((GameCharacter*)target.Address)->YellBalloon.CloseBalloon();
         }
         catch
         {
@@ -101,7 +92,7 @@ public static unsafe class ChatBubbleHarness
 
         try
         {
-            var balloon = &((Character*)target.Address)->YellBalloon;
+            var balloon = &((GameCharacter*)target.Address)->YellBalloon;
             return balloon->State == NpcYellBalloonState.Inactive
                 ? (string.Empty, balloon->State)
                 : (balloon->Text.ToString(), balloon->State);
@@ -130,13 +121,17 @@ public static unsafe class ChatBubbleHarness
             if (targets.Count >= limit)
                 break;
 
-            if (obj is null || obj.Address == 0 || obj.Name.TextValue.Length == 0)
+            if (obj is null || obj.Address == 0)
+                continue;
+
+            var name = obj.Name.TextValue;
+            if (name.Length == 0)
                 continue;
 
             if (player is not null && obj.Address == player.Address)
                 continue;
 
-            targets.Add(new HarnessBubbleTarget(obj.Name.TextValue, obj.Address, obj.ObjectKind.ToString()));
+            targets.Add(new HarnessBubbleTarget(name, obj.Address, obj.ObjectKind.ToString()));
         }
 
         return targets;

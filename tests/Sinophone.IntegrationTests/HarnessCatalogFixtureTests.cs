@@ -58,8 +58,8 @@ public class HarnessCatalogFixtureTests
         var second = HarnessCatalog.FromStore(HarnessSurface.Talk, store, limit: 5);
 
         Assert.Equal(
-            first.Select(static harnessCase => harnessCase.English),
-            second.Select(static harnessCase => harnessCase.English));
+            first.Select(static harnessCase => harnessCase.English).ToArray(),
+            second.Select(static harnessCase => harnessCase.English).ToArray());
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class HarnessCatalogFixtureTests
             .OrderBy(static english => english, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(sorted, entries.Select(static entry => entry.English));
+        Assert.Equal(sorted, entries.Select(static entry => entry.English).ToArray());
     }
 
     [Fact]

@@ -1,3 +1,5 @@
+using Sinophone.Diagnostics;
+
 namespace Sinophone.UI;
 
 /// <summary>

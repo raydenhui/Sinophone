@@ -50,7 +50,7 @@ public class HarnessReportTests
     {
         var report = Sample();
 
-        Assert.Equal(["talk-01", "bubble-01", "bubble-02"], report.Results.Select(static result => result.Id));
+        Assert.Equal(new[] { "talk-01", "bubble-01", "bubble-02" }, report.Results.Select(static result => result.Id).ToArray());
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class HarnessReportTests
         Assert.NotNull(read);
         Assert.Equal(report.Summary(), read.Summary());
         Assert.Equal(
-            report.Results.Select(static result => result.Id),
-            read.Results.Select(static result => result.Id));
+            report.Results.Select(static result => result.Id).ToArray(),
+            read.Results.Select(static result => result.Id).ToArray());
         Assert.Equal("Traditional", read.Variant);
         Assert.Equal("7.2", read.GameVersion);
     }

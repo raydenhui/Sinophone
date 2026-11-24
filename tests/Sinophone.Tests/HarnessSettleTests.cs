@@ -61,7 +61,7 @@ public class HarnessSettleTests
         settle.Observe("abc");
 
         Assert.Equal(2, settle.Changes);
-        Assert.Equal(["a", "ab", "abc"], settle.Samples);
+        Assert.Equal(new[] { "a", "ab", "abc" }, settle.Samples);
     }
 
     [Fact]

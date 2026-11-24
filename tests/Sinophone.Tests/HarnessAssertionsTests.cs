@@ -191,8 +191,8 @@ public class HarnessAssertionsTests
         var findings = HarnessAssertions.Run(HarnessCheck.Translated | HarnessCheck.Fits, measurement);
 
         Assert.Equal(
-            [HarnessCheck.Translated, HarnessCheck.Fits],
-            findings.Select(static finding => finding.Check));
+            new[] { HarnessCheck.Translated, HarnessCheck.Fits },
+            findings.Select(static finding => finding.Check).ToArray());
     }
 
     [Fact]
@@ -203,15 +203,16 @@ public class HarnessAssertionsTests
         var findings = HarnessAssertions.Run(HarnessCheck.All, measurement);
 
         Assert.Equal(
-            [
+            new[]
+            {
                 HarnessCheck.Translated,
                 HarnessCheck.NoMacro,
                 HarnessCheck.Fits,
                 HarnessCheck.NoLeadingClosingMark,
                 HarnessCheck.NoRevert,
                 HarnessCheck.Glyphs,
-            ],
-            findings.Select(static finding => finding.Check));
+            },
+            findings.Select(static finding => finding.Check).ToArray());
     }
 
     [Fact]
@@ -253,7 +254,7 @@ public class HarnessAssertionsTests
 
     [Fact]
     public void ExplicitLines_SplitsOnTheTextBreak()
-        => Assert.Equal(["一", "二"], HarnessAssertions.ExplicitLines("一\n二"));
+        => Assert.Equal(new[] { "一", "二" }, HarnessAssertions.ExplicitLines("一\n二").ToArray());
 
     [Fact]
     public void ExplicitLines_ReturnsNothing_ForEmptyText()
