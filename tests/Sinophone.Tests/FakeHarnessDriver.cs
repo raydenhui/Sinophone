@@ -9,7 +9,6 @@ internal sealed class FakeHarnessDriver : IHarnessDriver
 {
     private Queue<HarnessMeasurement> _script = new();
     private HarnessMeasurement _steady = new();
-    private bool _beginFails;
 
     /// <summary>Cases the driver was asked to start.</summary>
     public List<string> Begun { get; } = [];

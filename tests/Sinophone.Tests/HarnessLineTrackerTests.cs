@@ -8,7 +8,7 @@ namespace Sinophone.Tests;
 /// </summary>
 public class HarnessLineTrackerTests
 {
-    private static HarnessLineTracker Tracking(string source)
+    private static HarnessLineTracker Tracking(string? source)
     {
         var tracker = new HarnessLineTracker();
         tracker.Reset(source);

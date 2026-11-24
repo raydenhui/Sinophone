@@ -141,7 +141,8 @@ case model, the settle rule, the checks, the run schedule, the session, the repo
 tracker, and the tab's own state. The engine half — the drivers, the bubble and Talk surfaces, the
 glyph probe, and the screenshot capture — is behind `SINOPHONE_TESTING`. A Debug build defines it
 and a release build does not, so a released DLL holds none of that code. A release build can opt
-in with `dotnet build -c Release -p:IncludeTesting=true`.
+in with `dotnet build -c Release -p:IncludeTesting=true`. CI runs that build after the tests, so
+the engine half is at least compiled on every pull request even though a run needs the game.
 
 Add a surface by writing one `IHarnessDriver` and a sub-tab; the checks, the settle rule, and the
 report come with it. `docs/proposals/testing-tab-surfaces.md` lists the surfaces and their drive

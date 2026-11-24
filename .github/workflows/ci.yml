@@ -46,6 +46,17 @@ jobs:
           --logger "console;verbosity=normal"
           --logger trx --results-directory TestResults
 
+      - name: Build with the testing code
+        shell: pwsh
+        env:
+          DALAMUD_HOME: ${{ runner.temp }}/dalamud-lib
+        run: |
+          # The developer half of the testing tab is compiled out of a normal build and is
+          # never run by CI. This step compiles it, so a broken game API fails here rather
+          # than only on a dev machine. Run after the tests, so the tested DLL stays the one
+          # a release ships.
+          dotnet build src/Sinophone/Sinophone.csproj -c Release -p:IncludeTesting=true
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
