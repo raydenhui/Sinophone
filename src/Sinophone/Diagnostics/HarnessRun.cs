@@ -70,9 +70,9 @@ public sealed class HarnessRun
 
         var measurement = _driver.Measure(current);
 
-        if (measurement.SkipReason is { Length: > 0 } reason)
+        if (measurement.SkipReason is { Length: > 0 } skipReason)
         {
-            Complete(current, HarnessOutcome.Skipped, measurement, reason);
+            Complete(current, HarnessOutcome.Skipped, measurement, skipReason);
             return true;
         }
 
