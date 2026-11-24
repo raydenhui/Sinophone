@@ -1,7 +1,8 @@
 # Testing tab: what to run on a Windows machine
 
-This branch was written on Linux with no .NET SDK, so it has not been compiled or run. These are
-the commands that verify it. Run them in order; each one either passes or tells you what broke.
+CI now compiles both halves and runs the unit and integration tests. What it cannot do is run the
+game, so these steps cover the parts that need a live client. Commands are given so a failure can
+be reproduced locally.
 
 The glyph probe reads `AtkFontManager`, which landed in FFXIVClientStructs in October 2026. Use a
 current Dalamud (15.0.4.1 or later); an older dev install fails to compile the engine half.
