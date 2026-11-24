@@ -19,6 +19,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
 
     [PluginService] public static IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
+    [PluginService] public static ITextureReadbackProvider TextureReadback { get; private set; } = null!;
     [PluginService] public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
@@ -38,9 +40,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ChatLogRestorer _chatLogRestorer;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
-#if DEBUG
+#if SINOPHONE_TESTING
     private readonly NativeTextProbe _nativeProbe;
     private readonly TalkContextProbe _talkContextProbe;
+
+    /// <summary>The testing tab's run host. Null when the build is not a dev plugin.</summary>
+    private readonly HarnessHost? _harnessHost;
 #endif
 
     private TranslationStore? _store;
@@ -159,9 +164,23 @@ public sealed class Plugin : IDalamudPlugin
         _chatLogRestorer = new ChatLogRestorer(ChatGui, _configuration, Log);
         _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
-#if DEBUG
+#if SINOPHONE_TESTING
         _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, _configuration, Log);
         _talkContextProbe = new TalkContextProbe(AddonLifecycle, TargetManager, _configuration, Log);
+
+        // A dev-batch build compiles the testing tab in, so gate it on the dev flag too:
+        // a Debug build copied into a normal plugin folder should not show it.
+        _harnessHost = PluginInterface.IsDev
+            ? new HarnessHost(
+                _configuration,
+                () => _store,
+                GameGui,
+                TextureProvider,
+                TextureReadback,
+                () => Path.Combine(PluginInterface.GetPluginConfigDirectory(), "harness"),
+                Log)
+            : null;
+
         _configWindow = new ConfigWindow(
             _configuration,
             ApplySettings,
@@ -171,7 +190,9 @@ public sealed class Plugin : IDalamudPlugin
             BuildDataSourceText,
             BuildAboutText,
             _nativeProbe,
-            _talkContextProbe);
+            _talkContextProbe,
+            _harnessHost,
+            ObjectTable);
 #else
         _configWindow = new ConfigWindow(
             _configuration,
@@ -299,7 +320,7 @@ public sealed class Plugin : IDalamudPlugin
                 ChatGui.Print($"[Sinophone] {BuildStatusText().Replace('\n', ' ')} {BuildDataSourceText()}");
                 break;
 
-#if DEBUG
+#if SINOPHONE_TESTING
             case CommandAction.NativeTest:
                 _nativeProbe.Write();
                 ChatGui.Print($"[Sinophone] Native test: {_nativeProbe.LastResult}");
@@ -322,7 +343,7 @@ public sealed class Plugin : IDalamudPlugin
     /// subcommands are only advertised in debug builds, where they exist.
     /// </summary>
     internal const string UsageText =
-#if DEBUG
+#if SINOPHONE_TESTING
         "[Sinophone] Usage: /sinophone [update|status|native|native restore]";
 #else
         "[Sinophone] Usage: /sinophone [update|status]";
@@ -333,7 +354,7 @@ public sealed class Plugin : IDalamudPlugin
         Toggle,
         Update,
         Status,
-#if DEBUG
+#if SINOPHONE_TESTING
         NativeTest,
         NativeRestore,
 #endif
@@ -349,7 +370,7 @@ public sealed class Plugin : IDalamudPlugin
             "" or "toggle" => CommandAction.Toggle,
             "update" => CommandAction.Update,
             "status" => CommandAction.Status,
-#if DEBUG
+#if SINOPHONE_TESTING
             "native" => CommandAction.NativeTest,
             "native restore" => CommandAction.NativeRestore,
 #endif
@@ -489,6 +510,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         AdvanceStoreLoad();
         AnnounceUpdateResult();
+
+#if SINOPHONE_TESTING
+        // A testing run is frame-driven so the game keeps drawing between cases.
+        _harnessHost?.Tick();
+#endif
 
         // The plugin can load before the UI module exists, and nothing else retries. A battle talk
         // line that arrives first would stay English for the whole session otherwise.
@@ -962,9 +988,10 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(CommandName);
 
         _dataUpdater.Dispose();
-#if DEBUG
+#if SINOPHONE_TESTING
         _nativeProbe.Dispose();
         _talkContextProbe.Dispose();
+        _harnessHost?.Dispose();
 #endif
         _chatLogRestorer.Dispose();
         _chatBubbleHandler.Dispose();

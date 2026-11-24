@@ -1,6 +1,17 @@
 <Project Sdk="Dalamud.NET.SDK/15.0.0">
   <PropertyGroup>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!--
+      The testing tab is developer-only, so its engine half is compiled out of a release build
+      rather than hidden at runtime. A Debug build defines SINOPHONE_TESTING; a release build
+      can opt in with -p:IncludeTesting=true. The harness core (case model, settle rule,
+      assertions, report) is always compiled, because the unit tests run against a Release build.
+    -->
+    <IncludeTesting Condition="'$(IncludeTesting)' == '' and '$(Configuration)' == 'Debug'">true</IncludeTesting>
+    <DefineConstants Condition="'$(IncludeTesting)' == 'true'">$(DefineConstants);SINOPHONE_TESTING</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <Platforms>x64</Platforms>
     <AssemblyName>Sinophone</AssemblyName>
     <RootNamespace>Sinophone</RootNamespace>

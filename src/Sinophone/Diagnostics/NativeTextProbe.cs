@@ -1,4 +1,4 @@
-#if DEBUG
+#if SINOPHONE_TESTING
 namespace Sinophone.Diagnostics;
 
 /// <summary>
@@ -7,8 +7,8 @@ namespace Sinophone.Diagnostics;
 /// can be changed at all.
 /// </summary>
 /// <remarks>
-/// Debug builds only. Everything that touches this class is also behind <c>#if DEBUG</c>,
-/// so a release build contains no probe code and no "Native test" tab.
+/// Compiled only when <c>SINOPHONE_TESTING</c> is defined, which a Debug build sets and a
+/// release build does not. A release DLL therefore holds no probe code at all.
 /// It stores nothing on disk, so a plugin reload undoes everything it changed.
 /// </remarks>
 public sealed unsafe class NativeTextProbe : IDisposable
