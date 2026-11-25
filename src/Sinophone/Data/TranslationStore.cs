@@ -181,6 +181,29 @@ public sealed partial class TranslationStore
 
     public int TextEntryCount => _textLookup.Count;
 
+    /// <summary>
+    /// The English text of every sheet row, with the Chinese stored for it. Sorted, so a
+    /// sample taken from it is the same on every run. The stored Chinese is the raw lookup
+    /// value; the display may resolve conditionals or convert it. Used by the debug testing
+    /// tab to sample lines, which then asks the store for the answer. The list is built per
+    /// call, so a caller keeps the result instead of asking again.
+    /// </summary>
+    public IReadOnlyList<(string English, string Chinese)> SheetTextEntries
+    {
+        get
+        {
+            var entries = new List<(string English, string Chinese)>(_sheetTextKeys.Count);
+            foreach (var key in _sheetTextKeys)
+            {
+                if (key.Length > 0)
+                    entries.Add((key, _textLookup[key]));
+            }
+
+            entries.Sort(static (left, right) => string.CompareOrdinal(left.English, right.English));
+            return entries;
+        }
+    }
+
     public int NameEntryCount => _nameLookup.Count;
 
     /// <summary>Script-dump lines in the text lookup. Already counted in <see cref="TextEntryCount"/>.</summary>

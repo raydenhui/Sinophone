@@ -206,6 +206,12 @@ Read [docs/testing.md](docs/testing.md) for test layout, fixture rules, naming, 
 in-game checklist format. Native text changes also need
 [docs/native-mode-checklist.md](docs/native-mode-checklist.md).
 
+The **Testing** tab (`Diagnostics/`) drives the live game from a developer build. Its harness core
+is always compiled, so test it in `tests/Sinophone.Tests`; its engine half is behind
+`SINOPHONE_TESTING`, which a Debug build sets and a release build does not. Put every rule a run
+follows in the core, never in the ImGui draw code, or it ships untested. A new surface is one
+`IHarnessDriver` plus a sub-tab.
+
 ## Logging and performance
 
 Use structured logs at the right level, and never log inside `Draw` or `PreDraw`. Keep

@@ -1,4 +1,4 @@
-#if DEBUG
+#if SINOPHONE_TESTING
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace Sinophone.Diagnostics;
@@ -9,7 +9,7 @@ namespace Sinophone.Diagnostics;
 /// real game before it is trusted for a surface.
 /// </summary>
 /// <remarks>
-/// Everything that touches this class is behind <c>#if DEBUG</c>, so a release build
+/// Everything that touches this class is behind <c>SINOPHONE_TESTING</c>, so a release build
 /// contains no probe and no probe tab. Nothing is written or saved; the probe only
 /// reads state that Dalamud and FFXIVClientStructs already expose.
 /// </remarks>

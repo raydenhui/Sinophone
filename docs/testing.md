@@ -114,10 +114,59 @@ the artifact's game version, and a dump newer than the artifact will show up as 
 each item names how to verify it. The coverage run and the in-game checklist are the two objective
 measures the release is judged against.
 
+### The Testing tab
+
+The settings window has a **Testing** tab, shown only when the build defines `SINOPHONE_TESTING`
+and Dalamud loaded the plugin as a dev plugin. It replaces the two debug probes with one tab of
+sub-tabs: **Runs**, **Talk**, **Chat bubbles**, **Native text**, **Talk probe**, and **Results**.
+
+A run sends a list of English lines through one surface and records what the game drew. A run is
+frame-driven, so the game keeps drawing between cases. Each case waits for the text to stop
+changing, then checks it:
+
+| Check | What it proves |
+| --- | --- |
+| Translated | A translation reached the surface, not the English line |
+| No macro | No `<Sheet(`, `<StringParameter(`, or other tag is drawn as text |
+| Fits | The text is no larger than the room the game gave it |
+| No leading closing mark | No rendered line starts with `。` or another closing mark |
+| Glyphs | Every character has a glyph in the game font |
+| No revert | The game did not put the English back after the translation appeared |
+
+A run writes `harness-YYYYMMDD-HHMMSS.json` next to the plugin config, under `harness/`. The
+Results sub-tab draws the last run as a table.
+
+**What is compiled where.** The harness core is always compiled, so `Test.ps1` covers it: the
+case model, the settle rule, the checks, the run schedule, the session, the report, the revert
+tracker, and the tab's own state. The engine half — the drivers, the bubble and Talk surfaces, the
+glyph probe, and the screenshot capture — is behind `SINOPHONE_TESTING`. A Debug build defines it
+and a release build does not, so a released DLL holds none of that code. A release build can opt
+in with `dotnet build -c Release -p:IncludeTesting=true`. CI runs that build after the tests, so
+the engine half is at least compiled on every pull request even though a run needs the game.
+
+Add a surface by writing one `IHarnessDriver` and a sub-tab; the checks, the settle rule, and the
+report come with it. `docs/proposals/testing-tab-surfaces.md` lists the surfaces and their drive
+paths.
+
+`HarnessBuild.IsTesting` says which half this assembly has. `HarnessBuildTests` checks it against
+the types the build should contain, so a change that moves a game type into the core, or drops the
+switch, fails a test instead of shipping developer code in a release.
+
+
+**What a run cannot do.** An injected line has no live event handler behind it, so the id-first
+lookup is not exercised. Only an armed Talk run, where the harness measures the line on screen,
+covers it; start that run while the line is visible, and it measures one line per run. It gets the
+English for the shown Chinese from the line the plugin logged when it laid it out, so a line the
+plugin did not translate is skipped rather than passed. A Talk run reads the addon's own text node,
+so it needs native text mode: with the overlay, the node keeps the English line and every case
+fails. A bubble run needs chat bubble translation on. A run also needs the game, so it is not part
+of CI.
+
 ### In-game testing
 
 Some behavior can only be checked in the game: overlay position, font rendering, and how the
-overlay behaves during cutscenes. Unit tests cannot cover these.
+overlay behaves during cutscenes. Unit tests cannot cover these. The Testing tab automates part of
+this; the checklist below still covers the parts a run cannot drive.
 
 Build and link the plugin into Dalamud's dev plugin folder with
 `scripts/Deploy-DevPlugin.ps1`. Add that folder under **Experimental** → **Dev Plugin Locations**
