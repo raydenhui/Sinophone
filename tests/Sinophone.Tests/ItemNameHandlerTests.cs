@@ -39,12 +39,47 @@ public class ItemNameHandlerTests
         => Assert.Null(ItemNameHandler.Resolve(CreateStore(), 0, "Fire Crystal"));
 
     [Fact]
-    public void Resolve_ReturnsNull_ForEmptyName()
-        => Assert.Null(ItemNameHandler.Resolve(CreateStore(), 4551, "  "));
+    public void Resolve_UsesTheRowId_WhenTheLiveNameIsEmpty()
+    {
+        var content = ItemNameHandler.Resolve(CreateStore(), 4551, "  ");
+
+        Assert.NotNull(content);
+        Assert.Equal("火之碎晶", content!.Value.ChineseName);
+        Assert.Equal(string.Empty, content.Value.EnglishName);
+    }
+
+    [Fact]
+    public void Resolve_UsesTheRowId_WhenTheLiveNameDiffers()
+    {
+        var content = ItemNameHandler.Resolve(CreateStore(), 4551, "Something Else");
+
+        Assert.NotNull(content);
+        Assert.Equal("火之碎晶", content!.Value.ChineseName);
+    }
+
+    [Fact]
+    public void Resolve_FallsBackToTheLiveName_WhenTheRowIsMissing()
+    {
+        var content = ItemNameHandler.Resolve(CreateStore(), 9999, "Fire Crystal");
+
+        Assert.NotNull(content);
+        Assert.Equal("火之碎晶", content!.Value.ChineseName);
+    }
 
     [Fact]
     public void Resolve_ReturnsNull_WhenNameHasNoTranslation()
         => Assert.Null(ItemNameHandler.Resolve(CreateStore(), 9999, "Unknown Item"));
+
+    [Fact]
+    public void TryGetNameById_ResolvesTheRow()
+    {
+        var store = CreateStore();
+
+        Assert.True(store.TryGetNameById("Item", 4551, out var name));
+        Assert.Equal("火之碎晶", name);
+
+        Assert.False(store.TryGetNameById("Item", 9999, out _));
+    }
 
     [Fact]
     public void FormatItemName_UsesChineseOnly_WhenEnglishIsOff()

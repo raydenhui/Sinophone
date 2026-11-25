@@ -1241,6 +1241,22 @@ public sealed partial class TranslationStore
             _styleLookup.TryAdd(display, style);
     }
 
+    /// <summary>
+    /// Resolves a name by the sheet row the game names, without reading the live
+    /// text. The item tooltip knows its row id, so this works on every client
+    /// language and cannot pick another row that shares the same name.
+    /// </summary>
+    public bool TryGetNameById(string sheet, uint rowId, out string chineseName)
+    {
+        chineseName = string.Empty;
+
+        if (!_nameRowLookup.TryGetValue((sheet, rowId), out var stored))
+            return false;
+
+        chineseName = ResolveDisplay(stored);
+        return chineseName.Length > 0;
+    }
+
     public bool TryGetName(string? englishName, out string chineseName)
     {
         chineseName = string.Empty;

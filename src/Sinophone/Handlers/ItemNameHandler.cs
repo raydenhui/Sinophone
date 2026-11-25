@@ -388,15 +388,25 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// tests can call it without a game sheet. Returns null when nothing should
     /// be shown.
     /// </summary>
+    /// <remarks>
+    /// The row id is the primary key. The live name is only a fallback for a store
+    /// built from an artifact that does not carry this row, and it supplies the
+    /// English name for the bracket.
+    /// </remarks>
     internal static ItemNameContent? Resolve(TranslationStore? store, uint itemId, string? englishName)
     {
         if (store is null || itemId == 0)
             return null;
 
-        if (string.IsNullOrWhiteSpace(englishName))
+        var shownEnglish = string.IsNullOrWhiteSpace(englishName) ? string.Empty : englishName;
+
+        if (store.TryGetNameById("Item", itemId, out var chineseName))
+            return new ItemNameContent(chineseName, shownEnglish);
+
+        if (shownEnglish.Length == 0)
             return null;
 
-        if (!store.TryGetName(englishName, out var chineseName))
+        if (!store.TryGetName(englishName, out chineseName))
             return null;
 
         return new ItemNameContent(chineseName, englishName);
