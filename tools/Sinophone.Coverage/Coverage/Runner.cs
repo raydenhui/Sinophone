@@ -49,12 +49,14 @@ internal sealed class Runner
     private readonly Probes _probes;
     private readonly Dictionary<string, EnCsv> _csvs = new(StringComparer.Ordinal);
     private readonly string _enDirectory;
+    private readonly string _language;
 
-    public Runner(TranslationArtifact artifact, Probes probes, string enDirectory)
+    public Runner(TranslationArtifact artifact, Probes probes, string enDirectory, string language = "en")
     {
         _artifact = artifact;
         _probes = probes;
         _enDirectory = enDirectory;
+        _language = language;
     }
 
     /// <summary>Per component and per sheet: total, resolved, and the misses behind the number.</summary>
@@ -72,12 +74,16 @@ internal sealed class Runner
             result[component.Key] = tally;
         }
 
-        RunScripts(result);
-        RunRuntime(result);
+        // Script dumps are paired with the English dump, so they are only measured there.
+        if (_language == "en")
+        {
+            RunScripts(result);
+            RunRuntime(result);
 
-        // Script lines have no row id, so the id column equals the text column for them.
-        var scripts = result["Talk (scripts)"];
-        scripts.ResolvedById = scripts.Resolved;
+            // Script lines have no row id, so the id column equals the text column for them.
+            var scripts = result["Talk (scripts)"];
+            scripts.ResolvedById = scripts.Resolved;
+        }
 
         return result;
     }

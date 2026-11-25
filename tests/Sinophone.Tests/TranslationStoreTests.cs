@@ -1358,6 +1358,28 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void RowLookup_ResolvesDutyTextById()
+    {
+        var descriptor = new FakeSheetDescriptor(
+            "InstanceContentTextData", "Text", false,
+            new Dictionary<uint, string[]> { [100] = ["The enemy approaches."] });
+        var artifacts = Artifacts(
+            Artifact("CN", ("InstanceContentTextData", "Text", 100, "敌人正在接近。")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        // The clip names the row and the sheet has one text slot, so the slot is known.
+        var context = new DialogueContext(
+            new DialogueRowId("InstanceContentTextData", 100, "Text", 0));
+
+        Assert.True(store.TryGetDialogue("敵が近づいている。", in context, out var chinese));
+        Assert.Equal("敌人正在接近。", chinese);
+    }
+
+    [Fact]
     public void ScriptLookup_ResolvesARealCutsceneRow()
     {
         var scripts = ScriptsWithRows(
