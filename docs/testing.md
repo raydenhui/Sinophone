@@ -73,9 +73,9 @@ build a few thousand lines from a fixed seed and check the rule on all of them.
 ### Hook callbacks fail open
 
 Every handler callback is called by the game inside a frame, so a throw there can reach the
-game. `HookGuard.Run` catches it, logs a warning, and leaves the English text; handlers route
-their callbacks through it. `HookGuardTests` checks the guard, so the rule is tested once
-instead of once per handler.
+game. `HookGuard.Run` catches it, logs a warning, and leaves the English text. A new handler
+routes its callback through it; `HookGuardTests` checks the guard, so the rule is tested once
+instead of once per handler. The older handlers keep their own `try/catch`.
 
 ### Coverage suite
 

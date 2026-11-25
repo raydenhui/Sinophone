@@ -209,6 +209,11 @@ When returning a translation for display:
 
 ## Per-component workflows
 
+Every handler callback below runs inside the game's frame, so a throw there can reach the game.
+Each handler catches it and leaves the English text. The item name and selection dialog handlers
+share `HookGuard.Run`, which logs a warning with the surface name; the others wrap their callbacks
+directly. A hook that fails costs one untranslated line, never a throw into the game.
+
 ### 1. Talk & TalkSubtitle (`TalkHandler` + `TalkEventReader`)
 
 `TalkHandler` handles both `Talk` (standard dialogue box) and `TalkSubtitle` (cutscene subtitles).
