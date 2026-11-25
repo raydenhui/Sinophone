@@ -133,6 +133,51 @@ public sealed class ScriptDumpTests : IDisposable
     }
 
     [Fact]
+    public void LoadFileEntries_KeepsTheRowIdTheLuaMapUses()
+    {
+        var path = Write("custom/000/Test_00001.csv",
+            "key,0,1\n#,, \nint32,str,str\n28,\"TEXT_TEST_28\",\"甲\"\n");
+
+        var entries = ScriptDump.LoadFileEntries(path);
+
+        Assert.Equal(28u, entries["TEXT_TEST_28"].RowId);
+        Assert.Equal("甲", entries["TEXT_TEST_28"].Text);
+    }
+
+    [Fact]
+    public void Build_KeepsTheSheetAndRowId()
+    {
+        Write("cn/custom/000/Test_00001.csv",
+            "key,0,1\n#,, \nint32,str,str\n28,\"TEXT_A\",\"甲\"\n");
+        Write("en/custom/000/Test_00001.csv",
+            "28,TEXT_A,Alpha\n");
+
+        var scripts = ScriptDump.Build(Path.Combine(_root, "cn"), Path.Combine(_root, "en"));
+
+        Assert.Equal(28u, scripts["TEXT_A"].RowId);
+        Assert.Equal("custom/000/Test_00001", scripts["TEXT_A"].Sheet);
+    }
+
+    [Fact]
+    public void TakePaired_KeepsTheSheetAndRowId()
+    {
+        Write("cn/custom/000/Test_00001.csv",
+            "key,0,1\n#,, \nint32,str,str\n28,\"TEXT_A\",\"甲\"\n");
+        Write("en/custom/000/Test_00001.csv",
+            "28,TEXT_A,Alpha\n");
+
+        var scripts = ScriptDump.TakePaired(
+            Path.Combine(_root, "cn"),
+            Path.Combine(_root, "en"),
+            "custom",
+            1);
+
+        Assert.Single(scripts);
+        Assert.Equal(28u, scripts[0].RowId);
+        Assert.Equal("custom/000/Test_00001", scripts[0].Sheet);
+    }
+
+    [Fact]
     public void TakePaired_StopsAfterTheRequestedCount()
     {
         Write("cn/custom/000/Test_00001.csv",

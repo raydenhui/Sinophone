@@ -49,6 +49,7 @@ internal sealed partial class TalkEventReader
         }
 
         var scriptKeys = new List<string>();
+        Dictionary<string, uint>? scriptRowIds = null;
         var rows = new List<DialogueRowId>();
         var cutsceneId = ReadCutsceneId(framework);
         List<string>? handlerHints = null;
@@ -59,7 +60,10 @@ internal sealed partial class TalkEventReader
                 rows.Add(row);
 
             if (handler.LuaTexts is not null)
+            {
                 CollectScriptKeys(handler.LuaTexts, scriptKeys);
+                scriptRowIds = CollectScriptRowIds(handler.LuaTexts, scriptRowIds);
+            }
 
             if (includeHandlerHints && handler.LuaKey.Length > 0)
             {
@@ -96,7 +100,28 @@ internal sealed partial class TalkEventReader
             scriptKeys.Count == 0 ? null : scriptKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             cutsceneId,
             ReadChocoboTaxiStandUnlocked(handlers),
-            handlerHints);
+            handlerHints,
+            scriptRowIds);
+    }
+
+    /// <summary>
+    /// The row id each live script key uses. The key alone can be reused for another
+    /// menu line; the pair is the line's identity in the handler's own sheet.
+    /// </summary>
+    private static Dictionary<string, uint>? CollectScriptRowIds(
+        IReadOnlyList<LuaTextLine> lines,
+        Dictionary<string, uint>? ids)
+    {
+        foreach (var line in lines)
+        {
+            if (line.Key.Length == 0 || line.RowId == 0)
+                continue;
+
+            ids ??= new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
+            ids.TryAdd(line.Key, line.RowId);
+        }
+
+        return ids;
     }
 
     private static void MergeHints(ref List<string>? hints, List<string>? added)
@@ -135,10 +160,10 @@ internal sealed partial class TalkEventReader
             if (texts is null)
                 continue;
 
-            foreach (var (key, _) in texts)
+            foreach (var line in texts)
             {
-                if (key.Length > 0 && !keys.Contains(key, StringComparer.OrdinalIgnoreCase))
-                    keys.Add(key);
+                if (line.Key.Length > 0 && !keys.Contains(line.Key, StringComparer.OrdinalIgnoreCase))
+                    keys.Add(line.Key);
             }
         }
 
@@ -462,7 +487,7 @@ internal sealed partial class TalkEventReader
             ids.Add(eventId.Id);
     }
 
-    private static unsafe List<KeyValuePair<string, string>>? TryReadLuaTexts(
+    private static unsafe List<LuaTextLine>? TryReadLuaTexts(
         EventHandler* handler,
         EventHandlerContent contentId,
         bool readAll,
@@ -481,10 +506,10 @@ internal sealed partial class TalkEventReader
         if (lua->LuaTexts.Count == 0)
             return null;
 
-        var result = new List<KeyValuePair<string, string>>(readAll ? lua->LuaTexts.Count : 4);
+        var result = new List<LuaTextLine>(readAll ? lua->LuaTexts.Count : 4);
         var wanted = readAll ? string.Empty : MacroNormalizer.NormalizeKey(englishText);
 
-        foreach (var (_, text) in lua->LuaTexts)
+        foreach (var (rowId, text) in lua->LuaTexts)
         {
             var key = text.Key.ToString();
             var value = text.Value.ToString();
@@ -502,27 +527,30 @@ internal sealed partial class TalkEventReader
                     continue;
             }
 
-            result.Add(new KeyValuePair<string, string>(key, value));
+            result.Add(new LuaTextLine(key, value, rowId));
         }
 
         return result;
     }
 
     private static void CollectScriptKeys(
-        IReadOnlyList<KeyValuePair<string, string>> luaTexts,
+        IReadOnlyList<LuaTextLine> luaTexts,
         List<string> scriptKeys)
     {
-        foreach (var (luaKey, value) in luaTexts)
+        foreach (var line in luaTexts)
         {
-            if (luaKey.Length == 0 || value.Length == 0)
+            if (line.Key.Length == 0 || line.Value.Length == 0)
                 continue;
 
             // TryReadLuaTexts already kept only the values that match the live
             // line, so every key here is a candidate for this line.
-            scriptKeys.Add(luaKey);
+            scriptKeys.Add(line.Key);
         }
     }
 }
+
+/// <summary>One line from a Lua handler's text map.</summary>
+internal readonly record struct LuaTextLine(string Key, string Value, uint RowId);
 
 /// <summary>One active event handler captured by the debug probe.</summary>
 internal sealed record TalkHandlerSnapshot(
@@ -531,7 +559,7 @@ internal sealed record TalkHandlerSnapshot(
     ushort EntryId,
     short Scene,
     string LuaKey,
-    IReadOnlyList<KeyValuePair<string, string>>? LuaTexts);
+    IReadOnlyList<LuaTextLine>? LuaTexts);
 
 /// <summary>The event and scene state captured by the debug probe.</summary>
 internal sealed record TalkEventSnapshot(

@@ -122,9 +122,22 @@ internal static class FixtureBuilder
                 if (!tc.TryGetValue(entry.Key, out var translated))
                     continue;
 
-                cnScripts[entry.Key] = new ScriptEntry { English = entry.English, Text = entry.Text };
-                tcScripts[entry.Key] = new ScriptEntry { English = entry.English, Text = translated.Text };
-                pairedScripts.Add(new PairedScript(entry.Key, entry.English, entry.Text, translated.Text));
+                cnScripts[entry.Key] = new ScriptEntry
+                {
+                    Sheet = entry.Sheet,
+                    RowId = entry.RowId,
+                    English = entry.English,
+                    Text = entry.Text,
+                };
+                tcScripts[entry.Key] = new ScriptEntry
+                {
+                    Sheet = entry.Sheet,
+                    RowId = entry.RowId,
+                    English = entry.English,
+                    Text = translated.Text,
+                };
+                pairedScripts.Add(new PairedScript(
+                    entry.Key, entry.English, entry.Text, translated.Text, entry.Sheet, entry.RowId));
                 kept++;
             }
 
@@ -314,5 +327,11 @@ internal static class FixtureBuilder
 
     private sealed record PairedRow(string Sheet, uint RowId, string English, string Cn, string Tc);
 
-    private sealed record PairedScript(string Key, string English, string Cn, string Tc);
+    private sealed record PairedScript(
+        string Key,
+        string English,
+        string Cn,
+        string Tc,
+        string Sheet,
+        uint RowId);
 }

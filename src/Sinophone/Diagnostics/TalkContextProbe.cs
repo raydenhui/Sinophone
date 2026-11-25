@@ -94,8 +94,10 @@ public sealed class TalkContextProbe : IDisposable
             if (handler.LuaTexts is null)
                 continue;
 
-            foreach (var (key, value) in handler.LuaTexts.Take(12))
-                _log.Info("Talk probe lua text: {Key} = {Value}", key, value);
+            foreach (var line in handler.LuaTexts.Take(12))
+                _log.Info(
+                    "Talk probe lua text: {Key} row {RowId} = {Value}",
+                    line.Key, line.RowId, line.Value);
         }
 
         LastResult = $"Event state 1 {Describe(snapshot.EventState1)}; {snapshot.Handlers.Count} matching handler(s). See the plugin log.";

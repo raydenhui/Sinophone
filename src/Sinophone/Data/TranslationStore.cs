@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 9;
+    public const int IndexFormatVersion = 10;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
 
@@ -83,6 +83,18 @@ public sealed partial class TranslationStore
 
     /// <summary>The normalized English line each script key was paired with in the dump.</summary>
     private readonly Dictionary<string, string> _scriptKeyEnglishLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The row id each script key uses in the game's Lua text map. The live map can
+    /// reuse a key for another line; a matching row id is the line's identity.
+    /// </summary>
+    private readonly Dictionary<string, uint> _scriptRowLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The dump sheet a script key came from, such as <c>cut_scene/022/VoiceMan_02200</c>.</summary>
+    private readonly Dictionary<string, string> _scriptSheetLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Script text keyed by the sheet row the game names, such as a cutscene subtitle.</summary>
+    private readonly Dictionary<(string Sheet, uint RowId), string> _scriptRowTextLookup = new();
 
     /// <summary>
     /// Script lines that share one English key but have different Chinese, such as the
@@ -953,6 +965,17 @@ public sealed partial class TranslationStore
     {
         chineseText = string.Empty;
 
+        // A cutscene subtitle or another script line the game names by sheet row.
+        if (context.ScriptRow is { } scriptRow
+            && _scriptRowTextLookup.TryGetValue((scriptRow.Sheet, scriptRow.RowId), out var rowText))
+        {
+            chineseText = ResolveDisplay(rowText);
+            _log.Debug(
+                "Dialogue matched by {Sheet} row {RowId}.",
+                scriptRow.Sheet, scriptRow.RowId);
+            return true;
+        }
+
         if (context.ScriptKeys is not null)
         {
             var liveKey = MacroNormalizer.NormalizeKey(englishText);
@@ -965,9 +988,32 @@ public sealed partial class TranslationStore
                 if (!_scriptKeyLookup.TryGetValue(trimmed, out var script))
                     continue;
 
-                // The live Lua text map can reuse a key for another line. Trust the key only
-                // when the dump paired it with the same English line. Put the player name back
-                // and collapse gender/time wording first, because those differences are expected.
+                // The live Lua text map can reuse a key for another line. The live row
+                // id is the same id the dump wrote for the line, so a match needs no
+                // text comparison and works in any client language.
+                if (context.ScriptRowIds is not null
+                    && context.ScriptRowIds.TryGetValue(trimmed, out var liveRowId)
+                    && liveRowId != 0
+                    && _scriptRowLookup.TryGetValue(trimmed, out var artifactRowId))
+                {
+                    if (artifactRowId != liveRowId)
+                    {
+                        _log.Debug(
+                            "Dialogue ignored script key {ScriptKey}: the live row {LiveRow} is not {DumpRow}.",
+                            trimmed, liveRowId, artifactRowId);
+                        continue;
+                    }
+
+                    chineseText = ResolveDisplay(script);
+                    _log.Debug(
+                        "Dialogue matched by script key {ScriptKey} and row {RowId}.",
+                        scriptKey, liveRowId);
+                    return true;
+                }
+
+                // Without a live row id, trust the key only when the dump paired it with
+                // the same English line. Put the player name back and collapse gender/time
+                // wording first, because those differences are expected.
                 if (_scriptKeyEnglishLookup.TryGetValue(trimmed, out var pairedKey))
                 {
                     var liveForCompare = PlayerNamePlaceholderKey(liveKey);
@@ -1839,6 +1885,17 @@ public sealed partial class TranslationStore
             {
                 _scriptKeyLookup.TryAdd(scriptKey, display);
                 _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
+
+                if (entry.RowId != 0)
+                {
+                    _scriptRowLookup.TryAdd(scriptKey, entry.RowId);
+
+                    if (!string.IsNullOrEmpty(entry.Sheet))
+                    {
+                        _scriptSheetLookup.TryAdd(scriptKey, entry.Sheet);
+                        _scriptRowTextLookup.TryAdd((entry.Sheet, entry.RowId), display);
+                    }
+                }
             }
 
             if (_ambiguousScriptKeys.TryGetValue(key, out var known))
