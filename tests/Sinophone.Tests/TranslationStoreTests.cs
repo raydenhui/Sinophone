@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using Dalamud.Plugin.Services;
 using Sinophone.Data;
+using Sinophone.Diagnostics;
+using Sinophone.Handlers;
 
 namespace Sinophone.Tests;
 
@@ -2364,6 +2366,212 @@ public class TranslationStoreTests
         finally
         {
             File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Trace_RecordsTheLayerOrder_WhenTheLineIsMissing()
+    {
+        var store = Load(
+            TalkSheet((1, "Hello there.")),
+            ChineseVariant.Traditional,
+            false,
+            Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。"))));
+        Assert.NotNull(store);
+
+        using var recorder = NewRecorder(out var root);
+        try
+        {
+            var trace = recorder.Begin("talk", nameof(TranslationStoreTests), "Not in the data.");
+            Assert.NotNull(trace);
+
+            Assert.False(store.TryGetDialogue("Not in the data.", default, null, out _, trace));
+            trace!.Finish(FailureOutcome.Miss, "no-translation");
+
+            Assert.Equal(FailureOutcome.Miss, trace.Case.Outcome);
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "lookup", Result: "enter" });
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "text.exact", Result: "miss" });
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "text.branchNeutral", Result: "miss" });
+        }
+        finally
+        {
+            recorder.Dispose();
+            DeleteFolder(root);
+        }
+    }
+
+    [Fact]
+    public void Trace_RecordsAnExactHit()
+    {
+        var store = Load(
+            TalkSheet((1, "Hello there.")),
+            ChineseVariant.Traditional,
+            false,
+            Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。"))));
+        Assert.NotNull(store);
+
+        using var recorder = NewRecorder(out var root);
+        try
+        {
+            var trace = recorder.Begin("talk", nameof(TranslationStoreTests), "Hello there.");
+            Assert.NotNull(trace);
+
+            Assert.True(store.TryGetDialogue("Hello there.", default, null, out var chinese, trace));
+            trace!.Finish(FailureOutcome.Hit);
+
+            Assert.Equal("你好。", chinese);
+            Assert.Equal(FailureOutcome.Hit, trace.Case.Outcome);
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "text.exact", Result: "hit" });
+        }
+        finally
+        {
+            recorder.Dispose();
+            DeleteFolder(root);
+        }
+    }
+
+    [Fact]
+    public void Trace_RecordsARejectedScriptKey()
+    {
+        var scripts = ScriptsWithKeys(
+            ("TEXT_CMNDEFRETAINERBELL_00544_ENTER2_ROEGADYN_FEMALE_TYPE3",
+             "Madam?",
+             "哼，你難道打算再派給我一些工作嗎？"));
+
+        var artifacts = Artifacts(null, Artifact("TC", scripts));
+        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        using var recorder = NewRecorder(out var root);
+        try
+        {
+            var context = new DialogueContext(
+                ScriptKeys: ["TEXT_CMNDEFRETAINERBELL_00544_ENTER2_ROEGADYN_FEMALE_TYPE3"]);
+            var trace = recorder.Begin("talk", nameof(TranslationStoreTests), "Discard the pot of metallic orange dye?");
+            Assert.NotNull(trace);
+
+            Assert.False(store.TryGetDialogue(
+                "Discard the pot of metallic orange dye?", in context, null, out _, trace));
+            trace!.Finish(FailureOutcome.Miss, "no-translation");
+
+            var rejected = Assert.Single(
+                trace.Case.Steps,
+                step => step.Stage == "id.scriptKey" && step.Result == "rejected");
+            Assert.Contains("Madam?", rejected.Detail);
+        }
+        finally
+        {
+            recorder.Dispose();
+            DeleteFolder(root);
+        }
+    }
+
+    [Fact]
+    public void Trace_RecordsANameMiss()
+    {
+        var store = Load(
+            NameSheet((1, "Skywatcher")),
+            ChineseVariant.Traditional,
+            false,
+            Artifacts(null, Artifact("TC", (NameSheetName, NameFieldName, 1, "觀星者"))));
+        Assert.NotNull(store);
+
+        using var recorder = NewRecorder(out var root);
+        try
+        {
+            var trace = recorder.Begin("name", nameof(TranslationStoreTests), "Unknown Name");
+            Assert.NotNull(trace);
+
+            Assert.False(store.TryGetName("Unknown Name", out _, trace));
+            trace!.Finish(FailureOutcome.Miss, "no-translation");
+
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "name.exact", Result: "miss" });
+        }
+        finally
+        {
+            recorder.Dispose();
+            DeleteFolder(root);
+        }
+    }
+
+    [Fact]
+    public void TalkResolve_RecordsTheTextMiss()
+    {
+        var store = Load(
+            TalkSheet((1, "Hello there.")),
+            ChineseVariant.Traditional,
+            false,
+            Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。"))));
+        Assert.NotNull(store);
+
+        using var recorder = NewRecorder(out var root);
+        try
+        {
+            var trace = recorder.Begin("talk", nameof(TalkHandler), "Not in the data.");
+            Assert.NotNull(trace);
+
+            var content = TalkHandler.Resolve(
+                store,
+                new Configuration { HideWhenNoTranslation = true },
+                "Not in the data.",
+                "Someone",
+                trace: trace);
+
+            Assert.Null(content);
+            trace!.Finish(FailureOutcome.Miss, "no-translation");
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "talk.text", Result: "miss" });
+        }
+        finally
+        {
+            recorder.Dispose();
+            DeleteFolder(root);
+        }
+    }
+
+    [Fact]
+    public void ItemResolve_RecordsTheNameMiss()
+    {
+        var store = Load(
+            NameSheet((1, "Fire Shard")),
+            ChineseVariant.Traditional,
+            false,
+            Artifacts(null, Artifact("TC", (NameSheetName, NameFieldName, 1, "火之碎晶"))));
+        Assert.NotNull(store);
+
+        using var recorder = NewRecorder(out var root);
+        try
+        {
+            var trace = recorder.Begin("item", nameof(ItemNameHandler), "Unknown item");
+            Assert.NotNull(trace);
+
+            Assert.Null(ItemNameHandler.Resolve(store, 1, "Unknown item", trace));
+            trace!.Finish(FailureOutcome.Miss, "no-translation");
+            Assert.Contains(trace.Case.Steps, step => step is { Stage: "item.name", Result: "miss" });
+        }
+        finally
+        {
+            recorder.Dispose();
+            DeleteFolder(root);
+        }
+    }
+
+    private static FailureRecorder NewRecorder(out string root)
+    {
+        root = Path.Combine(Path.GetTempPath(), "sinophone-trace-" + Guid.NewGuid().ToString("N"));
+        return new FailureRecorder(
+            root,
+            new FailureBuildInfo("test", "tc", "7.4", "en", TranslationStore.IndexFormatVersion));
+    }
+
+    private static void DeleteFolder(string root)
+    {
+        try
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+        catch (IOException)
+        {
         }
     }
 }
