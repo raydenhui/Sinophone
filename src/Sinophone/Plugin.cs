@@ -17,6 +17,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
     [PluginService] public static INamePlateGui NamePlateGui { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
+    [PluginService] public static ISeStringEvaluator SeStringEvaluator { get; private set; } = null!;
 
     [PluginService] public static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
@@ -226,7 +227,8 @@ public sealed class Plugin : IDalamudPlugin
             Log,
             _configuration,
             () => _store,
-            _nativeTextWriter);
+            _nativeTextWriter,
+            SeStringEvaluator);
         _chatBubbleHandler = new ChatBubbleHandler(
             AddonLifecycle,
             GameInteropProvider,

@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 10;
+    public const int IndexFormatVersion = 11;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
 
@@ -67,7 +67,7 @@ public sealed partial class TranslationStore
     private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Sheet, uint RowId), string> _nameRowLookup = new();
-    private readonly List<(string Template, string Chinese, int[]? ParameterIndices)> _addonTemplates = [];
+    private readonly List<(string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate)> _addonTemplates = [];
     private readonly List<(string Template, string Chinese)> _scriptTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
@@ -1235,7 +1235,7 @@ public sealed partial class TranslationStore
 
         var prefix = key[..prefixLength];
 
-        foreach (var (template, _, _) in _addonTemplates)
+        foreach (var (template, _, _, _) in _addonTemplates)
         {
             if (template.Length == 0 || template[0] == ScriptTextTemplate.Wildcard)
                 continue;
@@ -1252,22 +1252,36 @@ public sealed partial class TranslationStore
         out string chineseText,
         out string[] captures,
         out int[]? parameterIndices)
+        => TryGetAddonText(englishText, out chineseText, out captures, out parameterIndices, out _);
+
+    /// <summary>
+    /// Resolves an Addon-sheet prompt and returns the converted Chinese macro string,
+    /// when the artifact carried one for that row.
+    /// </summary>
+    public bool TryGetAddonText(
+        string? englishText,
+        out string chineseText,
+        out string[] captures,
+        out int[]? parameterIndices,
+        out string? macroTemplate)
     {
         chineseText = string.Empty;
         captures = [];
         parameterIndices = null;
+        macroTemplate = null;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0 || _addonTemplates.Count == 0)
             return false;
 
-        foreach (var (template, chinese, indices) in _addonTemplates)
+        foreach (var (template, chinese, indices, macro) in _addonTemplates)
         {
             if (!ScriptTextTemplate.TryMatch(template, key, out captures))
                 continue;
 
             chineseText = chinese;
             parameterIndices = indices;
+            macroTemplate = macro;
             return true;
         }
 
@@ -1561,8 +1575,8 @@ public sealed partial class TranslationStore
     /// with fewer wildcards wins a tie, because it allows less text to vary.
     /// </summary>
     private static int CompareAddonTemplates(
-        (string Template, string Chinese, int[]? ParameterIndices) left,
-        (string Template, string Chinese, int[]? ParameterIndices) right)
+        (string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate) left,
+        (string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate) right)
     {
         var literal = ScriptTextTemplate.LiteralLength(right.Template)
             .CompareTo(ScriptTextTemplate.LiteralLength(left.Template));
@@ -1744,7 +1758,8 @@ public sealed partial class TranslationStore
                                 _addonTemplates.Add((
                                     parameterTemplate.Template,
                                     chineseSlots[i],
-                                    parameterTemplate.ParameterIndices));
+                                    parameterTemplate.ParameterIndices,
+                                    MacroTemplateFor(artifact, rowId)));
                             }
                         }
 
@@ -1755,7 +1770,7 @@ public sealed partial class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(template) >= 4
                                 && _addonTemplateKeys.Add(template))
                             {
-                                _addonTemplates.Add((template, chineseSlots[i], null));
+                                _addonTemplates.Add((template, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
                             }
 
                             var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
@@ -1763,7 +1778,7 @@ public sealed partial class TranslationStore
                                 && !string.Equals(loose, template, StringComparison.Ordinal)
                                 && _addonTemplateKeys.Add(loose))
                             {
-                                _addonTemplates.Add((loose, chineseSlots[i], null));
+                                _addonTemplates.Add((loose, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
                             }
 
                             // A prompt with several lines can change which detail
@@ -1778,7 +1793,7 @@ public sealed partial class TranslationStore
                                 if (ScriptTextTemplate.LiteralLength(prefix) >= 4
                                     && _addonTemplateKeys.Add(prefix))
                                 {
-                                    _addonTemplates.Add((prefix, chineseSlots[i], null));
+                                    _addonTemplates.Add((prefix, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
                                 }
                             }
                         }
@@ -1792,7 +1807,11 @@ public sealed partial class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(wordTemplate) >= 4
                                 && _addonTemplateKeys.Add(wordTemplate))
                             {
-                                _addonTemplates.Add((wordTemplate, chineseSlots[i], null));
+                                _addonTemplates.Add((
+                                    wordTemplate,
+                                    chineseSlots[i],
+                                    null,
+                                    MacroTemplateFor(artifact, rowId)));
                             }
                         }
                     }
@@ -2043,6 +2062,10 @@ public sealed partial class TranslationStore
     /// </summary>
     private string PrepareDisplay(string rawText)
         => NeedsLateResolution(rawText) ? rawText : ResolveWith(_indexResolver, rawText);
+
+    /// <summary>The converted macro string the artifact stored for one Addon row.</summary>
+    private static string? MacroTemplateFor(TranslationArtifact artifact, uint rowId)
+        => artifact.AddonTemplates.TryGetValue(rowId.ToString(), out var macro) ? macro : null;
 
     private string ResolveDisplay(string stored)
         => NeedsLateResolution(stored) ? ResolveWith(_displayResolver, stored) : stored;

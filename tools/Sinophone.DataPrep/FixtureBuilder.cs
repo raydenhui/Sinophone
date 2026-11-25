@@ -268,14 +268,29 @@ internal static class FixtureBuilder
         Dictionary<string, Dictionary<string, Dictionary<string, string[]>>> sheets,
         Dictionary<string, ScriptEntry> scripts)
     {
+        var templates = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (sheets.TryGetValue("Addon", out var addonRows))
+        {
+            foreach (var (rowId, fields) in addonRows)
+            {
+                if (fields.TryGetValue("Text", out var texts)
+                    && texts.Length > 0
+                    && AddonMacroConverter.TryConvert(texts[0], out var macro))
+                {
+                    templates[rowId] = macro;
+                }
+            }
+        }
+
         var artifact = new Program.Artifact
         {
-            FormatVersion = 1,
+            FormatVersion = 2,
             Language = language,
             GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
             GameVersion = "fixture",
             Sheets = sheets,
             Scripts = scripts,
+            AddonTemplates = templates,
         };
 
         using var file = File.Create(path);

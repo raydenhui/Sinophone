@@ -201,7 +201,7 @@ internal static class Program
 
         var artifact = new Artifact
         {
-            FormatVersion = 1,
+            FormatVersion = 2,
             Language = options.Language,
             GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
             GameVersion = options.GameVersion,
@@ -268,6 +268,23 @@ internal static class Program
             Console.WriteLine($"{spec.Sheet,-26} {rows.Count,7:N0} rows  {slots,8:N0} slots");
         }
 
+        // Convert the Addon prompts once, at build time. A row the converter does
+        // not understand is left out, and the plugin keeps its old replacement path.
+        if (artifact.Sheets.TryGetValue("Addon", out var addonRows))
+        {
+            foreach (var (rowId, fields) in addonRows)
+            {
+                if (fields.TryGetValue("Text", out var texts)
+                    && texts.Length > 0
+                    && AddonMacroConverter.TryConvert(texts[0], out var macro))
+                {
+                    artifact.AddonTemplates[rowId] = macro;
+                }
+            }
+
+            Console.WriteLine($"{"Addon macros",-26} {artifact.AddonTemplates.Count,7:N0} rows");
+        }
+
         var directory = Path.GetDirectoryName(Path.GetFullPath(options.OutputPath));
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
@@ -291,6 +308,7 @@ internal static class Program
         Console.WriteLine($"Rows          : {totalRows:N0}");
         Console.WriteLine($"Slots         : {totalSlots:N0}");
         Console.WriteLine($"Scripts       : {artifact.Scripts.Count:N0}");
+        Console.WriteLine($"Addon macros  : {artifact.AddonTemplates.Count:N0}");
         Console.WriteLine($"Output        : {options.OutputPath} ({size / 1024.0 / 1024.0:F2} MiB)");
         return 0;
     }
@@ -459,12 +477,13 @@ internal static class Program
 
     internal sealed class Artifact
     {
-        public int FormatVersion { get; set; } = 1;
+        public int FormatVersion { get; set; } = 2;
         public string Language { get; set; } = string.Empty;
         public string GeneratedAt { get; set; } = string.Empty;
         public string GameVersion { get; set; } = string.Empty;
         public Dictionary<string, Dictionary<string, Dictionary<string, string[]>>> Sheets { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, ScriptEntry> Scripts { get; set; } = new(StringComparer.Ordinal);
+        public Dictionary<string, string> AddonTemplates { get; set; } = new(StringComparer.Ordinal);
     }
 
     private sealed class Options

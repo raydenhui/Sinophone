@@ -30,6 +30,13 @@ public sealed class TranslationArtifact
     /// <c>TEXT_REGSEAAETHEGUID_00051_SUNDHIMAL_000_1</c>.
     /// </summary>
     public Dictionary<string, ScriptEntry> Scripts { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Chinese <c>Addon</c> rows converted to macro strings, keyed by row id. The
+    /// plugin evaluates one with the values the game passed instead of filling
+    /// <c>IntegerParameter</c> by string replacement.
+    /// </summary>
+    public Dictionary<string, string> AddonTemplates { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>One line from a script dump, in both the game's language and the translated one.</summary>

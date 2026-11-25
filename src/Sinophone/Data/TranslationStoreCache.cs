@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 6;
+    private const int CacheFormatVersion = 7;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 
@@ -168,10 +168,13 @@ public sealed partial class TranslationStore
         }
 
         writer.Write(_addonTemplates.Count);
-        foreach (var (template, chinese, indices) in _addonTemplates)
+        foreach (var (template, chinese, indices, macro) in _addonTemplates)
         {
             writer.Write(template);
             writer.Write(chinese);
+            writer.Write(macro is not null);
+            if (macro is not null)
+                writer.Write(macro);
 
             if (indices is null)
             {
@@ -337,6 +340,7 @@ public sealed partial class TranslationStore
         {
             var template = reader.ReadString();
             var chinese = reader.ReadString();
+            var macro = reader.ReadBoolean() ? reader.ReadString() : null;
             var length = reader.ReadInt32();
 
             int[]? indices = null;
@@ -347,7 +351,7 @@ public sealed partial class TranslationStore
                     indices[j] = reader.ReadInt32();
             }
 
-            _addonTemplates.Add((template, chinese, indices));
+            _addonTemplates.Add((template, chinese, indices, macro));
         }
 
         count = reader.ReadInt32();

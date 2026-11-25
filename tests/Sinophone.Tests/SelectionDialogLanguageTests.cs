@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using Lumina.Text.ReadOnly;
 using Sinophone.Data;
 using Sinophone.Handlers;
 
@@ -137,6 +138,105 @@ public class SelectionDialogLanguageTests
             DateTemplate, "tomorrow", now: Now);
 
         Assert.Equal(string.Empty, resolved);
+    }
+
+    [Fact]
+    public void BuildAddonLocals_PlacesNumbersAndStringsAtTheirIndex()
+    {
+        var locals = SelectionDialogHandler.BuildAddonLocals(["5", "Wood"], [1, 2]);
+
+        Assert.Equal(2, locals.Length);
+        Assert.False(locals[0].IsString);
+        Assert.Equal(5u, locals[0].UIntValue);
+        Assert.True(locals[1].IsString);
+        Assert.Equal("Wood", locals[1].StringValue.ExtractText());
+    }
+
+    [Fact]
+    public void BuildAddonLocals_StripsThousandsSeparators()
+    {
+        var locals = SelectionDialogHandler.BuildAddonLocals(["2,000"], [1]);
+
+        Assert.False(locals[0].IsString);
+        Assert.Equal(2000u, locals[0].UIntValue);
+    }
+
+    [Fact]
+    public void EvaluateAddonTemplate_ReturnsNull_WithoutAnEvaluator()
+        => Assert.Null(SelectionDialogHandler.EvaluateAddonTemplate(null, "<num(lnum1)>", ["5"], [1]));
+
+    [Fact]
+    public void EvaluateAddonTemplate_ReturnsNull_ForATemplateWithoutMacros()
+        => Assert.Null(SelectionDialogHandler.EvaluateAddonTemplate(null, null, null, null));
+
+    [Fact]
+    public void TryGetAddonText_ReturnsTheConvertedTemplate()
+    {
+        const uint rowId = 11194;
+        var descriptor = new FakeAddonDescriptor(
+            new Dictionary<uint, string> { [rowId] = "Exchange 5 for the item" },
+            new Dictionary<uint, AddonParameterTemplate>
+            {
+                [rowId] = new("Exchange " + ScriptTextTemplate.Wildcard + " for the item", [1]),
+            });
+
+        var artifact = JsonSerializer.Serialize(new
+        {
+            FormatVersion = 2,
+            Language = "CN",
+            GeneratedAt = "test",
+            GameVersion = "test",
+            Sheets = new Dictionary<string, Dictionary<string, Dictionary<string, string[]>>>
+            {
+                ["Addon"] = new()
+                {
+                    [rowId.ToString()] = new() { ["Text"] = ["确定要用<Sheet(Item,IntegerParameter(1),0)/>换取吗？"] },
+                },
+            },
+            Scripts = new Dictionary<string, object>(),
+            AddonTemplates = new Dictionary<string, string> { [rowId.ToString()] = "<num(lnum1)>" },
+        });
+
+        var store = TranslationStore.Load(
+            [descriptor],
+            ChineseVariant.Simplified,
+            false,
+            _ => ToGzipStream(artifact),
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetAddonText(
+            "Exchange 5 for the item", out _, out var captures, out var indices, out var macro));
+        Assert.Equal(["5"], captures);
+        Assert.Equal([1], indices);
+        Assert.Equal("<num(lnum1)>", macro);
+    }
+
+    private sealed class FakeAddonDescriptor(
+        Dictionary<uint, string> rows,
+        Dictionary<uint, AddonParameterTemplate> templates)
+        : ISheetDescriptor, IParameterizedTemplateDescriptor
+    {
+        public string Name => "Addon";
+
+        public string FieldName => "Text";
+
+        public bool IsNameSheet => false;
+
+        public bool TryExtract(uint rowId, out IReadOnlyList<IReadOnlyList<string>> texts)
+        {
+            if (rows.TryGetValue(rowId, out var text))
+            {
+                texts = [new[] { text }];
+                return true;
+            }
+
+            texts = Array.Empty<IReadOnlyList<string>>();
+            return false;
+        }
+
+        public bool TryBuildTemplate(uint rowId, out AddonParameterTemplate template)
+            => templates.TryGetValue(rowId, out template!);
     }
 
     private static TranslationStore AddonStore(params (uint RowId, string Live, string Chinese)[] rows)

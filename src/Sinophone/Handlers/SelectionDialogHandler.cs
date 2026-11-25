@@ -1,3 +1,5 @@
+using Dalamud.Game.Text.Evaluator;
+
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 using Sinophone.Data;
@@ -111,6 +113,7 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
+    private readonly ISeStringEvaluator _evaluator;
     private readonly TalkEventReader _eventReader;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
@@ -163,7 +166,8 @@ public sealed class SelectionDialogHandler : IDisposable
         IPluginLog log,
         Configuration configuration,
         Func<TranslationStore?> getStore,
-        NativeTextWriter nativeWriter)
+        NativeTextWriter nativeWriter,
+        ISeStringEvaluator evaluator)
     {
         _addonLifecycle = addonLifecycle;
         _gameGui = gameGui;
@@ -171,6 +175,7 @@ public sealed class SelectionDialogHandler : IDisposable
         _configuration = configuration;
         _getStore = getStore;
         _nativeWriter = nativeWriter;
+        _evaluator = evaluator;
         _eventReader = new TalkEventReader(log, configuration, LogCategory.SelectionDialogs);
         _onAddonEvent = OnAddonEvent;
 
@@ -328,7 +333,7 @@ public sealed class SelectionDialogHandler : IDisposable
             if (scriptHints.Count > 0)
                 context = context with { ScriptKeyHints = scriptHints };
 
-            if (!TryTranslate(store, source, context, out var chinese))
+            if (!TryTranslate(store, source, context, _evaluator, out var chinese))
             {
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
@@ -708,12 +713,20 @@ public sealed class SelectionDialogHandler : IDisposable
     /// show "Yes".
     /// </summary>
     internal static bool TryTranslate(TranslationStore store, string? text, out string chinese)
-        => TryTranslate(store, text, default, out chinese);
+        => TryTranslate(store, text, default, null, out chinese);
 
     internal static bool TryTranslate(
         TranslationStore store,
         string? text,
         DialogueContext context,
+        out string chinese)
+        => TryTranslate(store, text, context, null, out chinese);
+
+    internal static bool TryTranslate(
+        TranslationStore store,
+        string? text,
+        DialogueContext context,
+        ISeStringEvaluator? evaluator,
         out string chinese)
     {
         chinese = string.Empty;
@@ -740,8 +753,16 @@ public sealed class SelectionDialogHandler : IDisposable
             return chinese.Length > 0;
         }
 
-        if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices))
+        if (store.TryGetAddonText(
+                plainText, out var addonText, out var captures, out var parameterIndices, out var macroTemplate))
         {
+            var evaluated = EvaluateAddonTemplate(evaluator, macroTemplate, captures, parameterIndices);
+            if (evaluated is not null)
+            {
+                chinese = MacroNormalizer.CleanForDisplay(evaluated);
+                return chinese.Length > 0;
+            }
+
             chinese = ResolveAddonText(addonText, plainText, captures, store, parameterIndices);
             return chinese.Length > 0;
         }
@@ -832,6 +853,81 @@ public sealed class SelectionDialogHandler : IDisposable
             builder.Append(line.Trim());
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Evaluates the converted Chinese template with the values captured from the
+    /// live prompt. Returns null when the template cannot be evaluated here and the
+    /// caller should use the replacement path.
+    /// </summary>
+    /// <remarks>
+    /// A <c>settime</c> template needs the unix timestamp the game passed, which the
+    /// rendered date does not hold. A <c>sheet</c> template would read the client's
+    /// own sheet, which is the wrong language. Both keep the old path.
+    /// </remarks>
+    internal static string? EvaluateAddonTemplate(
+        ISeStringEvaluator? evaluator,
+        string? macroTemplate,
+        IReadOnlyList<string>? values,
+        IReadOnlyList<int>? indices)
+    {
+        if (evaluator is null || string.IsNullOrEmpty(macroTemplate))
+            return null;
+
+        if (macroTemplate.Contains("settime(", StringComparison.Ordinal)
+            || macroTemplate.Contains("<sheet(", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var locals = BuildAddonLocals(values, indices);
+
+        try
+        {
+            var text = evaluator.EvaluateMacroString(macroTemplate, locals).ExtractText();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Places each captured value at the parameter index the Chinese row uses.
+    /// A value that is a whole number becomes a number, so <c>lnum</c> can read it;
+    /// anything else stays a string for <c>lstr</c>.
+    /// </summary>
+    internal static SeStringParameter[] BuildAddonLocals(
+        IReadOnlyList<string>? values,
+        IReadOnlyList<int>? indices)
+    {
+        var highest = 0;
+        if (indices is not null)
+        {
+            foreach (var index in indices)
+                highest = Math.Max(highest, index);
+        }
+
+        var locals = new SeStringParameter[highest];
+        if (indices is null || values is null)
+            return locals;
+
+        var count = Math.Min(indices.Count, values.Count);
+        for (var i = 0; i < count; i++)
+        {
+            var index = indices[i];
+            if (index <= 0 || index > locals.Length)
+                continue;
+
+            var value = values[i].Trim();
+            var numeric = value.Replace(",", string.Empty, StringComparison.Ordinal);
+            locals[index - 1] = uint.TryParse(numeric, out var number)
+                ? new SeStringParameter(number)
+                : new SeStringParameter(value);
+        }
+
+        return locals;
     }
 
     /// <summary>

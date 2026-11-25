@@ -406,10 +406,10 @@ public sealed unsafe class ItemNameHandler : IDisposable
         if (shownEnglish.Length == 0)
             return null;
 
-        if (!store.TryGetName(englishName, out chineseName))
+        if (!store.TryGetName(shownEnglish, out chineseName))
             return null;
 
-        return new ItemNameContent(chineseName, englishName);
+        return new ItemNameContent(chineseName, shownEnglish);
     }
 
     internal readonly record struct ItemNameContent(string ChineseName, string EnglishName);
