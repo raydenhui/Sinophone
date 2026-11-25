@@ -45,7 +45,6 @@ jobs:
           dotnet test Sinophone.sln -c Release --no-build
           --logger "console;verbosity=normal"
           --logger trx --results-directory TestResults
-          --collect:"Code Coverage"
 
       - name: Check the test count did not drop
         shell: pwsh
