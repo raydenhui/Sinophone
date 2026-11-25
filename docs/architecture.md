@@ -27,6 +27,7 @@ src/Sinophone/
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window or the game tooltip.
+    HookGuard.cs          Runs a hook callback so a throw does not reach the game's frame.
   UI/
     OverlayWindow.cs      The translation overlay.
     ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.

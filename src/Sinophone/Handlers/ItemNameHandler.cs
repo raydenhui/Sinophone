@@ -93,7 +93,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
         if (_disposed)
             return;
 
-        Show(_gameGui.HoveredItem);
+        TryShow(_gameGui.HoveredItem);
     }
 
     private void OnHoveredItemChanged(object? sender, ulong itemId)
@@ -101,7 +101,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
         if (_disposed)
             return;
 
-        Show(itemId);
+        TryShow(itemId);
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
 
         if (eventType == AddonEvent.PreDraw)
         {
-            ReapplyTooltip();
+            TryReapplyTooltip();
             return;
         }
 
@@ -127,8 +127,19 @@ public sealed unsafe class ItemNameHandler : IDisposable
             return;
         }
 
-        Show(_gameGui.HoveredItem);
+        TryShow(_gameGui.HoveredItem);
     }
+
+    /// <summary>
+    /// Runs one item update and never throws. This is a hook callback, so a throw would
+    /// reach the game's frame. A failed read leaves the English name and hides nothing.
+    /// </summary>
+    private void TryShow(ulong hoveredItem)
+        => HookGuard.Run(_log, "Item name", () => Show(hoveredItem));
+
+    /// <summary>The per-frame reapply, wrapped so a throw cannot reach the game's frame.</summary>
+    private void TryReapplyTooltip()
+        => HookGuard.Run(_log, "Item name", ReapplyTooltip);
 
     /// <summary>
     /// The tooltip writes its own name again while it is open, so a write from an addon
