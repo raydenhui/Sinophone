@@ -81,7 +81,8 @@ instead of once per handler. The older handlers keep their own `try/catch`.
 
 `tools/Sinophone.Coverage` measures how much of each component's text the plugin can translate,
 against the real artifacts rather than the fixture. It is an evaluation run, not part of
-`scripts/Test.ps1`; run it when you want the numbers, after a data update, or before a release:
+`scripts/Test.ps1` and not run in CI; run it when you want the numbers, after a data update, or
+before a release:
 
 ```sh
 pwsh -File scripts/Test-Coverage.ps1                  # tc, using the plugin's own artifacts
