@@ -7,7 +7,7 @@ Item tooltips and nameplates were checked in game and work, so their automated c
 deferred. Chat log restore is dropped. Native `TalkSubtitle` display is a feature issue (#199),
 not a harness surface, so it is not covered here.
 
-Planned as one issue, "test(testing): drive the remaining surfaces from the harness" (#198).
+Tracked as #198.
 
 ## What the harness already gives a new surface
 
