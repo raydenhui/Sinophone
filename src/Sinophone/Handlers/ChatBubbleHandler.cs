@@ -4,6 +4,8 @@ using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using InteropGenerator.Runtime;
 
+using Sinophone.Diagnostics;
+
 // Lumina also has a sheet called NpcYell; this is the game's rolling yell state.
 using GameNpcYell = FFXIVClientStructs.FFXIV.Client.Game.UI.NpcYell;
 
@@ -35,6 +37,7 @@ public sealed class ChatBubbleHandler : IDisposable
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
     private readonly ChatLogRestorer _chatLogRestorer;
+    private readonly FailureRecorder? _failures;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
@@ -67,7 +70,8 @@ public sealed class ChatBubbleHandler : IDisposable
         Configuration configuration,
         Func<TranslationStore?> getStore,
         NativeTextWriter nativeWriter,
-        ChatLogRestorer chatLogRestorer)
+        ChatLogRestorer chatLogRestorer,
+        FailureRecorder? failures = null)
     {
         _addonLifecycle = addonLifecycle;
         _interop = interop;
@@ -76,6 +80,7 @@ public sealed class ChatBubbleHandler : IDisposable
         _getStore = getStore;
         _nativeWriter = nativeWriter;
         _chatLogRestorer = chatLogRestorer;
+        _failures = failures;
         _onAddonEvent = OnAddonEvent;
 
         _addonLifecycle.RegisterListener(AddonEvent.PostSetup, AddonName, _onAddonEvent);
@@ -180,7 +185,16 @@ public sealed class ChatBubbleHandler : IDisposable
             return null;
 
         var context = ReadYellContext(english, out var parameters);
-        var chinese = Resolve(store, _configuration, english, context, parameters);
+        var trace = _failures?.Begin("bubble", nameof(ChatBubbleHandler), english);
+        if (trace is not null)
+        {
+            trace.Input("kind", "yell");
+            if (context.Row is { } row)
+                trace.Input("yellRow", row.RowId.ToString());
+        }
+
+        var chinese = Resolve(store, _configuration, english, context, parameters, trace);
+        trace?.Finish(chinese is null ? FailureOutcome.Miss : FailureOutcome.Hit);
 
         // A yell with the print-to-log flag makes the game log the text it was given.
         if (chinese is not null)
@@ -233,7 +247,8 @@ public sealed class ChatBubbleHandler : IDisposable
         Configuration configuration,
         string? englishText,
         DialogueContext context = default,
-        IReadOnlyList<int>? integerParameters = null)
+        IReadOnlyList<int>? integerParameters = null,
+        FailureTrace? trace = null)
     {
         if (!configuration.Enabled || !configuration.ShowInChatBubbles)
             return null;
@@ -241,8 +256,13 @@ public sealed class ChatBubbleHandler : IDisposable
         if (string.IsNullOrWhiteSpace(englishText))
             return null;
 
-        if (!store.TryGetDialogue(englishText, in context, null, out var chineseText))
+        if (!store.TryGetDialogue(englishText, in context, null, out var chineseText, trace))
+        {
+            trace?.Step("bubble.text", "miss");
             return null;
+        }
+
+        trace?.Step("bubble.text", "hit");
 
         var styled = MacroNormalizer.ResolveIntegerParameters(chineseText, integerParameters);
         return string.IsNullOrWhiteSpace(styled) ? null : styled;
@@ -351,7 +371,13 @@ public sealed class ChatBubbleHandler : IDisposable
             }
 
             var english = length == 0 ? string.Empty : TalkHandler.ExtractPlainText(text).Trim();
-            var chinese = english.Length == 0 ? null : Resolve(store, _configuration, english);
+            var trace = english.Length == 0
+                ? null
+                : _failures?.Begin("bubble", nameof(ChatBubbleHandler), english);
+            trace?.Input("kind", "balloon");
+
+            var chinese = english.Length == 0 ? null : Resolve(store, _configuration, english, trace: trace);
+            trace?.Finish(chinese is null ? FailureOutcome.Miss : FailureOutcome.Hit);
 
             if (chinese is null)
             {

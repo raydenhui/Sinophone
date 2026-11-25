@@ -226,6 +226,12 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>The debug probes. Debug builds only.</summary>
     public bool LogDiagnostics { get; set; } = true;
 
+    /// <summary>
+    /// Log the path of each failure case file. Development builds only; the case
+    /// files are written either way.
+    /// </summary>
+    public bool LogFailureFiles { get; set; }
+
     public float FontSize { get; set; } = 20f;
 
     public float OverlayWidth { get; set; } = 620f;

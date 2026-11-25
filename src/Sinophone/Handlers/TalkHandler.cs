@@ -4,6 +4,8 @@ using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using InteropGenerator.Runtime;
 
+using Sinophone.Diagnostics;
+
 namespace Sinophone.Handlers;
 
 /// <summary>
@@ -32,6 +34,7 @@ public sealed class TalkHandler : IDisposable
     private readonly ChatLogRestorer _chatLogRestorer;
     private readonly TalkEventReader _eventReader;
     private readonly ITargetManager _targetManager;
+    private readonly FailureRecorder? _failures;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
     private Hook<TalkSetupDelegate>? _setupHook;
@@ -69,7 +72,8 @@ public sealed class TalkHandler : IDisposable
         Func<TranslationStore?> getStore,
         OverlayWindow overlay,
         NativeTextWriter nativeWriter,
-        ChatLogRestorer chatLogRestorer)
+        ChatLogRestorer chatLogRestorer,
+        FailureRecorder? failures = null)
     {
         _addonLifecycle = addonLifecycle;
         _interop = interop;
@@ -81,6 +85,7 @@ public sealed class TalkHandler : IDisposable
         _overlay = overlay;
         _nativeWriter = nativeWriter;
         _chatLogRestorer = chatLogRestorer;
+        _failures = failures;
         _eventReader = new TalkEventReader(log, configuration, LogCategory.Dialogue);
         _onAddonEvent = OnAddonEvent;
 
@@ -276,18 +281,30 @@ public sealed class TalkHandler : IDisposable
             englishText,
             _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
 
+        var trace = BeginTrace(TalkAddonName, englishText, englishName);
+        trace?.Input("path", "native");
+        DescribeContext(trace, context);
+
         var content = Resolve(
             store,
             _configuration,
             englishText,
             englishName,
             context,
-            ReadIntegerParameters(values, count));
+            ReadIntegerParameters(values, count),
+            trace);
 
         // A line with no translation leaves the English in place. Writing an empty
         // string would blank the dialogue box.
         if (content is null || string.IsNullOrWhiteSpace(content.Value.ChineseText))
+        {
+            trace?.Step("display.native", "no-text");
+            trace?.Finish(FailureOutcome.Miss, "no-translation");
             return default;
+        }
+
+        trace?.Step("display.native", "written");
+        trace?.Finish(FailureOutcome.Hit);
 
         var chineseText = WrapForTalkBox(addon, content.Value.ChineseText);
         var chineseName = content.Value.ChineseName;
@@ -613,7 +630,11 @@ public sealed class TalkHandler : IDisposable
 
         context = WithRememberedScene(store, addonName, englishText, context);
 
-        var content = Resolve(store, _configuration, englishText, englishName, context, integerParameters);
+        var trace = BeginTrace(addonName, englishText, englishName);
+        trace?.Input("path", "overlay");
+        DescribeContext(trace, context);
+
+        var content = Resolve(store, _configuration, englishText, englishName, context, integerParameters, trace);
 
         if (content is null && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
         {
@@ -636,17 +657,22 @@ public sealed class TalkHandler : IDisposable
                     candidate,
                     englishName,
                     retryContext,
-                    integerParameters);
+                    integerParameters,
+                    trace);
                 if (content is not null)
                 {
+                    trace?.Step("talk.retry", "hit", candidate);
                     englishText = candidate;
                     break;
                 }
+
+                trace?.Step("talk.retry", "miss", candidate);
             }
         }
 
         if (content is null)
         {
+            trace?.Finish(FailureOutcome.Miss, "no-translation");
             ForgetNativeText(addonName);
             _overlay.Hide();
             _log.Debug("{Addon} line has no usable translation; overlay hidden. " +
@@ -654,6 +680,11 @@ public sealed class TalkHandler : IDisposable
                 addonName, string.IsNullOrWhiteSpace(englishText), _configuration.HideWhenNoTranslation);
             return;
         }
+
+        if (content.Value.ChineseText.Length == 0)
+            trace?.Finish(FailureOutcome.Miss, "no-translation");
+        else
+            trace?.Finish(FailureOutcome.Hit);
 
         if (ShouldUseNativeText(_configuration, addonName))
         {
@@ -795,10 +826,14 @@ public sealed class TalkHandler : IDisposable
         string? englishText,
         string? englishName,
         DialogueContext context = default,
-        IReadOnlyList<int>? integerParameters = null)
+        IReadOnlyList<int>? integerParameters = null,
+        FailureTrace? trace = null)
     {
         if (string.IsNullOrWhiteSpace(englishText))
+        {
+            trace?.Step("talk.text", "empty");
             return null;
+        }
 
 
         var hasLineAlias = store.TryGetLineSpeakerAlias(englishText, out var aliasEnglish, out var aliasChinese);
@@ -813,19 +848,27 @@ public sealed class TalkHandler : IDisposable
                 englishName = alias;
         }
 
+        trace?.Input("name", englishName);
 
-        var hasText = store.TryGetDialogue(englishText, in context, englishName, out var chineseText);
+        var hasText = store.TryGetDialogue(englishText, in context, englishName, out var chineseText, trace);
+        trace?.Step("talk.text", hasText ? "hit" : "miss");
 
         if (!hasText && configuration.HideWhenNoTranslation)
+        {
+            trace?.Step("display", "hidden");
             return null;
+        }
 
         var chineseName = string.Empty;
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
         {
             if (!hasLineAlias)
-                store.TryGetName(englishName, out chineseName);
+                store.TryGetName(englishName, out chineseName, trace);
             else
                 chineseName = aliasChinese;
+
+            if (chineseName.Length == 0)
+                trace?.Step("talk.name", "miss");
         }
 
         var speakerName = configuration.ShowSpeakerName
@@ -836,6 +879,40 @@ public sealed class TalkHandler : IDisposable
         store.TryGetStyle(styledText, out var style);
 
         return new OverlayContent(styledText, speakerName, style);
+    }
+
+    private FailureTrace? BeginTrace(string addonName, string? text, string? name)
+    {
+        var trace = _failures?.Begin("talk", nameof(TalkHandler), text);
+        if (trace is null)
+            return null;
+
+        trace.Input("addon", addonName);
+        trace.Input("name", name);
+        return trace;
+    }
+
+    private static void DescribeContext(FailureTrace? trace, in DialogueContext context)
+    {
+        if (trace is null)
+            return;
+
+        if (context.Row is { } row)
+        {
+            trace.Input("sheet", row.Sheet);
+            trace.Input("row", row.RowId.ToString());
+            trace.Input("slot", row.Slot.ToString());
+            trace.Input("field", row.Field);
+        }
+
+        if (context.ScriptKeys is { Count: > 0 } keys)
+            trace.Input("scriptKeys", string.Join(", ", keys));
+
+        if (context.CutsceneId != 0)
+            trace.Input("cutscene", context.CutsceneId.ToString());
+
+        if (context.ScriptKeyHints is { Count: > 0 } hints)
+            trace.Input("scriptHints", string.Join(", ", hints));
     }
 
     /// <summary>Shows the Chinese name with the English name in parentheses.</summary>

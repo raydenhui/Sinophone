@@ -1,3 +1,5 @@
+using Sinophone.Diagnostics;
+
 namespace Sinophone;
 
 /// <summary>
@@ -40,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ChatLogRestorer _chatLogRestorer;
     private readonly ItemNameHandler _itemNameHandler;
     private readonly TranslationDataUpdater _dataUpdater;
+    private readonly FailureRecorder? _failures;
 #if SINOPHONE_TESTING
     private readonly NativeTextProbe _nativeProbe;
     private readonly TalkContextProbe _talkContextProbe;
@@ -158,11 +161,13 @@ public sealed class Plugin : IDalamudPlugin
             PluginInterface.GetPluginConfigDirectory(),
             Log);
 
+        _failures = CreateFailureRecorder();
+
         _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _log);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, _configuration, Log);
         _chatLogRestorer = new ChatLogRestorer(ChatGui, _configuration, Log);
-        _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
+        _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log, _failures);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if SINOPHONE_TESTING
         _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, _configuration, Log);
@@ -219,14 +224,16 @@ public sealed class Plugin : IDalamudPlugin
             () => _store,
             _overlay,
             _nativeTextWriter,
-            _chatLogRestorer);
+            _chatLogRestorer,
+            _failures);
         _selectionDialogHandler = new SelectionDialogHandler(
             AddonLifecycle,
             GameGui,
             Log,
             _configuration,
             () => _store,
-            _nativeTextWriter);
+            _nativeTextWriter,
+            _failures);
         _chatBubbleHandler = new ChatBubbleHandler(
             AddonLifecycle,
             GameInteropProvider,
@@ -234,13 +241,15 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _nativeTextWriter,
-            _chatLogRestorer);
+            _chatLogRestorer,
+            _failures);
         _battleTalkHandler = new BattleTalkHandler(
             AddonLifecycle,
             GameInteropProvider,
             Log,
             _configuration,
-            () => _store);
+            () => _store,
+            _failures);
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
@@ -249,7 +258,8 @@ public sealed class Plugin : IDalamudPlugin
             () => _store,
             _itemNameWindow,
             _nativeTextWriter,
-            Log);
+            Log,
+            _failures);
 
         // Parsing the artifacts is the slow half and touches no game state, so it
         // runs on a worker task. OnTick finishes the load on the game thread.
@@ -607,6 +617,49 @@ public sealed class Plugin : IDalamudPlugin
             GetGameDataVersion(),
             _dataUpdater.SourceIdentity(ChineseVariant.Simplified),
             _dataUpdater.SourceIdentity(ChineseVariant.Traditional));
+    }
+
+    /// <summary>
+    /// Turns the failure recorder on for a dev plugin. Every other build gets null,
+    /// so the lookup paths only pay a null check.
+    /// </summary>
+    private FailureRecorder? CreateFailureRecorder()
+    {
+#if SINOPHONE_TESTING
+        if (!PluginInterface.IsDev)
+            return null;
+
+        var level = FailureLevels.Parse(Environment.GetEnvironmentVariable("SINOPHONE_FAILURE_LEVEL"));
+        var root = Environment.GetEnvironmentVariable("SINOPHONE_FAILURE_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+            root = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "failures");
+
+        var assemblyVersion = PluginInterface.Manifest.AssemblyVersion;
+        var build = new FailureBuildInfo(
+            assemblyVersion.ToString(assemblyVersion.Build >= 0 ? 3 : 2),
+            _configuration.Variant.ToString(),
+            GetGameDataVersion(),
+            DataManager.Language.ToString(),
+            TranslationStore.IndexFormatVersion);
+
+        var recorder = FailureRecorder.TryCreate(
+            root,
+            build,
+            level,
+            path =>
+            {
+                if (_configuration.LogFailureFiles)
+                    _log.Info("Failure case written to {Path}.", path);
+            },
+            warning => _log.Warning("{Warning}", warning));
+
+        if (recorder is not null && _configuration.LogFailureFiles)
+            _log.Info("Failure cases are written to {Path}.", recorder.SessionDirectory);
+
+        return recorder;
+#else
+        return null;
+#endif
     }
 
     private string GetGameDataVersion()
@@ -1001,6 +1054,7 @@ public sealed class Plugin : IDalamudPlugin
         _talkHandler.Dispose();
         _namePlateNameWriter.Disable();
         _itemNameHandler.Dispose();
+        _failures?.Dispose();
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();
     }
