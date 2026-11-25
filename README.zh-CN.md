@@ -86,4 +86,4 @@ Sinophone 建立在他人的成果之上。感谢：
 
 ## 授权
 
-MIT — 见 [LICENSE](LICENSE)。
+Apache-2.0 — 见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。
