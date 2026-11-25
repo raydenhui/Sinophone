@@ -302,9 +302,12 @@ premature interface.
 
 ## Known limitations
 
-- **English only.** Lookup is keyed on the English text the game displays. The other three game
-  languages (Japanese, German, French) are planned but not supported. This is a design change,
-  not a setting. Ask before starting that refactor.
+- **Client language.** Lookup is keyed on the text the client displays. The artifact stores
+  Chinese by row id, so sheet surfaces work on any language the global client offers (English,
+  Japanese, German, French). A script line resolves without a text comparison when the live
+  `LuaTexts` row id matches the artifact. Without a row id, the dump's English line is still the
+  key, so a non-English client falls back to text and can miss. A cutscene subtitle matches the
+  live cutscene sheet row. Chinese is not in the global client; the artifact supplies it.
 - **Exact match.** After normalization, a line must match exactly. A script key from the live Lua
   text map is used only when the dump paired it with the same English line; the live map can reuse
   a key for another menu line. A long shared prefix or suffix is accepted, because a race or other

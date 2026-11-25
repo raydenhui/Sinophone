@@ -9,7 +9,7 @@ src/Sinophone/
   Data/
     TranslationArtifact.cs  Artifact shape: Sheets[sheet][rowId][field] = string[]
     DialogueContext.cs      Optional runtime ids: sheet row + slot, or script text key.
-    TranslationStore.cs     Loads artifacts. Resolves by id first, then English text.
+    TranslationStore.cs     Loads artifacts. Resolves by id first, then the client's text.
     TranslationDataUpdater.cs Downloads published artifacts into the plugin config directory.
     SheetCatalog.cs         Which game sheets to index and how to read each one.
     MacroNormalizer.cs      Text cleanup for matching and for display.
@@ -42,10 +42,10 @@ Data flow, in order:
 
 ```
 CSV dump --(DataPrep)--> Sinophone.<lang>.json.gz --(embedded or data release)--> TranslationStore
-live game sheet row --(SheetCatalog)--> English text --(MacroNormalizer)--> dictionary key
-script dump --(DataPrep)--> Scripts section (English + translation) --(TranslationStore)--> dictionary key
-Talk addon event --(TalkEventReader)--> event row id / Lua text key --(TranslationStore)--> Chinese
-Talk addon event --(TalkHandler)--> English text + name --(TranslationStore)--> Chinese (fallback)
+live game sheet row --(SheetCatalog)--> client-language text --(MacroNormalizer)--> dictionary key
+script dump --(DataPrep)--> Scripts section (key, sheet, row id, English + translation) --(TranslationStore)--> dictionary key
+Talk addon event --(TalkEventReader)--> event row id / Lua text key and row id --(TranslationStore)--> Chinese
+Talk addon event --(TalkHandler)--> client-language text + name --(TranslationStore)--> Chinese (fallback)
 Chinese --(ChineseConverter)--> converted Chinese, when the setting is on
 converted Chinese --(OverlayWindow)--> screen
 ```
@@ -55,8 +55,9 @@ See [translation-workflow.md](translation-workflow.md) for sequence and flow dia
 Some dialogue has no Lumina row at all. It lives in the game's script dumps, which the dumps
 repositories store under `custom/`, `cut_scene/`, `quest/`, and a few smaller folders. `ScriptDump`
 reads those files, pairs them across languages by text key (`TEXT_...`), and writes a `Scripts`
-section into the artifact. The English text travels in the artifact because there is no sheet to
-read it from.
+section into the artifact. Each entry keeps the sheet name and the row id the game's `LuaTexts`
+map uses. The English text travels in the artifact because the artifact is built from the English
+dump; it is the fallback key, not the only identity.
 
 `quest/` also holds journal steps, objectives, and unused entries, which no Talk window shows.
 `ScriptDump` skips keys with `_SEQ_`, `_TODO_`, or `_QIB_`. `_SYSTEM_` keys are kept, because
@@ -68,12 +69,15 @@ largest part of the artifact.
 The game exposes ids for some dialogue. `TranslationStore.TryGetDialogue` accepts a
 `DialogueContext` and tries them before the English text:
 
-1. A script text key from the game's `LuaTexts` map. The artifact keeps script entries
-   keyed by the dump's `TEXT_...` key, so this is an exact match.
-2. A sheet row id and field. A known slot wins; otherwise the store compares the
-   English text with that row's own slots. This is what separates two rows that share
-   the same English line.
-3. The existing normalized English lookup, including the player-name and gendered
+1. A script key and row id from the game's `LuaTexts` map. A matching row id proves
+   the key is the live line, so no text comparison is needed and any client language
+   works. Without a live row id, the store keeps the older English comparison.
+2. A script sheet and row id, such as a cutscene subtitle matched against the live
+   `VoiceMan` sheet. Row ids are the same in every language.
+3. A sheet row id and field. A known slot wins; otherwise the store compares the
+   client's text with that row's own slots. This is what separates two rows that share
+   the same line.
+4. The existing normalized text lookup, including the player-name and gendered
    pronoun fallbacks.
 
 Every layer fails open. A missing event, a changed game structure, or an old artifact
@@ -82,8 +86,8 @@ falls through to text, so a surface without an id keeps the old behaviour.
 For script lines, the game's `LuaTexts` value is matched against the live line with a
 single wildcard only where the script marks a dynamic span, such as a player name or
 Grand Company rank. The rest of the line still has to match exactly. This lets a line
-resolve from the game's own key even when the English dump stores the dynamic span as
-a blank.
+resolve from the game's own key even when the dump stores the dynamic span as a blank.
+The comparison is same-language, so it works on any client.
 
 `TalkEventReader` reads `EventFramework` and the active handlers at Talk time.
 The current target's `EventHandler` is the first choice, because the event state is
@@ -276,11 +280,11 @@ event scripts, the handler also collects the active Lua handler's `LuaKey` and t
 script keys the dialog exposes, and the store keeps candidates from the same script.
 
 An `Addon` prompt can hold a runtime value, such as the gil amount in the retainer menu. The store
-matches those rows as templates: the live English line fills the wildcards, and the Chinese macro
-is replaced with the same text. `Format` and `ZeroPaddedValue` keep the value the English line
-showed, including thousands separators, so the Chinese prompt shows the real amount. The English
-client draws a name from another sheet with `EnNoun`, which the template builder treats as a
-wildcard like `Sheet`.
+matches those rows as templates: the live line fills the wildcards. DataPrep also converts the
+Chinese row to the macro string Lumina parses, and the handler evaluates it with the captured
+values. `Format` and `ZeroPaddedValue` keep the value the live line showed, including thousands
+separators, so the Chinese prompt shows the real amount. The client draws a name from another
+sheet with `EnNoun`, which the template builder treats as a wildcard like `Sheet`.
 
 More than one row can match a prompt. A row that draws a word with a conditional macro matches
 almost any text in that place. Templates are ordered so the one with the most literal text is
@@ -294,9 +298,14 @@ dialog.
 
 A date or clock prompt works the other way round. The Chinese row starts with a `Time` tag that
 fills the date and clock values and draws nothing, then reads them back as
-`TopLevelParameter(n)`. The game keeps those values to itself, so the handler reads the date and
-clock from the English line and fills the slots itself. A value it cannot read leaves the English
-line in place.
+`TopLevelParameter(n)`. The game keeps the timestamp to itself, so the handler reads the date and
+clock from the live line and fills the slots itself. The forms the Japanese client draws (`年月日`,
+`時`/`分`, `午前`/`午後`) are read too. A value it cannot read leaves the English line in place.
+
+The handler no longer skips a node for having no Latin letter. A Japanese prompt is looked up like
+any other text; a miss leaves it alone. The dialog's `AtkValues` are logged once per dialog at
+debug level, because the exact index mapping to `IntegerParameter(n)` still needs an in-game
+check.
 
 A row can also draw a name from another sheet, such as the retainer's class in
 `Sheet(ClassJob,IntegerParameter(1),0)`. The English line shows the name the game chose, so the
