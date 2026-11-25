@@ -46,6 +46,32 @@ jobs:
           --logger "console;verbosity=normal"
           --logger trx --results-directory TestResults
 
+      - name: Check the test count did not drop
+        shell: pwsh
+        # A green run proves the tests that ran passed. It does not prove any ran. This
+        # counts the results and fails when fewer tests ran than the floor, so a pull
+        # request that deletes or silently skips tests cannot pass on a smaller suite.
+        env:
+          MINIMUM_VALIDATION_TESTS: 740
+        run: |
+          $results = Get-ChildItem TestResults -Recurse -Filter *.trx
+          if (-not $results) {
+            throw "No test results were produced."
+          }
+
+          $total = 0
+          foreach ($file in $results) {
+            [xml]$xml = Get-Content -LiteralPath $file.FullName
+            $counters = $xml.TestRun.ResultSummary.Counters
+            $total += [int]$counters.total
+          }
+
+          Write-Host "Tests run: $total (floor: $env:MINIMUM_VALIDATION_TESTS)"
+          if ($total -lt [int]$env:MINIMUM_VALIDATION_TESTS) {
+            throw "Only $total tests ran, below the floor of $env:MINIMUM_VALIDATION_TESTS. " +
+              "A test was deleted or skipped. Raise the floor when tests are added."
+          }
+
       - name: Build with the testing code
         shell: pwsh
         env:

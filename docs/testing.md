@@ -53,11 +53,36 @@ hand-edit `rows.json` or the `.json.gz` files.
   `NormalizeKey_StripsLineBreakMacros` failed on first run and exposed a real bug: `<br>` was
   deleted instead of becoming a space. Fix the code, not the test.
 
+### Property tests
+
+A rule that says "for every line" or "for every input" is tested by generating many inputs,
+not by adding one more example. `CjkLineWrapperPropertyTests` and `MacroNormalizerPropertyTests`
+build a few thousand lines from a fixed seed and check the rule on all of them.
+
+- Generate from a seed. A failure then names one input and always names the same one.
+- Generate realistic shapes, not random characters. A line that starts with two speaker aliases
+  is not a shape the dumps write, so a rule that fails on it is testing something the game
+  cannot produce. `CjkLineWrapperPropertyTests` found exactly this: the mark rules hold on
+  Chinese text, not on arbitrary mixes of marks.
+- Assert the rule the code promises, not a stronger one. `CjkLineWrapper` can leave a line
+  starting with a closing mark when the run of marks is longer than the line. The test says so
+  instead of failing on a case the code never claimed to handle.
+- Check the test can fail. Break the rule in the source, watch the property test go red, then
+  put it back. A property test that passes over input it never rejects proves nothing.
+
+### Hook callbacks fail open
+
+Every handler callback is called by the game inside a frame, so a throw there can reach the
+game. `HookGuard.Run` catches it, logs a warning, and leaves the English text. A new handler
+routes its callback through it; `HookGuardTests` checks the guard, so the rule is tested once
+instead of once per handler. The older handlers keep their own `try/catch`.
+
 ### Coverage suite
 
 `tools/Sinophone.Coverage` measures how much of each component's text the plugin can translate,
 against the real artifacts rather than the fixture. It is an evaluation run, not part of
-`scripts/Test.ps1`; run it when you want the numbers, after a data update, or before a release:
+`scripts/Test.ps1` and not run in CI; run it when you want the numbers, after a data update, or
+before a release:
 
 ```sh
 pwsh -File scripts/Test-Coverage.ps1                  # tc, using the plugin's own artifacts

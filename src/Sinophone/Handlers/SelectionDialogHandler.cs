@@ -168,6 +168,13 @@ public sealed class SelectionDialogHandler : IDisposable
         if (_disposed)
             return;
 
+        // This is a hook callback, so a throw would reach the game's frame. Wrap every
+        // event here rather than in each branch: the dialogue keeps its English text.
+        HookGuard.Run(_log, "Selection dialog", () => HandleAddonEvent(eventType, args));
+    }
+
+    private unsafe void HandleAddonEvent(AddonEvent eventType, AddonArgs args)
+    {
         var addonName = args.AddonName;
 
         if (eventType == AddonEvent.PreDraw)

@@ -212,6 +212,11 @@ is always compiled, so test it in `tests/Sinophone.Tests`; its engine half is be
 follows in the core, never in the ImGui draw code, or it ships untested. A new surface is one
 `IHarnessDriver` plus a sub-tab.
 
+Every handler callback runs inside the game's frame, so a throw there can reach the game. A new
+handler routes its callback through `HookGuard.Run`, which logs a warning and leaves the English
+text; `HookGuardTests` checks that rule once. Older handlers keep their own `try/catch`, and that
+is fine, so do not refactor them just to use the guard.
+
 ## Logging and performance
 
 Use structured logs at the right level, and never log inside `Draw` or `PreDraw`. Keep

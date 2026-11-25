@@ -149,6 +149,36 @@ public class TranslationStoreTests
         return (store, log);
     }
 
+    /// <summary>
+    /// Where <c>ReadCacheBody</c> starts: the 8-byte magic, a 4-byte format version, the
+    /// key as a 7-bit-encoded length and its bytes, then the variant, the fallback flag,
+    /// and the script entry count. Tests corrupt a saved cache from this offset, so it
+    /// has to match the writer.
+    /// </summary>
+    private static int CacheBodyOffset(byte[] file)
+    {
+        const int magicAndVersion = 12;
+
+        var length = 0;
+        var shift = 0;
+        var i = magicAndVersion;
+
+        for (; ; i++)
+        {
+            length |= (file[i] & 0x7F) << shift;
+
+            if ((file[i] & 0x80) == 0)
+                break;
+
+            shift += 7;
+        }
+
+        var afterKey = i + 1 + length;
+
+        // primaryVariant (int32), usedFallback (bool), scriptEntryCount (int32).
+        return afterKey + 4 + 1 + 4;
+    }
+
     private static FakeSheetDescriptor TalkSheet(params (uint RowId, string Text)[] rows)
         => new(SheetName, FieldName, false,
             rows.ToDictionary(r => r.RowId, r => new[] { r.Text }));
@@ -2161,6 +2191,171 @@ public class TranslationStoreTests
         try
         {
             File.WriteAllBytes(path, [1, 2, 3, 4]);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "key", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenTheFileIsEmpty()
+    {
+        var descriptor = TalkSheet((1, "Hello there."));
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            File.WriteAllBytes(path, []);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "key", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenTheHeaderIsIntactButTheBodyIsCutShort()
+    {
+        // A crash during the save leaves the magic and the key, then nothing. The file
+        // passes the header check, so the body read is what has to fail safely.
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "key", store, log);
+
+            var full = File.ReadAllBytes(path);
+
+            // The header is the 8-byte magic, a 4-byte version, then the key written as
+            // a 7-bit-encoded length followed by its bytes. Cut right after the key so
+            // the header check passes and the body read is what fails.
+            var header = CacheBodyOffset(full);
+            Assert.True(full.Length > header, "the saved cache has no body to cut");
+
+            File.WriteAllBytes(path, full[..header]);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "key", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenTheBodyBytesAreOverwritten()
+    {
+        // Corruption after the header: the key still matches, but the body holds
+        // nonsense. The store must rebuild instead of trusting a broken index.
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "key", store, log);
+
+            var bytes = File.ReadAllBytes(path);
+
+            // Start at the body, after the magic, the version, and the key.
+            var header = CacheBodyOffset(bytes);
+
+            // The body starts with the text-lookup count as a little-endian int32. Claim
+            // a count the file cannot possibly hold, so the body read runs past the end
+            // and has to fail. Writing zeros instead would read as an empty index and
+            // quietly load, which is exactly the kind of silent corruption this guards.
+            BitConverter.GetBytes(int.MaxValue).CopyTo(bytes, header);
+            File.WriteAllBytes(path, bytes);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "key", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenACountIsNegative()
+    {
+        // The reader does not check a count for a negative value. The loop simply does not
+        // run, the stream falls out of step, and the next read fails on the wrong bytes.
+        // The cache is refused either way, but only by that knock-on failure, not by a
+        // check on the count itself. Keep this bounded behaviour if the reader changes.
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "key", store, log);
+
+            var bytes = File.ReadAllBytes(path);
+            BitConverter.GetBytes(-1).CopyTo(bytes, CacheBodyOffset(bytes));
+            File.WriteAllBytes(path, bytes);
+
+            Assert.False(TranslationStore.TryLoadCache(
+                path, "key", [descriptor], log, s => s, null, out var cached));
+            Assert.Null(cached);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Cache_IsIgnored_WhenTheFormatVersionIsNewer()
+    {
+        // An old build reading a cache written by a newer build must rebuild. Bumping
+        // CacheFormatVersion is what makes that happen, so this checks the gate works.
+        var descriptor = TalkSheet((1, "Hello there."));
+        var artifacts = Artifacts(null, Artifact("TC", (SheetName, FieldName, 1, "你好。")));
+        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "key", store, log);
+
+            var bytes = File.ReadAllBytes(path);
+
+            // The magic is 8 bytes, then a little-endian int32 version. Writing a
+            // version no build knows makes the file look stale to every reader.
+            var versionOffset = "SNPHIDX1".Length;
+            BitConverter.GetBytes(999).CopyTo(bytes, versionOffset);
+            File.WriteAllBytes(path, bytes);
 
             Assert.False(TranslationStore.TryLoadCache(
                 path, "key", [descriptor], log, s => s, null, out var cached));
