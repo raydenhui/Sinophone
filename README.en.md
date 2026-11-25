@@ -112,4 +112,4 @@ The Chinese text itself comes from the game's own Simplified and Traditional loc
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

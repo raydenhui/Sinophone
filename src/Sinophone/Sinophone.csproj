@@ -30,7 +30,7 @@
     <Copyright>raydenhui 2026</Copyright>
     <PackageProjectUrl>https://github.com/raydenhui/Sinophone</PackageProjectUrl>
     <RepositoryUrl>https://github.com/raydenhui/Sinophone</RepositoryUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageTags>ffxiv;Dalamud;plugin;translation;Chinese;UI</PackageTags>
     <NoWarn>$(NoWarn);IDE0003;CS1591</NoWarn>
   </PropertyGroup>
