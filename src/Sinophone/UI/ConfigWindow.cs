@@ -721,6 +721,12 @@ public sealed class ConfigWindow : Window
             "Reload the plugin to undo everything.");
         ImGui.PopStyleColor();
 
+        ImGui.Spacing();
+        Checkbox(
+            "Log the path of each failure case file",
+            _configuration.LogFailureFiles,
+            value => _configuration.LogFailureFiles = value);
+
         if (_harnessHost is null)
         {
             ImGui.Spacing();

@@ -1,6 +1,7 @@
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 using Sinophone.Data;
+using Sinophone.Diagnostics;
 
 namespace Sinophone.Handlers;
 
@@ -97,6 +98,7 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
     private readonly TalkEventReader _eventReader;
+    private readonly FailureRecorder? _failures;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
     private readonly List<nint> _nodes = [];
@@ -141,7 +143,8 @@ public sealed class SelectionDialogHandler : IDisposable
         IPluginLog log,
         Configuration configuration,
         Func<TranslationStore?> getStore,
-        NativeTextWriter nativeWriter)
+        NativeTextWriter nativeWriter,
+        FailureRecorder? failures = null)
     {
         _addonLifecycle = addonLifecycle;
         _gameGui = gameGui;
@@ -149,6 +152,7 @@ public sealed class SelectionDialogHandler : IDisposable
         _configuration = configuration;
         _getStore = getStore;
         _nativeWriter = nativeWriter;
+        _failures = failures;
         _eventReader = new TalkEventReader(log, configuration, LogCategory.SelectionDialogs);
         _onAddonEvent = OnAddonEvent;
 
@@ -307,8 +311,25 @@ public sealed class SelectionDialogHandler : IDisposable
             if (scriptHints.Count > 0)
                 context = context with { ScriptKeyHints = scriptHints };
 
-            if (!TryTranslate(store, source, context, out var chinese))
+            var trace = _failures?.Begin("selection", nameof(SelectionDialogHandler), source);
+            if (trace is not null)
             {
+                trace.Input("addon", addonName);
+                trace.Input("node", nodeId.ToString());
+                if (context.Row is { } row)
+                {
+                    trace.Input("sheet", row.Sheet);
+                    trace.Input("row", row.RowId.ToString());
+                }
+
+                if (context.ScriptKeys is { Count: > 0 } keys)
+                    trace.Input("scriptKeys", string.Join(", ", keys));
+            }
+
+            if (!TryTranslate(store, source, context, out var chinese, trace))
+            {
+                trace?.Finish(FailureOutcome.Miss, "no-translation");
+
                 // Drop a saved translation if this node has moved on to a line we
                 // cannot translate. English stays on screen.
                 _nativeWriter.ClearIfStillOursAt(addonName, nodeAddress);
@@ -335,8 +356,13 @@ public sealed class SelectionDialogHandler : IDisposable
             {
                 _written[nodeAddress] = fitted;
                 Remember(addonName, nodeAddress);
+                trace?.Finish(FailureOutcome.Hit);
                 _log.Debug("Selection dialog {Addon} node {NodeId}: {Source} -> {Chinese}",
                     addonName, nodeId, source, fitted);
+            }
+            else
+            {
+                trace?.Finish(FailureOutcome.Miss, "write-failed");
             }
         }
     }
@@ -674,43 +700,66 @@ public sealed class SelectionDialogHandler : IDisposable
         TranslationStore store,
         string? text,
         DialogueContext context,
-        out string chinese)
+        out string chinese,
+        FailureTrace? trace = null)
     {
         chinese = string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
+        {
+            trace?.Step("dialog.text", "empty");
             return false;
+        }
 
         var plainText = MacroNormalizer.CleanForDisplay(text);
 
-        if (store.TryGetAddonLabel(plainText, out var addonLabel))
+        if (store.TryGetAddonLabel(plainText, out var addonLabel, trace))
         {
             chinese = ResolveAddonText(addonLabel, plainText);
-            return chinese.Length > 0;
+            if (chinese.Length > 0)
+            {
+                trace?.Step("dialog.path", "label");
+                return true;
+            }
+
+            trace?.Step("dialog.label", "unresolved");
         }
 
         // The context matters here: a cutscene choice is a VOICEMAN script line, and several
         // cutscenes can share one English option. The scene number picks the right one.
-        if (store.TryGetDialogue(text, in context, speakerName: null, out chinese))
+        if (store.TryGetDialogue(text, in context, speakerName: null, out chinese, trace))
         {
             // A line found by its text can hold values the dialog does not pass, such as the price
             // in "Pay 2,000 gil?". The same resolve the templates use fills them from the English
             // line, and leaves the prompt English when a value cannot be filled.
             chinese = ResolveAddonText(chinese, plainText);
-            return chinese.Length > 0;
+            if (chinese.Length > 0)
+            {
+                trace?.Step("dialog.path", "dialogue");
+                return true;
+            }
+
+            trace?.Step("dialog.dialogue", "unresolved");
         }
 
-        if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices))
+        if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices, trace))
         {
             chinese = ResolveAddonText(addonText, plainText, captures, store, parameterIndices);
-            return chinese.Length > 0;
+            if (chinese.Length > 0)
+            {
+                trace?.Step("dialog.path", "template");
+                return true;
+            }
+
+            trace?.Step("dialog.template", "unresolved");
         }
 
         var trimmed = text.TrimEnd('.', '。', '!', '！', '?', '？');
         if (trimmed.Length > 0
             && trimmed != text
-            && store.TryGetDialogue(trimmed, out chinese))
+            && store.TryGetDialogue(trimmed, default, null, out chinese, trace))
         {
+            trace?.Step("dialog.path", "trimmed", approximate: true);
             return true;
         }
 
@@ -719,8 +768,9 @@ public sealed class SelectionDialogHandler : IDisposable
         if (text.Length <= 16
             && text.Length > 0
             && !text.EndsWith('.')
-            && store.TryGetDialogue(string.Concat(text, "."), out chinese))
+            && store.TryGetDialogue(string.Concat(text, "."), default, null, out chinese, trace))
         {
+            trace?.Step("dialog.path", "period", approximate: true);
             return true;
         }
 
