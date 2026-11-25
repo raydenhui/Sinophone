@@ -169,6 +169,11 @@ defines `SINOPHONE_TESTING` and Dalamud loaded the plugin as a dev plugin.
 - **`SINOPHONE_TESTING` only:** `HarnessHost`, the surface drivers, `TalkHarnessSurface`,
   `ChatBubbleHarness`, `GlyphProbe`, and `HarnessCapture`. A release DLL holds none of it.
 - **Probes:** `NativeTextProbe` and `TalkContextProbe`, on their own sub-tabs.
+- **Failure recording:** `FailureCase`, `FailureTrace`, and `FailureRecorder` are always compiled;
+  only `Plugin.CreateFailureRecorder` is inside `SINOPHONE_TESTING`, so a release build never
+  constructs one. The store and each handler take an optional `FailureTrace?` and record the
+  layers they try. A null trace costs one null check, and a dev build writes one JSON file per
+  unique case under `pluginConfigs/Sinophone/failures/`.
 
 A run sends `HarnessCase` values through an `IHarnessDriver`, one per frame, and stops a case when
 its text has not changed for `HarnessSettle.SettleFrames` samples. `HarnessAssertions` then turns

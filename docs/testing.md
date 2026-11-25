@@ -187,6 +187,34 @@ so it needs native text mode: with the overlay, the node keeps the English line 
 fails. A bubble run needs chat bubble translation on. A run also needs the game, so it is not part
 of CI.
 
+### Failure cases
+
+A dev build records each lookup that missed or used a loose path, so a report of a missing line
+does not need the log copied by hand. The recorder is created only when the plugin is loaded as a
+dev plugin, and a release build never creates one.
+
+Each case is one JSON file under `pluginConfigs/Sinophone/failures/session-<time>/cases/`, named by
+its id. It holds the input, the build and data versions, the outcome (`miss`, `fallback`,
+`partial`, or `error`), and the steps the lookup took: every id layer, the exact text hit, the
+script and sheet comparisons, and the handler's own decision. A line shown many times keeps one
+file with a repeat count.
+
+- `index.jsonl` is one line per case, for a quick grep.
+- `summary.json` counts the cases by surface, outcome, and reason.
+- `latest.json` points at the newest session.
+
+`scripts/Get-Failures.ps1` reads them. `-Stats` prints the counts. `-Surface`, `-Reason`,
+`-Outcome`, and `-Text` narrow the list, and `-Trace` prints the steps of each case.
+
+The folder defaults to the plugin config folder. Set `SINOPHONE_FAILURE_DIR` in the game's
+environment to write somewhere else, such as a gitignored folder inside the checkout.
+`SINOPHONE_FAILURE_LEVEL` sets what is kept: `miss`, `fallback` (the default), or `all`. The
+**Testing** tab has a checkbox that logs each written file's path, so the folder is easy to find.
+
+Writing is guarded: a broken folder turns recording off with one warning and leaves the
+translation alone. The trace is built from values a handler already has; nothing new is read from
+game memory.
+
 ### In-game testing
 
 Some behavior can only be checked in the game: overlay position, font rendering, and how the

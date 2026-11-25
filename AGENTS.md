@@ -217,6 +217,11 @@ handler routes its callback through `HookGuard.Run`, which logs a warning and le
 text; `HookGuardTests` checks that rule once. Older handlers keep their own `try/catch`, and that
 is fine, so do not refactor them just to use the guard.
 
+A dev build also records each lookup that missed or used a loose path, one JSON file per case under
+`pluginConfigs/Sinophone/failures/`. Read the cases with `scripts/Get-Failures.ps1` instead of
+copying the log. A new handler or store layer takes an optional `FailureTrace?` and records what it
+tried; a null trace must stay free in a release build.
+
 ## Logging and performance
 
 Use structured logs at the right level, and never log inside `Draw` or `PreDraw`. Keep
