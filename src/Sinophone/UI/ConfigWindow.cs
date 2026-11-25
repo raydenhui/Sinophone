@@ -296,7 +296,7 @@ public sealed class ConfigWindow : Window
         }
 
         ImGui.SameLine();
-        if (ImGui.RadioButton("Native (game dialogue box)###talkNative", _configuration.NativeTextMode))
+        if (ImGui.RadioButton("Native (game's own windows)###talkNative", _configuration.NativeTextMode))
         {
             _configuration.NativeTextMode = true;
             _applySettings();
@@ -306,7 +306,7 @@ public sealed class ConfigWindow : Window
         {
             ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
             ImGui.TextWrapped(
-                "Native mode writes Chinese into the game's own dialogue box. " +
+                "Native mode writes Chinese into the game's own dialogue box and subtitle band. " +
                 "The game's font has no Chinese glyphs, so install a font mod first.");
             ImGui.PopStyleColor();
 
@@ -460,7 +460,9 @@ public sealed class ConfigWindow : Window
             v => _configuration.ShowInTalkSubtitle = v);
 
         ImGui.TextDisabled("Subtitles use the Talk overlay's position and appearance.");
-        ImGui.TextDisabled("Native text is not supported for subtitles yet.");
+        ImGui.TextDisabled(
+            "The Talk tab's Mode setting also decides how subtitles are drawn: in the game's own " +
+            "subtitle band, or on the overlay when the band cannot take the line.");
     }
 
     private void DrawSelectionComponentTab()

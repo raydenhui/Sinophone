@@ -48,7 +48,10 @@ and write down which build was running when a row failed.
 | Disable the plugin while dialogue is open | Original text comes back |
 | Toggle native mode off | Game text returns immediately |
 | Change Chinese variant in settings | Next line uses the new variant |
-| Cutscene subtitle | Overlay still used; native mode does not cover subtitles yet |
+| Cutscene subtitle | Chinese in the game's own subtitle band, no overlay above it |
+| A subtitle line longer than the band | Note whether the band grows, the text scales down, or the line runs past the band |
+| A subtitle with no translation | English line stays in the band |
+| A subtitle whose band opens before the layout hook is in place (check the log) | Overlay shows the line; the next line goes native |
 | Turn on chat bubble translation and talk near an NPC with a yell bubble | Chinese in the game's own bubble, above the speaker |
 | A yell bubble whose line has no translation | English stays; no Chinese from the previous bubble |
 | A long bubble line | Lines wrap inside the bubble; the background grows with the text, nothing clipped |

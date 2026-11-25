@@ -20,6 +20,12 @@ public sealed class TalkHandler : IDisposable
     private const uint TextValueIndex = 0;
     private const uint NameValueIndex = 1;
 
+    /// <summary>
+    /// The first text node <c>TalkSubtitle</c> draws its line in. The band carries three,
+    /// and the layout log reads all three.
+    /// </summary>
+    private const uint SubtitleFirstTextNodeId = 2;
+
     /// <summary>How many handed-out string buffers stay alive, in case the addon keeps a pointer.</summary>
     private const int ValueBufferHistory = 8;
 
@@ -37,10 +43,25 @@ public sealed class TalkHandler : IDisposable
     private readonly FailureRecorder? _failures;
 
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
-    private Hook<TalkSetupDelegate>? _setupHook;
-    private Hook<TalkRefreshDelegate>? _refreshHook;
-    private string? _laidOutChineseText;
     private bool _layoutLogPending;
+    private bool _subtitleLogPending;
+
+    /// <summary>
+    /// The value hook for each addon. <c>Talk</c> and <c>TalkSubtitle</c> are separate vtable
+    /// entries, so each addon gets its own pair, installed when its addon is first up.
+    /// </summary>
+    private readonly Dictionary<string, AddonValueHooks> _valueHooks = new(StringComparer.Ordinal);
+
+    /// <summary>Addons whose vtable could not be hooked, so no second attempt is made.</summary>
+    private readonly HashSet<string> _valueHookUnavailable = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The line each addon was last laid out with, per addon. A later event reads the values
+    /// again and uses this to know the hook already handled that line: <c>Talk</c> so the
+    /// Chinese in a shared value is not written twice, <c>TalkSubtitle</c> so the overlay
+    /// stays hidden, because that path writes values rather than text nodes.
+    /// </summary>
+    private readonly Dictionary<string, LaidOutLine> _laidOutLines = new(StringComparer.Ordinal);
 
     /// <summary>
     /// The cutscene scene learned from the lines of the open addon. A cutscene task is not
@@ -55,12 +76,11 @@ public sealed class TalkHandler : IDisposable
     /// pointer never points at freed memory.
     /// </summary>
     private readonly Queue<nint> _valueBuffers = new();
-    private bool _valueHookUnavailable;
     private bool _disposed;
 
-    private unsafe delegate void TalkSetupDelegate(AddonTalk* addon, uint valueCount, AtkValue* values);
+    private unsafe delegate void AddonSetupDelegate(AtkUnitBase* addon, uint valueCount, AtkValue* values);
 
-    private unsafe delegate bool TalkRefreshDelegate(AddonTalk* addon, uint valueCount, AtkValue* values);
+    private unsafe delegate bool AddonRefreshDelegate(AtkUnitBase* addon, uint valueCount, AtkValue* values);
 
     public TalkHandler(
         IAddonLifecycle addonLifecycle,
@@ -102,14 +122,11 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.RegisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
         _addonLifecycle.RegisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
 
-        // Native mode covers Talk only. Put the Chinese and its style back after the
-        // game update and again before drawing, because the text stream can replace
-        // both during the update.
-        if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
-        {
-            _addonLifecycle.RegisterListener(AddonEvent.PostUpdate, addonName, _onAddonEvent);
-            _addonLifecycle.RegisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
-        }
+        // Talk puts the Chinese and its style back after the game update and again before
+        // drawing, because the text stream can replace both during the update. The subtitle
+        // addon uses the same events for the one-time layout log a run reads.
+        _addonLifecycle.RegisterListener(AddonEvent.PostUpdate, addonName, _onAddonEvent);
+        _addonLifecycle.RegisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
     }
 
     private void Unregister(string addonName)
@@ -119,26 +136,29 @@ public sealed class TalkHandler : IDisposable
         _addonLifecycle.UnregisterListener(AddonEvent.PostClose, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostHide, addonName, _onAddonEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, addonName, _onAddonEvent);
-
-        if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
-        {
-            _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, addonName, _onAddonEvent);
-            _addonLifecycle.UnregisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
-        }
+        _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, addonName, _onAddonEvent);
+        _addonLifecycle.UnregisterListener(AddonEvent.PreDraw, addonName, _onAddonEvent);
     }
 
     /// <summary>
-    /// Hooks the addon's own setup and refresh so the Chinese line goes into the
+    /// Hooks one addon's own setup and refresh so the Chinese line goes into the
     /// <c>AtkValue</c> strings before the game lays the window out. The game then
-    /// measures and sizes the dialogue box for the translation, which is the only way a
-    /// long line stays inside it. Hooking the text node after layout only resizes the
-    /// node and leaves the box at the English size. Falls back to the text node when the
-    /// addon is not up yet or the hook cannot be placed.
+    /// measures and sizes the dialogue box or subtitle band for the translation, which is
+    /// the only way a long line stays inside it. Hooking the text node after layout only
+    /// resizes the node and leaves the box at the English size. Falls back to the overlay
+    /// when the addon is not up yet or the hook cannot be placed.
     /// </summary>
-    private unsafe void EnsureValueHook(AddonArgs args)
+    /// <remarks>
+    /// <c>Talk</c> and <c>TalkSubtitle</c> have separate vtable entries, so each addon gets
+    /// its own hook pair, installed when that addon is first up.
+    /// </remarks>
+    private unsafe void EnsureValueHook(string addonName, AddonArgs args)
     {
-        if (_refreshHook is not null || _valueHookUnavailable)
+        if (_valueHooks.ContainsKey(addonName) || _valueHookUnavailable.Contains(addonName))
             return;
+
+        Hook<AddonRefreshDelegate>? refreshHook = null;
+        Hook<AddonSetupDelegate>? setupHook = null;
 
         try
         {
@@ -146,12 +166,12 @@ public sealed class TalkHandler : IDisposable
             // game object keeps the same addon and is always reachable by name.
             var addon = args.GetAddonPointer<AtkUnitBase>();
             if (addon is null)
-                addon = _gameGui.GetAddonByName<AtkUnitBase>(TalkAddonName, 1);
+                addon = _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
 
-            var table = addon is null ? null : ((AddonTalk*)addon)->VirtualTable;
+            var table = addon is null ? null : addon->VirtualTable;
             if (table is null)
             {
-                _log.Debug("Talk layout hook: the addon is not reachable yet; will try again.");
+                _log.Debug("{Addon} layout hook: the addon is not reachable yet; will try again.", addonName);
                 return;
             }
 
@@ -159,35 +179,43 @@ public sealed class TalkHandler : IDisposable
             var setupAddress = (nint)table->OnSetup;
             if (refreshAddress == 0 || setupAddress == 0)
             {
-                _valueHookUnavailable = true;
-                _log.Debug("Talk layout hook: the addon exposed no refresh address; using the text node.");
+                _valueHookUnavailable.Add(addonName);
+                _log.Debug("{Addon} layout hook: the addon exposed no refresh address; using the overlay.", addonName);
                 return;
             }
 
-            _refreshHook = _interop.HookFromAddress<TalkRefreshDelegate>(refreshAddress, OnTalkRefresh);
-            _setupHook = _interop.HookFromAddress<TalkSetupDelegate>(setupAddress, OnTalkSetup);
-            _refreshHook.Enable();
-            _setupHook.Enable();
-            _log.Debug("Talk layout hook: replaced the AtkValue text before layout at {Address:X}.", refreshAddress);
+            // The hook belongs to one addon, so its callback carries the name: a vtable entry
+            // is shared by every instance of that addon class.
+            var name = addonName;
+            refreshHook = _interop.HookFromAddress<AddonRefreshDelegate>(
+                refreshAddress,
+                (pointer, valueCount, values) => OnAddonRefresh(name, pointer, valueCount, values));
+            setupHook = _interop.HookFromAddress<AddonSetupDelegate>(
+                setupAddress,
+                (pointer, valueCount, values) => OnAddonSetup(name, pointer, valueCount, values));
+            refreshHook.Enable();
+            setupHook.Enable();
+            _valueHooks[name] = new AddonValueHooks(refreshHook, setupHook);
+            _log.Debug("{Addon} layout hook: replaced the AtkValue text before layout at {Address:X}.",
+                name, refreshAddress);
         }
         catch (Exception ex)
         {
-            _valueHookUnavailable = true;
-            _refreshHook?.Dispose();
-            _setupHook?.Dispose();
-            _refreshHook = null;
-            _setupHook = null;
-            _log.Warning(ex, "Talk layout hook: could not hook the addon; using the text node.");
+            refreshHook?.Dispose();
+            setupHook?.Dispose();
+            _valueHookUnavailable.Add(addonName);
+            _log.Warning(ex, "{Addon} layout hook: could not hook the addon; using the overlay.", addonName);
         }
     }
 
-    private unsafe void OnTalkSetup(AddonTalk* addon, uint valueCount, AtkValue* values)
+    private unsafe void OnAddonSetup(string addonName, AtkUnitBase* addon, uint valueCount, AtkValue* values)
     {
-        var swapped = TryLayOutTranslatedValues(addon, values, valueCount);
+        var swapped = TryLayOutTranslatedValues(addonName, addon, values, valueCount);
 
         try
         {
-            _setupHook?.Original(addon, valueCount, values);
+            if (_valueHooks.TryGetValue(addonName, out var hooks))
+                hooks.Setup.Original(addon, valueCount, values);
         }
         finally
         {
@@ -198,13 +226,14 @@ public sealed class TalkHandler : IDisposable
         }
     }
 
-    private unsafe bool OnTalkRefresh(AddonTalk* addon, uint valueCount, AtkValue* values)
+    private unsafe bool OnAddonRefresh(string addonName, AtkUnitBase* addon, uint valueCount, AtkValue* values)
     {
-        var swapped = TryLayOutTranslatedValues(addon, values, valueCount);
+        var swapped = TryLayOutTranslatedValues(addonName, addon, values, valueCount);
 
         try
         {
-            return _refreshHook?.Original(addon, valueCount, values) ?? false;
+            return _valueHooks.TryGetValue(addonName, out var hooks)
+                   && hooks.Refresh.Original(addon, valueCount, values);
         }
         finally
         {
@@ -212,8 +241,25 @@ public sealed class TalkHandler : IDisposable
         }
     }
 
+    /// <summary>The two hooks one addon's vtable exposes.</summary>
+    private sealed class AddonValueHooks(Hook<AddonRefreshDelegate> refresh, Hook<AddonSetupDelegate> setup)
+    {
+        public Hook<AddonRefreshDelegate> Refresh { get; } = refresh;
+
+        public Hook<AddonSetupDelegate> Setup { get; } = setup;
+
+        public void Dispose()
+        {
+            Refresh.Dispose();
+            Setup.Dispose();
+        }
+    }
+
     /// <summary>The caller's values, saved before the Chinese was put in.</summary>
     private readonly record struct SwappedValues(bool Swapped, AtkValue Text, AtkValue Name, bool HasName);
+
+    /// <summary>One line an addon was laid out with: the English it read and the Chinese drawn.</summary>
+    private readonly record struct LaidOutLine(string English, string Chinese);
 
     /// <summary>Puts the caller's own values back once the game has read the Chinese.</summary>
     private unsafe void RestoreValues(AtkValue* values, SwappedValues swapped)
@@ -227,7 +273,7 @@ public sealed class TalkHandler : IDisposable
             values[NameValueIndex] = swapped.Name;
 
         _log.Debug(
-            "Talk layout hook: put the caller's values back; the game passes {Type}.",
+            "Layout hook: put the caller's values back; the game passes {Type}.",
             swapped.Text.Type);
     }
 
@@ -235,16 +281,21 @@ public sealed class TalkHandler : IDisposable
     /// The detours run inside the game's own call, so a failure must leave the English
     /// text in place rather than throw through the game.
     /// </summary>
-    private unsafe SwappedValues TryLayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
+    private unsafe SwappedValues TryLayOutTranslatedValues(
+        string addonName,
+        AtkUnitBase* addon,
+        AtkValue* values,
+        uint count)
     {
         try
         {
-            return LayOutTranslatedValues(addon, values, count);
+            return LayOutTranslatedValues(addonName, addon, values, count);
         }
         catch (Exception ex)
         {
-            _laidOutChineseText = null;
-            _log.Warning(ex, "Talk layout hook: could not translate the line; leaving the game text.");
+            _laidOutLines.Remove(addonName);
+            _log.Warning(ex, "{Addon} layout hook: could not translate the line; leaving the game text.",
+                addonName);
             return default;
         }
     }
@@ -254,14 +305,20 @@ public sealed class TalkHandler : IDisposable
     /// once per line, before the game reads the values, so the game's own layout and
     /// wrapping apply to the Chinese. A line with no translation is left alone.
     /// </summary>
-    private unsafe SwappedValues LayOutTranslatedValues(AddonTalk* addon, AtkValue* values, uint count)
+    private unsafe SwappedValues LayOutTranslatedValues(
+        string addonName,
+        AtkUnitBase* addon,
+        AtkValue* values,
+        uint count)
     {
-        _laidOutChineseText = null;
+        _laidOutLines.Remove(addonName);
 
         if (_disposed || values is null || count == 0)
             return default;
 
-        if (!_configuration.Enabled || !_configuration.NativeTextMode || !_configuration.ShowInTalk)
+        var isSubtitle = IsSubtitle(addonName);
+        var shown = isSubtitle ? _configuration.ShowInTalkSubtitle : _configuration.ShowInTalk;
+        if (!_configuration.Enabled || !_configuration.NativeTextMode || !shown)
             return default;
 
         var store = _getStore();
@@ -272,17 +329,19 @@ public sealed class TalkHandler : IDisposable
         if (string.IsNullOrWhiteSpace(englishText))
             return default;
 
-        // Read the name even when it is not shown: a line that several script lines
-        // share is matched by its speaker, such as three different "You bastard!".
-        var englishName = ReadStringValue(values, NameValueIndex, count);
+        // A subtitle has no speaker name. Reading index 1 there would either be empty or
+        // another value that is not a name.
+        var englishName = isSubtitle ? null : ReadStringValue(values, NameValueIndex, count);
 
+        // A cutscene subtitle is a VOICEMAN script line, and the live cutscene task names the
+        // scene while it plays, so a subtitle reads the same context a Talk line does.
         var context = WithRememberedScene(
             store,
-            TalkAddonName,
+            addonName,
             englishText,
             _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
 
-        var trace = BeginTrace(TalkAddonName, englishText, englishName);
+        var trace = BeginTrace(addonName, englishText, englishName);
         trace?.Input("path", "native");
         DescribeContext(trace, context);
 
@@ -307,11 +366,18 @@ public sealed class TalkHandler : IDisposable
         trace?.Step("display.native", "written");
         trace?.Finish(FailureOutcome.Hit);
 
-        var chineseText = WrapForTalkBox(addon, content.Value.ChineseText);
-        var chineseName = content.Value.ChineseName;
-        var hasName = NameValueIndex < count && !string.IsNullOrWhiteSpace(chineseName);
+        // The subtitle band is one line the game scales, never a wrapped box: the addon's own
+        // width and scale decide the fit. The dialogue box is wrapped because its game-side
+        // breaks move a closing mark onto the next rendered line.
+        var chineseText = isSubtitle
+            ? content.Value.ChineseText
+            : WrapForTalkBox((AddonTalk*)addon, content.Value.ChineseText);
+        var chineseName = isSubtitle ? string.Empty : content.Value.ChineseName;
+        var hasName = !isSubtitle && NameValueIndex < count && !string.IsNullOrWhiteSpace(chineseName);
 
-        if (SharesTranslation(_configuration))
+        // The shares setting is about the Story tab, which the game fills from the Talk addon.
+        // A subtitle always gets the caller's values back, so nothing downstream sees Chinese.
+        if (!isSubtitle && SharesTranslation(_configuration))
         {
             // The caller owns these values and frees them, so hand it managed strings and leave
             // them in place: the game's log and anything else that reads the line see Chinese.
@@ -319,15 +385,16 @@ public sealed class TalkHandler : IDisposable
             if (hasName)
                 values[NameValueIndex].SetManagedString(chineseName);
 
-            _laidOutChineseText = chineseText;
-            _layoutLogPending = true;
-            ForgetNativeText(TalkAddonName);
+            _laidOutLines[addonName] = new LaidOutLine(englishText, chineseText);
+            _layoutLogPending = !isSubtitle;
+            _subtitleLogPending = isSubtitle;
+            ForgetNativeText(addonName);
             _overlay.Hide();
 
             _log.Debug(
-                "Talk layout hook: supplied the Chinese line and left it in place for other readers " +
-                "({Length} chars).",
-                chineseText.Length);
+                "{Addon} layout hook: supplied the Chinese line and left it in place for other " +
+                "readers ({Length} chars).",
+                addonName, chineseText.Length);
 
             return default;
         }
@@ -348,25 +415,28 @@ public sealed class TalkHandler : IDisposable
         }
 
         // The game logs NPC dialogue into the Story tab from the text it was given. Remember both
-        // forms and the name, so the log message can be put back to English.
+        // forms and the name, so the log message can be put back to English. A subtitle is
+        // remembered too: whether the game logs one is not confirmed yet, and a remembered line
+        // the log never shows costs only a slot.
         _chatLogRestorer.Remember(chineseText, englishText);
         _chatLogRestorer.Remember(content.Value.ChineseText, englishText);
 
         if (hasName && !string.IsNullOrWhiteSpace(englishName))
             _chatLogRestorer.Remember(chineseName, englishName);
 
-        _laidOutChineseText = chineseText;
-        _layoutLogPending = true;
+        _laidOutLines[addonName] = new LaidOutLine(englishText, chineseText);
+        _layoutLogPending = !isSubtitle;
+        _subtitleLogPending = isSubtitle;
 
         // The game is about to draw this line itself, so the overlay and any text node
         // this writer changed for the previous line have to go.
-        ForgetNativeText(TalkAddonName);
+        ForgetNativeText(addonName);
         _overlay.Hide();
 
         _log.Debug(
-            "Native text: supplied the Chinese line in {Addon} AtkValues before layout " +
+            "{Addon} layout hook: supplied the Chinese line in the AtkValues before layout " +
             "(name {NameLength} chars, text {Length} chars, first line: {FirstLine}).",
-            TalkAddonName, chineseName.Length, chineseText.Length,
+            addonName, chineseName.Length, chineseText.Length,
             FirstLineOf(chineseText));
 
         return swapped;
@@ -508,6 +578,48 @@ public sealed class TalkHandler : IDisposable
     }
 
     /// <summary>
+    /// Logs the subtitle band once per line, after the game laid it out. The figures answer
+    /// what the native path depends on: whether the band grows for a longer line or scales
+    /// the text down, and where the addon puts the line.
+    /// </summary>
+    private unsafe void LogSubtitleLayout(AddonArgs args)
+    {
+        if (!_configuration.IsLogEnabled(LogCategory.NativeText))
+            return;
+
+        try
+        {
+            var addon = args.GetAddonPointer<AtkUnitBase>();
+            if (addon is null)
+                return;
+
+            var subtitle = (AddonTalkSubtitle*)addon;
+            _log.Debug(
+                "Subtitle layout: max width {MaxWidth}px, scale {Scale}, band {BandWidth}x{BandHeight}, " +
+                "text nodes {First}, {Second}, {Third}.",
+                subtitle->SubtitleMaxWidth,
+                subtitle->SubtitleScale,
+                addon->WindowNode is null ? 0 : addon->WindowNode->AtkResNode.Width,
+                addon->WindowNode is null ? 0 : addon->WindowNode->AtkResNode.Height,
+                DescribeTextNode(addon, SubtitleFirstTextNodeId),
+                DescribeTextNode(addon, SubtitleFirstTextNodeId + 1),
+                DescribeTextNode(addon, SubtitleFirstTextNodeId + 2));
+        }
+        catch (Exception ex)
+        {
+            _log.Debug(ex, "Subtitle layout: could not read the addon sizes.");
+        }
+    }
+
+    private static unsafe string DescribeTextNode(AtkUnitBase* addon, uint nodeId)
+    {
+        var node = addon->GetTextNodeById(nodeId);
+        return node is null
+            ? $"{nodeId}: none"
+            : $"{nodeId}: {node->Width}x{node->Height}, {node->NodeText.ToString().Length} chars";
+    }
+
+    /// <summary>
     /// True when the Chinese in the addon's values came from the layout hook, so the
     /// line is already translated and must not be looked up or written again.
     /// </summary>
@@ -530,11 +642,10 @@ public sealed class TalkHandler : IDisposable
 
         // Install only while the addon is alive. A closing addon can already be freed,
         // and its vtable is not safe to read then.
-        if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
-            && eventType is AddonEvent.PostSetup or AddonEvent.PostRefresh
-                or AddonEvent.PostUpdate or AddonEvent.PreDraw)
+        if (eventType is AddonEvent.PostSetup or AddonEvent.PostRefresh
+            or AddonEvent.PostUpdate or AddonEvent.PreDraw)
         {
-            EnsureValueHook(args);
+            EnsureValueHook(addonName, args);
         }
 
         if (eventType is AddonEvent.PostUpdate or AddonEvent.PreDraw)
@@ -545,9 +656,15 @@ public sealed class TalkHandler : IDisposable
             // whether the box is taller than the text, which draws as a blank line at
             // the top because the box grows upward.
             if (_layoutLogPending && eventType is AddonEvent.PreDraw
-                && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+                && IsTalk(addonName))
             {
                 LogTalkLayout(args);
+            }
+
+            if (_subtitleLogPending && eventType is AddonEvent.PreDraw && IsSubtitle(addonName))
+            {
+                _subtitleLogPending = false;
+                LogSubtitleLayout(args);
             }
 
             return;
@@ -555,6 +672,8 @@ public sealed class TalkHandler : IDisposable
 
         if (ShouldHideOverlay(eventType))
         {
+            _laidOutLines.Remove(addonName);
+            _subtitleLogPending = false;
             _overlay.Hide();
             _log.Debug("{Addon} {Event}; overlay hidden.", addonName, eventType);
             return;
@@ -571,7 +690,7 @@ public sealed class TalkHandler : IDisposable
             return;
         }
 
-        var isSubtitle = string.Equals(addonName, TalkSubtitleAddonName, StringComparison.Ordinal);
+        var isSubtitle = IsSubtitle(addonName);
 
         if (isSubtitle && !_configuration.ShowInTalkSubtitle)
         {
@@ -609,14 +728,14 @@ public sealed class TalkHandler : IDisposable
         var englishText = ReadStringValue(values, TextValueIndex, count);
         // Read the name even when it is not shown: a line that several script lines
         // share is matched by its speaker, such as three different "You bastard!".
-        var englishName = ReadStringValue(values, NameValueIndex, count);
+        // A subtitle has no name value.
+        var englishName = isSubtitle ? null : ReadStringValue(values, NameValueIndex, count);
 
         _log.Debug("{Event} for {Addon}: {TextLength} text chars, name: {HasName}, text: {Text}",
             eventType, addonName, englishText?.Length ?? 0, !string.IsNullOrWhiteSpace(englishName),
             englishText ?? "(null)");
 
-        if (string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
-            && IsLaidOutByHook(englishText, _laidOutChineseText))
+        if (IsLaidOutByHook(englishText, LaidOut(addonName)?.Chinese))
         {
             ForgetNativeText(addonName);
             _overlay.Hide();
@@ -625,11 +744,11 @@ public sealed class TalkHandler : IDisposable
             return;
         }
 
-        var context = string.Equals(addonName, TalkAddonName, StringComparison.Ordinal)
-            ? _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true)
-            : default;
-
-        context = WithRememberedScene(store, addonName, englishText, context);
+        var context = WithRememberedScene(
+            store,
+            addonName,
+            englishText,
+            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
 
         var trace = BeginTrace(addonName, englishText, englishName);
         trace?.Input("path", "overlay");
@@ -637,7 +756,7 @@ public sealed class TalkHandler : IDisposable
 
         var content = Resolve(store, _configuration, englishText, englishName, context, integerParameters, trace);
 
-        if (content is null && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+        if (content is null && IsTalk(addonName))
         {
             foreach (var candidate in GetTextNodeCandidates(args, englishName))
             {
@@ -687,19 +806,34 @@ public sealed class TalkHandler : IDisposable
         else
             trace?.Finish(FailureOutcome.Hit);
 
-        if (ShouldUseNativeText(_configuration, addonName))
+        if (ShouldWriteNativeText(_configuration, addonName, IsValueHookInstalled(addonName)))
         {
-            if (WriteNativeText(content.Value))
+            if (isSubtitle)
+            {
+                // The value hook laid the Chinese out and the game sized the band for it, so
+                // there is no text node to write: the addon drew from the values. The line
+                // resolved here again tells us the hook handled this same line.
+                if (LaidOut(addonName) is { } laidOut
+                    && string.Equals(laidOut.English, englishText, StringComparison.Ordinal))
+                {
+                    _overlay.Hide();
+                    _log.Debug("{Addon} line was laid out from the AtkValues; overlay hidden.", addonName);
+                    return;
+                }
+            }
+            else if (WriteNativeText(content.Value))
             {
                 _overlay.Hide();
                 _log.Debug("Native text written for {Addon}; overlay hidden.",
                     addonName);
                 return;
             }
-
-            // The write failed, so the overlay is the surface for this line. Keep the
-            // previous line's Chinese out of the game's box.
-            ForgetNativeText(addonName);
+            else
+            {
+                // The write failed, so the overlay is the surface for this line. Keep the
+                // previous line's Chinese out of the game's box.
+                ForgetNativeText(addonName);
+            }
         }
 
         _overlay.SetContent(content.Value.ChineseText, englishText!, content.Value.ChineseName, isSubtitle);
@@ -707,22 +841,43 @@ public sealed class TalkHandler : IDisposable
             addonName, content.Value.ChineseText.Length);
     }
 
+    private static bool IsTalk(string addonName)
+        => string.Equals(addonName, TalkAddonName, StringComparison.Ordinal);
+
+    private static bool IsSubtitle(string addonName)
+        => string.Equals(addonName, TalkSubtitleAddonName, StringComparison.Ordinal);
+
+    private bool IsValueHookInstalled(string addonName) => _valueHooks.ContainsKey(addonName);
+
+    private LaidOutLine? LaidOut(string addonName)
+        => _laidOutLines.TryGetValue(addonName, out var laidOut) ? laidOut : null;
+
     /// <summary>
-    /// True when the translation should go into the game's own dialogue box. Native mode
-    /// covers the <c>Talk</c> addon only; subtitles keep the overlay until their nodes are
-    /// checked in game. A failed write falls back to the overlay.
+    /// True when the translation should go into the game's own window. Native mode covers
+    /// <c>Talk</c> and <c>TalkSubtitle</c>. A failed write falls back to the overlay.
     /// </summary>
     internal static bool ShouldUseNativeText(Configuration configuration, string addonName)
-        => configuration.NativeTextMode
-           && string.Equals(addonName, TalkAddonName, StringComparison.Ordinal);
+        => configuration.NativeTextMode && (IsTalk(addonName) || IsSubtitle(addonName));
+
+    /// <summary>
+    /// True when the addon's Chinese can be drawn natively. A subtitle is laid out from its
+    /// <c>AtkValues</c>, so it needs that hook; without it the overlay is the only surface.
+    /// </summary>
+    internal static bool ShouldWriteNativeText(
+        Configuration configuration,
+        string addonName,
+        bool valuesHooked)
+        => ShouldUseNativeText(configuration, addonName)
+           && (!IsSubtitle(addonName) || valuesHooked);
 
     /// <summary>
     /// True when the Chinese written into the game's dialogue box has to be put back on
-    /// each draw. This runs every frame while Talk is visible, so it stays a plain
-    /// setting check; the draw-time compare lives in <see cref="NativeTextWriter.Reapply"/>.
+    /// each draw. Talk only: a subtitle is drawn from its values, so nothing is written into
+    /// its nodes to reapply. This runs every frame while the addon is visible, so it stays a
+    /// plain setting check; the draw-time compare lives in <see cref="NativeTextWriter.Reapply"/>.
     /// </summary>
     internal static bool ShouldReapplyNativeText(Configuration configuration, string addonName)
-        => configuration.Enabled && ShouldUseNativeText(configuration, addonName);
+        => configuration.Enabled && IsTalk(addonName) && ShouldUseNativeText(configuration, addonName);
 
     private void ReapplyNativeText(string addonName)
     {
@@ -737,15 +892,16 @@ public sealed class TalkHandler : IDisposable
 
     /// <summary>
     /// Stops keeping a line's Chinese on screen. The game's own English line then stays
-    /// in place, which is what an untranslated line needs.
+    /// in place, which is what an untranslated line needs. A subtitle is left alone: it is
+    /// drawn from values that were already put back, so it has no saved node text.
     /// </summary>
     private void ForgetNativeText(string addonName)
     {
-        if (!string.Equals(addonName, TalkAddonName, StringComparison.Ordinal))
+        if (!IsTalk(addonName))
             return;
 
-        _nativeWriter.ClearIfStillOurs(TalkAddonName, NativeTextWriter.TalkNameNodeId);
-        _nativeWriter.ClearIfStillOurs(TalkAddonName, NativeTextWriter.TalkTextNodeId);
+        _nativeWriter.ClearIfStillOurs(addonName, NativeTextWriter.TalkNameNodeId);
+        _nativeWriter.ClearIfStillOurs(addonName, NativeTextWriter.TalkTextNodeId);
     }
 
     /// <summary>
@@ -780,7 +936,11 @@ public sealed class TalkHandler : IDisposable
     }
 
     /// <summary>Puts the game's own text back into every node native mode changed.</summary>
-    public void RestoreNativeText() => _nativeWriter.RestoreAll();
+    public void RestoreNativeText()
+    {
+        _nativeWriter.RestoreAll();
+        _laidOutLines.Clear();
+    }
 
     /// <summary>
     /// Qualifies a line with the cutscene scene. The live task wins when it is readable. Otherwise
@@ -1148,10 +1308,12 @@ public sealed class TalkHandler : IDisposable
         _disposed = true;
         Unregister(TalkAddonName);
         Unregister(TalkSubtitleAddonName);
-        _refreshHook?.Dispose();
-        _setupHook?.Dispose();
-        _refreshHook = null;
-        _setupHook = null;
+        foreach (var hooks in _valueHooks.Values)
+            hooks.Dispose();
+
+        _valueHooks.Clear();
+        _valueHookUnavailable.Clear();
+        _laidOutLines.Clear();
 
         while (_valueBuffers.Count > 0)
             Marshal.FreeHGlobal(_valueBuffers.Dequeue());

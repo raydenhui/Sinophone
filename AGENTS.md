@@ -421,6 +421,12 @@ premature interface.
   mark. A node written after
   layout is the fallback and is shrunk to the room the game gave it; a translation that cannot fit
   stays English instead of drawing outside the box.
+  `TalkSubtitle` uses the same value swap, with two differences: it has no speaker name, and no
+  text node is written or reapplied, because the band draws the line from the values the game
+  already measured. The overlay stays hidden only when the hook laid that same English line out;
+  with no hook, no data, or a line it left English, the overlay is the surface. The line is not
+  wrapped for a subtitle: the band's own width and scale decide the fit, and the native text log
+  prints both once per line so an in-game run can see what a long line does.
 - **Display language.** The Talk overlay shows Chinese only. When a line has no translation and
   `HideWhenNoTranslation` is off, it shows the English line instead. It never shows both languages
   at once. Nameplates follow `TargetNameShowEnglish` and the item name surface follows

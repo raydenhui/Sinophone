@@ -181,10 +181,10 @@ The overlay only covers the Talk window. More sheets alone will not show more te
 
 | Surface | Route | Status |
 | --- | --- | --- |
-| Talk, subtitles | Overlay | Works |
-| NPC chat bubbles | `ChatBubbleHandler` changes the game's own bubble (yells before layout, default balloons in place) | Works, needs a Chinese font, off by default |
-| Battle talk | `BattleTalkHandler` swaps the name and text before the game measures its box; rows come from `NpcYell` (`ShowBattleTalk`), `InstanceContentTextData`, and `ContentTalk` | Works, needs a Chinese font, off by default |
-| Nameplates | `NamePlateNameWriter` replaces each name in the game's own nameplate above every visible NPC or object | Works, needs a Chinese font |
+| Talk, subtitles | Overlay (default), or native: `Talk` writes its text nodes, `TalkSubtitle` puts the Chinese into its `AtkValues` before layout | Works, native needs a font mod |
+| NPC chat bubbles | `ChatBubbleHandler` changes the game's own bubble (yells before layout, default balloons in place) | Works, needs a font mod, off by default |
+| Battle talk | `BattleTalkHandler` swaps the name and text before the game measures its box; rows come from `NpcYell` (`ShowBattleTalk`), `InstanceContentTextData`, and `ContentTalk` | Works, needs a font mod, off by default |
+| Nameplates | `NamePlateNameWriter` replaces each name in the game's own nameplate above every visible NPC or object | Works, needs a font mod |
 | Item tooltip | `ItemNameHandler` reads the hovered item, draws above the cursor | Works |
 | Inventory, shops, menus, chat | Native text replacement, then a Chinese font (pack or mod) | Planned as separate items |
 
