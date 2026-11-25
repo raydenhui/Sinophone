@@ -13,9 +13,21 @@ namespace Sinophone.Handlers;
 internal sealed partial class TalkEventReader
 {
     private readonly PluginLog _log;
+    private readonly IDataManager? _dataManager;
 
-    public TalkEventReader(IPluginLog log, Configuration configuration, LogCategory category)
-        => _log = new PluginLog(log, configuration, category);
+    /// <summary>The cutscene sheet indexed for the current path, and its text to row map.</summary>
+    private string _cutsceneSheet = string.Empty;
+    private Dictionary<string, uint>? _cutsceneRows;
+
+    public TalkEventReader(
+        IPluginLog log,
+        Configuration configuration,
+        LogCategory category,
+        IDataManager? dataManager = null)
+    {
+        _log = new PluginLog(log, configuration, category);
+        _dataManager = dataManager;
+    }
 
     /// <summary>
     /// Builds the id context for one line. The row id is added only when exactly one
@@ -45,7 +57,8 @@ internal sealed partial class TalkEventReader
 
             return new DialogueContext(
                 CutsceneId: scene,
-                ScriptKeyHints: fallbackHints);
+                ScriptKeyHints: fallbackHints,
+                ScriptRow: ReadCutsceneRow(framework, englishText));
         }
 
         var scriptKeys = new List<string>();
@@ -101,7 +114,8 @@ internal sealed partial class TalkEventReader
             cutsceneId,
             ReadChocoboTaxiStandUnlocked(handlers),
             handlerHints,
-            scriptRowIds);
+            scriptRowIds,
+            ReadCutsceneRow(framework, englishText));
     }
 
     /// <summary>
@@ -114,7 +128,7 @@ internal sealed partial class TalkEventReader
     {
         foreach (var line in lines)
         {
-            if (line.Key.Length == 0 || line.RowId == 0)
+            if (line.Key.Length == 0)
                 continue;
 
             ids ??= new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
@@ -347,6 +361,121 @@ internal sealed partial class TalkEventReader
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// The row of the cutscene sheet that holds this subtitle. The cutscene path is
+    /// also the sheet name, and row ids are the same in every language, so a match
+    /// on the live text gives the artifact's Chinese line.
+    /// </summary>
+    private unsafe DialogueRowId? ReadCutsceneRow(EventFramework* framework, string? liveText)
+    {
+        if (_dataManager is null || string.IsNullOrWhiteSpace(liveText))
+            return null;
+
+        try
+        {
+            var path = ReadCutscenePath(framework);
+            if (path.Length == 0)
+                return null;
+
+            var rowId = CutsceneRowFor(path, liveText);
+            if (rowId is not { } found)
+                return null;
+
+            _log.Debug("Talk event: cutscene subtitle matched {Sheet} row {RowId}.", path, found);
+            return new DialogueRowId(path, found, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Talk event reader: could not read the cutscene subtitle row.");
+            return null;
+        }
+    }
+
+    private unsafe string ReadCutscenePath(EventFramework* framework)
+    {
+        var tasks = framework->EventSceneModule.TaskManager.Tasks;
+
+        for (var i = 0; i < tasks.Count; i++)
+        {
+            var task = tasks[i].Value;
+            if (task is null || task->Type != EventSceneTaskType.PlayCutScene)
+                continue;
+
+            return ((PlayCutSceneTask*)task)->CutscenePath.ToString();
+        }
+
+        return string.Empty;
+    }
+
+    private uint? CutsceneRowFor(string path, string liveText)
+    {
+        if (!string.Equals(path, _cutsceneSheet, StringComparison.Ordinal))
+        {
+            _cutsceneSheet = path;
+            _cutsceneRows = LoadCutsceneRows(path);
+        }
+
+        var key = MacroNormalizer.NormalizeKey(liveText);
+        if (key.Length == 0 || _cutsceneRows is null)
+            return null;
+
+        if (!_cutsceneRows.TryGetValue(key, out var rowId) || rowId == uint.MaxValue)
+            return null;
+
+        return rowId;
+    }
+
+    private Dictionary<string, uint>? LoadCutsceneRows(string path)
+    {
+        try
+        {
+            var sheet = _dataManager!.GetExcelSheet<RawRow>(name: path);
+            if (sheet is null)
+            {
+                _log.Debug("Talk event: cutscene sheet {Sheet} is not loaded.", path);
+                return null;
+            }
+
+            var rows = new List<(uint RowId, string Text)>(sheet.Count);
+            foreach (var row in sheet)
+                rows.Add((row.RowId, row.ReadStringColumn(1).ExtractText()));
+
+            var index = BuildCutsceneRowIndex(rows);
+            _log.Debug("Talk event: indexed {Count} cutscene rows for {Sheet}.", index.Count, path);
+            return index;
+        }
+        catch (Exception ex)
+        {
+            _log.Debug(ex, "Talk event reader: could not index cutscene sheet {Sheet}.", path);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Maps a subtitle to its row id. A text that two rows share is marked
+    /// ambiguous with id 0, so it falls back to the scene path instead of guessing.
+    /// </summary>
+    internal static Dictionary<string, uint> BuildCutsceneRowIndex(IEnumerable<(uint RowId, string Text)> rows)
+    {
+        var index = new Dictionary<string, uint>(StringComparer.Ordinal);
+
+        foreach (var (rowId, text) in rows)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                continue;
+
+            var key = MacroNormalizer.NormalizeKey(text);
+            if (key.Length == 0)
+                continue;
+
+            // Row 0 is a real row. MaxValue marks a text that two rows share.
+            if (!index.TryAdd(key, rowId))
+                index[key] = uint.MaxValue;
+        }
+
+        return index;
     }
 
     /// <summary>

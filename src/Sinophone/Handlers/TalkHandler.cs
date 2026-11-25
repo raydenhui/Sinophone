@@ -65,6 +65,7 @@ public sealed class TalkHandler : IDisposable
         IGameInteropProvider interop,
         IGameGui gameGui,
         ITargetManager targetManager,
+        IDataManager dataManager,
         Configuration configuration,
         Func<TranslationStore?> getStore,
         OverlayWindow overlay,
@@ -81,7 +82,7 @@ public sealed class TalkHandler : IDisposable
         _overlay = overlay;
         _nativeWriter = nativeWriter;
         _chatLogRestorer = chatLogRestorer;
-        _eventReader = new TalkEventReader(log, configuration, LogCategory.Dialogue);
+        _eventReader = new TalkEventReader(log, configuration, LogCategory.Dialogue, dataManager);
         _onAddonEvent = OnAddonEvent;
 
         Register(TalkAddonName);

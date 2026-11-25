@@ -993,7 +993,6 @@ public sealed partial class TranslationStore
                 // text comparison and works in any client language.
                 if (context.ScriptRowIds is not null
                     && context.ScriptRowIds.TryGetValue(trimmed, out var liveRowId)
-                    && liveRowId != 0
                     && _scriptRowLookup.TryGetValue(trimmed, out var artifactRowId))
                 {
                     if (artifactRowId != liveRowId)
@@ -1905,15 +1904,11 @@ public sealed partial class TranslationStore
                 _scriptKeyLookup.TryAdd(scriptKey, display);
                 _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
 
-                if (entry.RowId != 0)
+                if (!string.IsNullOrEmpty(entry.Sheet))
                 {
                     _scriptRowLookup.TryAdd(scriptKey, entry.RowId);
-
-                    if (!string.IsNullOrEmpty(entry.Sheet))
-                    {
-                        _scriptSheetLookup.TryAdd(scriptKey, entry.Sheet);
-                        _scriptRowTextLookup.TryAdd((entry.Sheet, entry.RowId), display);
-                    }
+                    _scriptSheetLookup.TryAdd(scriptKey, entry.Sheet);
+                    _scriptRowTextLookup.TryAdd((entry.Sheet, entry.RowId), display);
                 }
             }
 

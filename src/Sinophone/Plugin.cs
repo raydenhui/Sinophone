@@ -216,6 +216,7 @@ public sealed class Plugin : IDalamudPlugin
             GameInteropProvider,
             GameGui,
             TargetManager,
+            DataManager,
             _configuration,
             () => _store,
             _overlay,

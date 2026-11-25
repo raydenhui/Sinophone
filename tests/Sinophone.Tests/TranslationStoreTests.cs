@@ -1358,6 +1358,23 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void ScriptLookup_ResolvesARealCutsceneRow()
+    {
+        var scripts = ScriptsWithRows(
+            ("TEXT_VOICEMAN_02200_000010_THANCRED", "cut_scene/022/VoiceMan_02200", 0,
+                "Now then...", "接下来……"));
+        var artifacts = Artifacts(Artifact("CN", scripts), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(
+            ScriptRow: new DialogueRowId("cut_scene/022/VoiceMan_02200", 0, string.Empty));
+
+        Assert.True(store.TryGetDialogue("さてと……。", in context, out var chinese));
+        Assert.Equal("接下来……", chinese);
+    }
+
+    [Fact]
     public void Cache_KeepsTheScriptRowIds()
     {
         var artifacts = Artifacts(Artifact("CN", GuildhestScripts()), null);

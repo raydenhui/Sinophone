@@ -208,6 +208,7 @@ public class SelectionDialogLanguageTests
         Assert.True(store.TryGetAddonText(
             "Exchange 5 for the item", out _, out var captures, out var indices, out var macro));
         Assert.Equal(["5"], captures);
+        Assert.NotNull(indices);
         Assert.Equal([1], indices);
         Assert.Equal("<num(lnum1)>", macro);
     }
