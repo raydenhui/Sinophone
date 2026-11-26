@@ -28,6 +28,10 @@ does not, the English script dump is still the key, so a Japanese, German, or Fr
 miss that line. A few selection-dialog values are read from the line in English or Japanese forms,
 so a German or French prompt can also stay as it is.
 
+The settings window is separate. It follows Dalamud's own UI language and carries English,
+Simplified Chinese, Traditional Chinese, and Japanese. Change it in the plugin settings if you
+want the window in another language.
+
 ## Compatibility
 
 Sinophone only changes what is drawn on screen. It does not change the game's files on disk or the

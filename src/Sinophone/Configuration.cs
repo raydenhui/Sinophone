@@ -19,12 +19,30 @@ public enum ChineseConversion
     TraditionalToSimplified = 2,
 }
 
+/// <summary>
+/// Language of the settings window. <see cref="Auto"/> follows Dalamud's own UI language.
+/// </summary>
+public enum InterfaceLanguage
+{
+    Auto = 0,
+    English = 1,
+    SimplifiedChinese = 2,
+    TraditionalChinese = 3,
+    Japanese = 4,
+}
+
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 2;
 
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Language of the settings window. Independent of <see cref="Variant"/>, which picks
+    /// the translation data, and of the game's own client language.
+    /// </summary>
+    public InterfaceLanguage InterfaceLanguage { get; set; } = InterfaceLanguage.Auto;
 
     public ChineseVariant Variant { get; set; } = ChineseVariant.Traditional;
 

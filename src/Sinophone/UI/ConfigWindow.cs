@@ -16,6 +16,8 @@ public sealed class ConfigWindow : Window
         "https://github.com/raydenhui/Sinophone/blob/main/README.en.md#font-setup";
 
     private readonly Configuration _configuration;
+    private readonly InterfaceText _text;
+    private readonly FontManager _fontManager;
     private readonly Action _applySettings;
     private readonly Action _showPreview;
     private readonly Func<string> _statusText;
@@ -23,6 +25,8 @@ public sealed class ConfigWindow : Window
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
     private readonly FontReplacementService _fontReplacement;
+
+    private InterfaceStrings Text => _text.Strings;
 #if SINOPHONE_TESTING
     // Set by the testing constructor, which chains into the main one.
     private readonly NativeTextProbe _nativeProbe = null!;
@@ -40,6 +44,8 @@ public sealed class ConfigWindow : Window
     /// </summary>
     public ConfigWindow(
         Configuration configuration,
+        InterfaceText text,
+        FontManager fontManager,
         Action applySettings,
         Action showPreview,
         Func<string> statusText,
@@ -51,8 +57,8 @@ public sealed class ConfigWindow : Window
         TalkContextProbe talkContextProbe,
         HarnessHost? harnessHost,
         IObjectTable objectTable)
-        : this(configuration, applySettings, showPreview, statusText, dataUpdater, dataSourceText, aboutText,
-            fontReplacement)
+        : this(configuration, text, fontManager, applySettings, showPreview, statusText, dataUpdater,
+            dataSourceText, aboutText, fontReplacement)
     {
         _nativeProbe = nativeProbe;
         _talkContextProbe = talkContextProbe;
@@ -63,6 +69,8 @@ public sealed class ConfigWindow : Window
 
     public ConfigWindow(
         Configuration configuration,
+        InterfaceText text,
+        FontManager fontManager,
         Action applySettings,
         Action showPreview,
         Func<string> statusText,
@@ -73,6 +81,8 @@ public sealed class ConfigWindow : Window
         : base("Sinophone###SinophoneConfig", ImGuiWindowFlags.NoCollapse)
     {
         _configuration = configuration;
+        _text = text;
+        _fontManager = fontManager;
         _applySettings = applySettings;
         _showPreview = showPreview;
         _statusText = statusText;
@@ -90,34 +100,41 @@ public sealed class ConfigWindow : Window
 
     public override void Draw()
     {
+        // The language can change in Dalamud's settings, so ask for the right font each frame.
+        _fontManager.EnsureUiFont();
+        var uiFont = _fontManager.UiHandle;
+        using var font = uiFont is { Available: true } ? uiFont.Push() : null;
+
         if (!ImGui.BeginTabBar("SinophoneTabs"))
             return;
 
-        if (ImGui.BeginTabItem("General"))
+        var text = Text;
+
+        if (ImGui.BeginTabItem($"{text.TabGeneral}###General"))
         {
             DrawGeneralTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Components"))
+        if (ImGui.BeginTabItem($"{text.TabComponents}###Components"))
         {
             DrawComponentsTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Data"))
+        if (ImGui.BeginTabItem($"{text.TabData}###Data"))
         {
             DrawDataTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Logs"))
+        if (ImGui.BeginTabItem($"{text.TabLogs}###Logs"))
         {
             DrawLogsTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Status"))
+        if (ImGui.BeginTabItem($"{text.TabStatus}###Status"))
         {
             DrawStatusTab();
             ImGui.EndTabItem();
@@ -136,15 +153,34 @@ public sealed class ConfigWindow : Window
 
     private void DrawGeneralTab()
     {
-        Checkbox("Enable translations", _configuration.Enabled, v => _configuration.Enabled = v);
+        var text = Text;
 
-        Section("Chinese text source");
-        ImGui.TextWrapped(
-            "Choose which official game version supplies the translation. " +
-            "TC is the Traditional Chinese release for Taiwan and Hong Kong. " +
-            "CN is the Simplified Chinese release for mainland China.");
+        Section(text.SectionInterface);
+        ImGui.TextUnformatted(text.InterfaceLanguageLabel);
+        ImGui.SetNextItemWidth(-1f);
+        if (ImGui.BeginCombo("##interfaceLanguage", LanguageName(_configuration.InterfaceLanguage)))
+        {
+            foreach (var option in InterfaceLanguageOptions)
+            {
+                var selected = _configuration.InterfaceLanguage == option;
+                if (ImGui.Selectable(LanguageName(option), selected) && !selected)
+                {
+                    _configuration.InterfaceLanguage = option;
+                    _applySettings();
+                }
+            }
 
-        if (ImGui.RadioButton("Traditional Chinese (TC)",
+            ImGui.EndCombo();
+        }
+
+        ImGui.TextDisabled(text.InterfaceLanguageHint);
+
+        Checkbox(text.GeneralEnable, _configuration.Enabled, v => _configuration.Enabled = v);
+
+        Section(text.SectionChineseSource);
+        ImGui.TextWrapped(text.GeneralSourceHelp);
+
+        if (ImGui.RadioButton(text.VariantTraditional,
                 _configuration.Variant == ChineseVariant.Traditional))
         {
             _configuration.Variant = ChineseVariant.Traditional;
@@ -152,10 +188,10 @@ public sealed class ConfigWindow : Window
         }
 
         ImGui.Indent();
-        ImGui.TextDisabled("Taiwan / Hong Kong game version");
+        ImGui.TextDisabled(text.VariantTraditionalHint);
         ImGui.Unindent();
 
-        if (ImGui.RadioButton("Simplified Chinese (CN)",
+        if (ImGui.RadioButton(text.VariantSimplified,
                 _configuration.Variant == ChineseVariant.Simplified))
         {
             _configuration.Variant = ChineseVariant.Simplified;
@@ -163,51 +199,46 @@ public sealed class ConfigWindow : Window
         }
 
         ImGui.Indent();
-        ImGui.TextDisabled("Mainland China game version");
+        ImGui.TextDisabled(text.VariantSimplifiedHint);
         ImGui.Unindent();
 
-        Checkbox("Use the other version when a line is missing", _configuration.UseFallbackVariant,
+        Checkbox(text.GeneralFallback, _configuration.UseFallbackVariant,
             v => _configuration.UseFallbackVariant = v);
         ImGui.Indent();
-        ImGui.TextDisabled(
-            "May mix Traditional and Simplified characters for missing rows. " +
-            "Off by default: it loads both data files and doubles the load time " +
-            "for a few extra lines.");
+        ImGui.TextDisabled(text.GeneralFallbackHint);
         ImGui.Unindent();
 
-        Section("Convert displayed text");
-        ImGui.TextWrapped(
-            "Optional. Changes the characters after lookup without changing which " +
-            "game version supplies the translation.");
+        Section(text.SectionConversion);
+        ImGui.TextWrapped(text.GeneralConversionHelp);
 
-        if (ImGui.RadioButton("No conversion (keep official text)",
+        if (ImGui.RadioButton(text.ConversionNone,
                 _configuration.Conversion == ChineseConversion.None))
         {
             _configuration.Conversion = ChineseConversion.None;
             _applySettings();
         }
 
-        if (ImGui.RadioButton("Simplified to Traditional (CN to TC)",
+        if (ImGui.RadioButton(text.ConversionToTraditional,
                 _configuration.Conversion == ChineseConversion.SimplifiedToTraditional))
         {
             _configuration.Conversion = ChineseConversion.SimplifiedToTraditional;
             _applySettings();
         }
 
-        if (ImGui.RadioButton("Traditional to Simplified (TC to CN)",
+        if (ImGui.RadioButton(text.ConversionToSimplified,
                 _configuration.Conversion == ChineseConversion.TraditionalToSimplified))
         {
             _configuration.Conversion = ChineseConversion.TraditionalToSimplified;
             _applySettings();
         }
 
-        Section("Font and overlay");
-        SliderFloat("Font size", _configuration.FontSize, 12f, 42f, "%.0f px",
+        Section(text.SectionFontOverlay);
+        SliderFloat(text.FontSize, _configuration.FontSize, 12f, 42f, "%.0f px",
             v => _configuration.FontSize = v);
-        SliderFloat("Background opacity (default)", _configuration.OverlayOpacity, 0f, 1f, "%.2f",
+        SliderFloat(text.OverlayOpacityDefault, _configuration.OverlayOpacity, 0f, 1f, "%.2f",
             v => _configuration.OverlayOpacity = v);
 
-        ImGui.TextUnformatted("Custom font path (optional, .ttf/.ttc/.otf)");
+        ImGui.TextUnformatted(text.CustomFontPath);
         var fontPath = _configuration.CustomFontPath ?? string.Empty;
         ImGui.SetNextItemWidth(-1f);
         if (ImGui.InputText("##customFontPath", ref fontPath, 512))
@@ -216,65 +247,90 @@ public sealed class ConfigWindow : Window
             _applySettings();
         }
 
-        Section("Colors (defaults)");
-        ColorEdit("NPC name", _configuration.SpeakerNameColor, v => _configuration.SpeakerNameColor = v);
-        ColorEdit("Translated text", _configuration.TranslatedTextColor, v => _configuration.TranslatedTextColor = v);
-        ColorEdit("Original text", _configuration.OriginalTextColor, v => _configuration.OriginalTextColor = v);
+        Section(text.SectionColors);
+        ColorEdit(text.ColorNpcName, _configuration.SpeakerNameColor,
+            v => _configuration.SpeakerNameColor = v);
+        ColorEdit(text.ColorTranslatedText, _configuration.TranslatedTextColor,
+            v => _configuration.TranslatedTextColor = v);
+        ColorEdit(text.ColorOriginalText, _configuration.OriginalTextColor,
+            v => _configuration.OriginalTextColor = v);
 
-        ImGui.TextDisabled("The item name language is on its own tab. " +
-                           "The nameplate switch is on its own tab too.");
+        ImGui.TextDisabled(text.GeneralColorHint);
 
-        Section("Shared actions");
-        if (ImGui.Button("Use the default colors for every component"))
+        Section(text.SectionSharedActions);
+        if (ImGui.Button(text.UseDefaultColorsAll))
             UseGlobalAppearanceForAll();
 
         ImGui.SameLine();
-        if (ImGui.Button("Reset all settings"))
+        if (ImGui.Button(text.ResetAll))
             ResetAll();
     }
+
+    private static readonly InterfaceLanguage[] InterfaceLanguageOptions =
+    [
+        InterfaceLanguage.Auto,
+        InterfaceLanguage.English,
+        InterfaceLanguage.SimplifiedChinese,
+        InterfaceLanguage.TraditionalChinese,
+        InterfaceLanguage.Japanese,
+    ];
+
+    // Names are in the current language, not each language's own script: an English window uses a
+    // font without CJK glyphs, so native names would draw as boxes.
+    private string LanguageName(InterfaceLanguage language)
+        => language switch
+        {
+            InterfaceLanguage.English => Text.LanguageEnglish,
+            InterfaceLanguage.SimplifiedChinese => Text.LanguageSimplifiedChinese,
+            InterfaceLanguage.TraditionalChinese => Text.LanguageTraditionalChinese,
+            InterfaceLanguage.Japanese => Text.LanguageJapanese,
+            _ => Text.InterfaceLanguageAuto,
+        };
 
     private void DrawComponentsTab()
     {
         if (!ImGui.BeginTabBar("SinophoneComponentTabs"))
             return;
 
-        if (ImGui.BeginTabItem("Talk"))
+        var text = Text;
+
+        if (ImGui.BeginTabItem($"{text.TabTalk}###ComponentTalk"))
         {
             DrawTalkComponentTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Subtitles"))
+        if (ImGui.BeginTabItem($"{text.TabSubtitles}###ComponentSubtitles"))
         {
             DrawSubtitleComponentTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Chat bubbles"))
+        if (ImGui.BeginTabItem($"{text.TabChatBubbles}###ComponentChatBubbles"))
         {
             DrawChatBubbleComponentTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Battle talk"))
+        if (ImGui.BeginTabItem($"{text.TabBattleTalk}###ComponentBattleTalk"))
         {
             DrawBattleTalkComponentTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Selection"))
+        if (ImGui.BeginTabItem($"{text.TabSelection}###ComponentSelection"))
         {
             DrawSelectionComponentTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Nameplates"))
+        if (ImGui.BeginTabItem($"{text.TabNameplates}###ComponentNameplates"))
         {
             DrawTargetNameComponentTab();
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Item name"))
+        if (ImGui.BeginTabItem($"{text.TabItemName}###ComponentItemName"))
         {
             DrawItemNameComponentTab();
             ImGui.EndTabItem();
@@ -285,18 +341,20 @@ public sealed class ConfigWindow : Window
 
     private void DrawTalkComponentTab()
     {
-        Checkbox("Enable translation in the Talk dialogue", _configuration.ShowInTalk,
+        var text = Text;
+
+        Checkbox(text.TalkEnable, _configuration.ShowInTalk,
             v => _configuration.ShowInTalk = v);
 
-        Section("Mode");
-        if (ImGui.RadioButton("Overlay###talkOverlay", !_configuration.NativeTextMode))
+        Section(text.SectionMode);
+        if (ImGui.RadioButton($"{text.ModeOverlay}###talkOverlay", !_configuration.NativeTextMode))
         {
             _configuration.NativeTextMode = false;
             _applySettings();
         }
 
         ImGui.SameLine();
-        if (ImGui.RadioButton("Native (game's own windows)###talkNative", _configuration.NativeTextMode))
+        if (ImGui.RadioButton($"{text.ModeNative}###talkNative", _configuration.NativeTextMode))
         {
             _configuration.NativeTextMode = true;
             _applySettings();
@@ -305,26 +363,22 @@ public sealed class ConfigWindow : Window
         if (_configuration.NativeTextMode)
         {
             ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-            ImGui.TextWrapped(
-                "Native mode writes Chinese into the game's own dialogue box and subtitle band. " +
-                "The game's font has no Chinese glyphs, so install a font mod first.");
+            ImGui.TextWrapped(text.TalkNativeWarning);
             ImGui.PopStyleColor();
 
-            if (ImGui.Selectable("Open the font setup guide"))
+            if (ImGui.Selectable($"{text.OpenFontGuide}###talkFontGuide"))
                 Util.OpenLink(FontSetupUrl);
 
             ImGui.TextDisabled(FontSetupUrl);
         }
 
-        Section("Chinese font");
-        Checkbox("Replace the game font with a font pack", _configuration.BuiltInFontEnabled,
+        Section(text.SectionChineseFont);
+        Checkbox(text.BuiltInFont, _configuration.BuiltInFontEnabled,
             v => _configuration.BuiltInFontEnabled = v);
 
         if (_configuration.BuiltInFontEnabled)
         {
-            ImGui.TextDisabled(
-                "A .ttmp2 font mod or a folder that holds the game's font files. The plugin reads " +
-                "the pack from your disk and ships no font data.");
+            ImGui.TextDisabled(text.BuiltInFontHint);
             var packPath = _configuration.BuiltInFontPackPath ?? string.Empty;
             ImGui.SetNextItemWidth(-1f);
             if (ImGui.InputText("##builtInFontPackPath", ref packPath, 1024))
@@ -333,169 +387,166 @@ public sealed class ConfigWindow : Window
             if (ImGui.IsItemDeactivatedAfterEdit())
                 _applySettings();
 
-            if (ImGui.Button("Reload the game font"))
+            if (ImGui.Button(text.ReloadFont))
                 _fontReplacement.Reapply();
 
             ImGui.SameLine();
             ImGui.TextWrapped(_fontReplacement.Status);
         }
 
-        Section("Display");
-        Checkbox("Show speaker name", _configuration.ShowSpeakerName,
+        Section(text.SectionDisplay);
+        Checkbox(text.ShowSpeakerName, _configuration.ShowSpeakerName,
             v => _configuration.ShowSpeakerName = v);
-        ImGui.TextDisabled("The Chinese name is shown with the English name in parentheses.");
+        ImGui.TextDisabled(text.ShowSpeakerNameHint);
 
-        Checkbox("Hide when no translation is found", _configuration.HideWhenNoTranslation,
+        Checkbox(text.HideWhenNoTranslation, _configuration.HideWhenNoTranslation,
             v => _configuration.HideWhenNoTranslation = v);
-        ImGui.TextDisabled(
-            "When off, an untranslated line falls back to the English text. " +
-            "The overlay never shows both languages at once.");
+        ImGui.TextDisabled(text.HideWhenNoTranslationHint);
 
         if (_configuration.NativeTextMode)
         {
-            Section("What other readers see");
-            ImGui.TextDisabled(
-                "The dialogue box always shows Chinese. This decides what the game's own log and " +
-                "other plugins read for the same line.");
+            Section(text.SectionOtherReaders);
+            ImGui.TextDisabled(text.OtherReadersHint);
 
-            if (ImGui.RadioButton("English original###shareEnglish", !_configuration.NativeTextSharesTranslation))
+            if (ImGui.RadioButton($"{text.ShareOriginal}###shareEnglish",
+                    !_configuration.NativeTextSharesTranslation))
             {
                 _configuration.NativeTextSharesTranslation = false;
                 _applySettings();
             }
 
             ImGui.SameLine();
-            if (ImGui.RadioButton("Chinese translation###shareChinese", _configuration.NativeTextSharesTranslation))
+            if (ImGui.RadioButton($"{text.ShareTranslation}###shareChinese",
+                    _configuration.NativeTextSharesTranslation))
             {
                 _configuration.NativeTextSharesTranslation = true;
                 _applySettings();
             }
         }
 
-        Section("Overlay position");
+        Section(text.SectionOverlayPosition);
         ImGui.BeginDisabled(_configuration.NativeTextMode);
-        Checkbox("Lock overlay position", _configuration.LockOverlay,
+        Checkbox(text.LockOverlay, _configuration.LockOverlay,
             v => _configuration.LockOverlay = v);
-        Checkbox("Click-through", _configuration.Clickthrough,
+        Checkbox(text.Clickthrough, _configuration.Clickthrough,
             v => _configuration.Clickthrough = v);
-        SliderFloat("Width###talkWidth", _configuration.OverlayWidth, 280f, 1200f, "%.0f",
+        SliderFloat($"{text.OverlayWidth}###talkWidth", _configuration.OverlayWidth, 280f, 1200f, "%.0f",
             v => _configuration.OverlayWidth = v);
-        SliderFloat("Horizontal offset (0 = center)###overlayOffsetX", _configuration.OverlayOffsetX,
+        SliderFloat($"{text.OverlayOffsetX}###overlayOffsetX", _configuration.OverlayOffsetX,
             -1000f, 1000f, "%.0f px", v => _configuration.OverlayOffsetX = v);
-        SliderFloat("Distance from screen bottom###offsetFromBottom", _configuration.OffsetFromBottom,
+        SliderFloat($"{text.OffsetFromBottom}###offsetFromBottom", _configuration.OffsetFromBottom,
             20f, 520f, "%.0f", v => _configuration.OffsetFromBottom = v);
-        Checkbox("Keep the bottom line fixed when text grows", _configuration.AnchorOverlayBottom,
+        Checkbox(text.AnchorOverlayBottom, _configuration.AnchorOverlayBottom,
             v => _configuration.AnchorOverlayBottom = v);
         ImGui.EndDisabled();
 
         ImGui.Spacing();
-        if (ImGui.Button("Preview overlay"))
+        if (ImGui.Button(text.PreviewOverlay))
             _showPreview();
 
         ImGui.SameLine();
-        if (ImGui.Button("Reset Talk layout"))
+        if (ImGui.Button(text.ResetTalkLayout))
             ResetTalkLayout();
 
-        Section("Appearance");
-        Checkbox("Use the default colors and opacity", _configuration.TalkUseGlobalAppearance,
+        Section(text.SectionAppearance);
+        Checkbox(text.UseDefaultAppearance, _configuration.TalkUseGlobalAppearance,
             v => _configuration.TalkUseGlobalAppearance = v);
 
         if (_configuration.TalkUseGlobalAppearance)
         {
-            ImGui.TextDisabled("Following the defaults on the General tab.");
+            ImGui.TextDisabled(text.FollowingDefaults);
         }
         else
         {
-            ColorEdit("Speaker name###talkSpeakerColor", _configuration.TalkSpeakerNameColor,
+            ColorEdit($"{text.ColorSpeakerName}###talkSpeakerColor", _configuration.TalkSpeakerNameColor,
                 v => _configuration.TalkSpeakerNameColor = v);
-            ColorEdit("Translated text###talkTranslatedColor", _configuration.TalkTranslatedTextColor,
+            ColorEdit($"{text.ColorTranslatedText}###talkTranslatedColor",
+                _configuration.TalkTranslatedTextColor,
                 v => _configuration.TalkTranslatedTextColor = v);
-            ColorEdit("Untranslated fallback###talkOriginalColor", _configuration.TalkOriginalTextColor,
+            ColorEdit($"{text.ColorUntranslatedFallback}###talkOriginalColor",
+                _configuration.TalkOriginalTextColor,
                 v => _configuration.TalkOriginalTextColor = v);
-            SliderFloat("Background opacity###talkOpacity", _configuration.TalkOverlayOpacity,
+            SliderFloat($"{text.BackgroundOpacity}###talkOpacity", _configuration.TalkOverlayOpacity,
                 0f, 1f, "%.2f", v => _configuration.TalkOverlayOpacity = v);
         }
     }
 
     private void DrawChatBubbleComponentTab()
     {
-        Checkbox("Translate NPC chat bubbles", _configuration.ShowInChatBubbles,
+        var text = Text;
+
+        Checkbox(text.BubbleEnable, _configuration.ShowInChatBubbles,
             v => _configuration.ShowInChatBubbles = v);
 
-        ImGui.TextDisabled("The Chinese is written into the game's own bubble, above the NPC's head.");
+        ImGui.TextDisabled(text.BubbleHint);
 
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-        ImGui.TextWrapped(
-            "Chat bubbles use the game's own font and need the font mod. " +
-            "The bubble layout is still being checked in game, so this is off by default.");
+        ImGui.TextWrapped(text.BubbleWarning);
         ImGui.PopStyleColor();
 
-        if (ImGui.Selectable("Open the font setup guide###bubbleFontGuide"))
+        if (ImGui.Selectable($"{text.OpenFontGuide}###bubbleFontGuide"))
             Util.OpenLink(FontSetupUrl);
     }
 
     private void DrawBattleTalkComponentTab()
     {
-        Checkbox("Translate battle talk", _configuration.ShowInBattleTalk,
+        var text = Text;
+
+        Checkbox(text.BattleTalkEnable, _configuration.ShowInBattleTalk,
             v => _configuration.ShowInBattleTalk = v);
 
-        ImGui.TextDisabled(
-            "Boss shouts, dungeon narration, and duty NPC lines, in the game's own box at the top " +
-            "of the screen. The name follows the speaker name setting on the Talk tab.");
+        ImGui.TextDisabled(text.BattleTalkHint);
 
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-        ImGui.TextWrapped(
-            "Battle talk uses the game's own font and needs the font mod. A line with no " +
-            "translation stays English, and so does the line already on screen when the switch is " +
-            "turned off. This is off by default.");
+        ImGui.TextWrapped(text.BattleTalkWarning);
         ImGui.PopStyleColor();
 
-        if (ImGui.Selectable("Open the font setup guide###battleTalkFontGuide"))
+        if (ImGui.Selectable($"{text.OpenFontGuide}###battleTalkFontGuide"))
             Util.OpenLink(FontSetupUrl);
     }
 
     private void DrawSubtitleComponentTab()
     {
-        Checkbox("Enable translation in Talk subtitles", _configuration.ShowInTalkSubtitle,
+        var text = Text;
+
+        Checkbox(text.SubtitleEnable, _configuration.ShowInTalkSubtitle,
             v => _configuration.ShowInTalkSubtitle = v);
 
-        ImGui.TextDisabled("Subtitles use the Talk overlay's position and appearance.");
-        ImGui.TextDisabled(
-            "The Talk tab's Mode setting also decides how subtitles are drawn: in the game's own " +
-            "subtitle band, or on the overlay when the band cannot take the line.");
+        ImGui.TextDisabled(text.SubtitleHint);
+        ImGui.TextDisabled(text.SubtitleModeHint);
     }
 
     private void DrawSelectionComponentTab()
     {
-        Checkbox("Enable translation in selection dialogs", _configuration.ShowInSelectionDialogs,
+        var text = Text;
+
+        Checkbox(text.SelectionEnable, _configuration.ShowInSelectionDialogs,
             v => _configuration.ShowInSelectionDialogs = v);
 
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-        ImGui.TextWrapped(
-            "Selection dialogs are translated in place, with no overlay. " +
-            "This needs a CJK font mod, or the Chinese text shows the missing-glyph character.");
+        ImGui.TextWrapped(text.SelectionWarning);
         ImGui.PopStyleColor();
 
-        if (ImGui.Selectable("Open the font setup guide"))
+        if (ImGui.Selectable($"{text.OpenFontGuide}###selectionFontGuide"))
             Util.OpenLink(FontSetupUrl);
 
         ImGui.TextDisabled(FontSetupUrl);
 
         ImGui.Spacing();
-        ImGui.TextDisabled("Prompts and option labels are replaced in the game's own dialog.");
+        ImGui.TextDisabled(text.SelectionHint);
 
-        if (ImGui.CollapsingHeader("Advanced: choose dialog types"))
+        if (ImGui.CollapsingHeader($"{text.SelectionAdvanced}###selectionAdvanced"))
         {
             ImGui.BeginDisabled(!_configuration.ShowInSelectionDialogs);
-            Checkbox("Yes / No prompt", _configuration.SelectionYesNo,
+            Checkbox(text.SelectionYesNo, _configuration.SelectionYesNo,
                 v => _configuration.SelectionYesNo = v);
-            Checkbox("List of text options", _configuration.SelectionString,
+            Checkbox(text.SelectionString, _configuration.SelectionString,
                 v => _configuration.SelectionString = v);
-            Checkbox("List of icon options", _configuration.SelectionIconString,
+            Checkbox(text.SelectionIcon, _configuration.SelectionIconString,
                 v => _configuration.SelectionIconString = v);
-            Checkbox("Single OK prompt", _configuration.SelectionOk,
+            Checkbox(text.SelectionOk, _configuration.SelectionOk,
                 v => _configuration.SelectionOk = v);
-            Checkbox("Cutscene choice", _configuration.SelectionCutScene,
+            Checkbox(text.SelectionCutScene, _configuration.SelectionCutScene,
                 v => _configuration.SelectionCutScene = v);
             ImGui.EndDisabled();
         }
@@ -503,44 +554,43 @@ public sealed class ConfigWindow : Window
 
     private void DrawTargetNameComponentTab()
     {
+        var text = Text;
+
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-        ImGui.TextWrapped(
-            "The Chinese name is written into the game's own nameplate above every visible NPC " +
-            "and object, such as a summoning bell, company chest, or door. " +
-            "It needs a font mod, or the name shows the missing-glyph character. " +
-            "Nameplates must be visible in the game settings.");
+        ImGui.TextWrapped(text.NameplateWarning);
         ImGui.PopStyleColor();
 
-        if (ImGui.Selectable("Open the font setup guide"))
+        if (ImGui.Selectable($"{text.OpenFontGuide}###nameplateFontGuide"))
             Util.OpenLink(FontSetupUrl);
 
         ImGui.TextDisabled(FontSetupUrl);
 
-        Checkbox("Show Chinese names on nameplates", _configuration.ShowTargetName,
+        Checkbox(text.NameplateEnable, _configuration.ShowTargetName,
             v => _configuration.ShowTargetName = v);
 
-        ImGui.TextDisabled("Every visible nameplate is translated, not only the target. " +
-            "Player names are not translated.");
+        ImGui.TextDisabled(text.NameplateHint);
 
-        Checkbox("Show the English name too", _configuration.TargetNameShowEnglish,
+        Checkbox(text.NameplateShowEnglish, _configuration.TargetNameShowEnglish,
             v => _configuration.TargetNameShowEnglish = v);
-        ImGui.TextDisabled("The English name follows the Chinese name in brackets, on the same line.");
+        ImGui.TextDisabled(text.BilingualHint);
     }
 
     private void DrawItemNameComponentTab()
     {
-        Checkbox("Show the Chinese name of the hovered item", _configuration.ShowItemName,
+        var text = Text;
+
+        Checkbox(text.ItemEnable, _configuration.ShowItemName,
             v => _configuration.ShowItemName = v);
 
-        Section("Mode");
-        if (ImGui.RadioButton("Overlay###itemOverlay", !_configuration.ItemNameNativeMode))
+        Section(text.SectionMode);
+        if (ImGui.RadioButton($"{text.ModeOverlay}###itemOverlay", !_configuration.ItemNameNativeMode))
         {
             _configuration.ItemNameNativeMode = false;
             _applySettings();
         }
 
         ImGui.SameLine();
-        if (ImGui.RadioButton("Native item tooltip###itemNative", _configuration.ItemNameNativeMode))
+        if (ImGui.RadioButton($"{text.ItemNative}###itemNative", _configuration.ItemNameNativeMode))
         {
             _configuration.ItemNameNativeMode = true;
             _applySettings();
@@ -549,89 +599,89 @@ public sealed class ConfigWindow : Window
         if (_configuration.ItemNameNativeMode)
         {
             ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-            ImGui.TextWrapped(
-                "Native mode writes the name into the game's own item tooltip. " +
-                "The game's font has no Chinese glyphs, so install a font mod first.");
+            ImGui.TextWrapped(text.ItemNativeWarning);
             ImGui.PopStyleColor();
 
-            if (ImGui.Selectable("Open the font setup guide###itemFontGuide"))
+            if (ImGui.Selectable($"{text.OpenFontGuide}###itemFontGuide"))
                 Util.OpenLink(FontSetupUrl);
 
             ImGui.TextDisabled(FontSetupUrl);
-            ImGui.TextDisabled("A tooltip the plugin cannot write falls back to the overlay.");
+            ImGui.TextDisabled(text.ItemNativeFallback);
         }
         else
         {
-            ImGui.TextDisabled("The name follows the mouse, above the item tooltip.");
+            ImGui.TextDisabled(text.ItemOverlayHint);
         }
 
-        Section("Language");
-        if (ImGui.RadioButton("Chinese only###itemLanguageChinese", !_configuration.ShowOriginal))
+        Section(text.SectionLanguage);
+        if (ImGui.RadioButton($"{text.ItemChineseOnly}###itemLanguageChinese", !_configuration.ShowOriginal))
         {
             _configuration.ShowOriginal = false;
             _applySettings();
         }
 
         ImGui.SameLine();
-        if (ImGui.RadioButton("Chinese and English###itemLanguageBoth", _configuration.ShowOriginal))
+        if (ImGui.RadioButton($"{text.ItemBoth}###itemLanguageBoth", _configuration.ShowOriginal))
         {
             _configuration.ShowOriginal = true;
             _applySettings();
         }
 
-        ImGui.TextDisabled("The English name follows the Chinese name in brackets, on the same line.");
+        ImGui.TextDisabled(text.BilingualHint);
 
         if (_configuration.ItemNameNativeMode)
         {
-            ImGui.TextDisabled("Native mode draws the name with the game's own colors and size.");
+            ImGui.TextDisabled(text.ItemNativeAppearance);
             return;
         }
 
-        Section("Appearance");
-        Checkbox("Use the default colors and opacity", _configuration.ItemNameUseGlobalAppearance,
+        Section(text.SectionAppearance);
+        Checkbox(text.UseDefaultAppearance, _configuration.ItemNameUseGlobalAppearance,
             v => _configuration.ItemNameUseGlobalAppearance = v);
 
         if (_configuration.ItemNameUseGlobalAppearance)
         {
-            ImGui.TextDisabled("Following the defaults on the General tab.");
+            ImGui.TextDisabled(text.FollowingDefaults);
         }
         else
         {
-            ColorEdit("Translated name###itemNameColor", _configuration.ItemNameColor,
+            ColorEdit($"{text.ColorTranslatedName}###itemNameColor", _configuration.ItemNameColor,
                 v => _configuration.ItemNameColor = v);
-            ColorEdit("English name###itemNameOriginalColor", _configuration.ItemNameOriginalColor,
+            ColorEdit($"{text.ColorEnglishName}###itemNameOriginalColor", _configuration.ItemNameOriginalColor,
                 v => _configuration.ItemNameOriginalColor = v);
-            SliderFloat("Background opacity###itemNameOpacity", _configuration.ItemNameOpacity,
+            SliderFloat($"{text.BackgroundOpacity}###itemNameOpacity", _configuration.ItemNameOpacity,
                 0f, 1f, "%.2f", v => _configuration.ItemNameOpacity = v);
         }
     }
 
     private void DrawDataTab()
     {
+        var text = Text;
+
         ImGui.TextWrapped(_dataSourceText());
 
-        Checkbox("Download data updates on load", _configuration.CheckForDataUpdates,
+        Checkbox(text.DataDownloadOnLoad, _configuration.CheckForDataUpdates,
             v => _configuration.CheckForDataUpdates = v);
-        ImGui.TextDisabled("Runs in the background. The old data stays in use until the new data is ready.");
+        ImGui.TextDisabled(text.DataDownloadOnLoadHint);
 
-        Checkbox("Download both language variants", _configuration.DownloadBothVariants,
+        Checkbox(text.DataDownloadBoth, _configuration.DownloadBothVariants,
             v => _configuration.DownloadBothVariants = v);
-        ImGui.TextDisabled("Off downloads only the selected variant. Fallback uses the other variant only if it is already on disk.");
+        ImGui.TextDisabled(text.DataDownloadBothHint);
 
         var state = _dataUpdater.State;
 
         if (state.IsBusy)
         {
-            if (ImGui.Button("Cancel"))
+            if (ImGui.Button(text.Cancel))
                 _dataUpdater.Cancel();
         }
         else
         {
-            if (ImGui.Button(state.HasUpdate ? "Download update" : "Download / update data"))
+            if (ImGui.Button(state.HasUpdate ? text.DownloadUpdate : text.DownloadOrUpdate))
                 _dataUpdater.StartUpdate();
 
             ImGui.SameLine();
-            if (ImGui.Button("Check for updates"))
+            if (ImGui.Button(text.CheckForUpdates))
                 _dataUpdater.StartCheck();
         }
 
@@ -651,46 +701,46 @@ public sealed class ConfigWindow : Window
     /// </summary>
     private void DrawLogsTab()
     {
-        ImGui.TextWrapped(
-            "Choose which of the plugin's own messages appear in Dalamud's plugin log. " +
-            "Each switch hides one group's detail messages. Warnings and errors always show.");
+        var text = Text;
+
+        ImGui.TextWrapped(text.LogsIntro);
 
         ImGui.Spacing();
-        if (ImGui.Button("Show every group"))
+        if (ImGui.Button(text.ShowEveryGroup))
             SetAllLogGroups(true);
 
         ImGui.SameLine();
-        if (ImGui.Button("Hide every detail message"))
+        if (ImGui.Button(text.HideEveryDetail))
             SetAllLogGroups(false);
 
-        Section("Groups");
-        LogGroup("Dialogue lookups", _configuration.LogDialogue,
+        Section(text.SectionGroups);
+        LogGroup(text.LogDialogue, _configuration.LogDialogue,
             v => _configuration.LogDialogue = v,
-            "Every Talk and subtitle line, with the lookup that answered it.");
+            text.LogDialogueHint);
 
-        LogGroup("Native text", _configuration.LogNativeText,
+        LogGroup(text.LogNativeText, _configuration.LogNativeText,
             v => _configuration.LogNativeText = v,
-            "Each write into the game's own dialogue box.");
+            text.LogNativeTextHint);
 
-        LogGroup("Selection dialogs", _configuration.LogSelectionDialogs,
+        LogGroup(text.LogSelection, _configuration.LogSelectionDialogs,
             v => _configuration.LogSelectionDialogs = v,
-            "Each prompt and option the plugin translates.");
+            text.LogSelectionHint);
 
-        LogGroup("Nameplates", _configuration.LogNamePlates,
+        LogGroup(text.LogNameplates, _configuration.LogNamePlates,
             v => _configuration.LogNamePlates = v,
-            "One line for every name it puts on a nameplate.");
+            text.LogNameplatesHint);
 
-        LogGroup("Item names", _configuration.LogItemNames,
+        LogGroup(text.LogItemNames, _configuration.LogItemNames,
             v => _configuration.LogItemNames = v,
-            "Item name lookups that find no translation.");
+            text.LogItemNamesHint);
 
-        LogGroup("Translation data", _configuration.LogData,
+        LogGroup(text.LogData, _configuration.LogData,
             v => _configuration.LogData = v,
-            "Loading, indexing, and download checks.");
+            text.LogDataHint);
 
-        LogGroup("Plugin", _configuration.LogPlugin,
+        LogGroup(text.LogPlugin, _configuration.LogPlugin,
             v => _configuration.LogPlugin = v,
-            "Load, unload, and settings changes.");
+            text.LogPluginHint);
 
 #if SINOPHONE_TESTING
         LogGroup("Debug probes", _configuration.LogDiagnostics,
@@ -725,9 +775,7 @@ public sealed class ConfigWindow : Window
         ImGui.TextColored(SectionColor, _aboutText());
 
         ImGui.PushStyleColor(ImGuiCol.Text, WarningColor);
-        ImGui.TextWrapped(
-            "Early development. Some NPC dialogue is not detected, " +
-            "and text that exists in no game dump stays untranslated.");
+        ImGui.TextWrapped(Text.StatusWarning);
         ImGui.PopStyleColor();
 
         ImGui.Spacing();
@@ -1343,6 +1391,8 @@ public sealed class ConfigWindow : Window
 
     private void ResetAll()
     {
+        // The interface language is left alone: it is not a translation setting, and resetting
+        // it would change the window language under the button that was just clicked.
         var defaults = new Configuration();
         _configuration.Enabled = defaults.Enabled;
         _configuration.Variant = defaults.Variant;
