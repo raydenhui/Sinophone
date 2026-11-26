@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 7;
+    private const int CacheFormatVersion = 8;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 
@@ -69,7 +69,6 @@ public sealed partial class TranslationStore
 
             var primaryVariant = (ChineseVariant)reader.ReadInt32();
             var usedFallback = reader.ReadBoolean();
-            var scriptEntryCount = reader.ReadInt32();
 
             var result = new TranslationStore(
                 primaryVariant,
@@ -81,7 +80,6 @@ public sealed partial class TranslationStore
                 log);
 
             result.ReadCacheBody(reader);
-            result._scriptEntryCount = scriptEntryCount;
 
             stopwatch.Stop();
             log.Debug(
@@ -116,7 +114,6 @@ public sealed partial class TranslationStore
                 writer.Write(key);
                 writer.Write((int)store.PrimaryVariant);
                 writer.Write(store.UsedFallback);
-                writer.Write(store._scriptEntryCount);
                 store.WriteCacheBody(writer);
             }
 
@@ -145,56 +142,18 @@ public sealed partial class TranslationStore
 
     private void WriteCacheBody(BinaryWriter writer)
     {
-        WriteStrings(writer, _textLookup);
-        WriteStrings(writer, _nameLookup);
-        WriteStrings(writer, _branchNeutralLookup);
-        WriteStringSet(writer, _ambiguousBranchKeys);
-        WriteStrings(writer, _addonLookup);
+        _dialogue.WriteTo(writer);
+        _names.WriteTo(writer);
+        _addon.WriteTo(writer);
+        _scripts.WriteTo(writer);
 
         writer.Write(_styleLookup.Count);
         foreach (var (key, style) in _styleLookup)
         {
             writer.Write(key);
-            WriteNullableUshort(writer, style.ForegroundKey);
-            WriteNullableUshort(writer, style.GlowKey);
+            IndexCacheFormat.WriteNullableUshort(writer, style.ForegroundKey);
+            IndexCacheFormat.WriteNullableUshort(writer, style.GlowKey);
         }
-
-        writer.Write(_nameRowLookup.Count);
-        foreach (var ((sheet, rowId), value) in _nameRowLookup)
-        {
-            writer.Write(sheet);
-            writer.Write(rowId);
-            writer.Write(value);
-        }
-
-        writer.Write(_addonTemplates.Count);
-        foreach (var (template, chinese, indices, macro) in _addonTemplates)
-        {
-            writer.Write(template);
-            writer.Write(chinese);
-            writer.Write(macro is not null);
-            if (macro is not null)
-                writer.Write(macro);
-
-            if (indices is null)
-            {
-                writer.Write(-1);
-                continue;
-            }
-
-            writer.Write(indices.Length);
-            foreach (var index in indices)
-                writer.Write(index);
-        }
-
-        writer.Write(_scriptTemplates.Count);
-        foreach (var (template, chinese) in _scriptTemplates)
-        {
-            writer.Write(template);
-            writer.Write(chinese);
-        }
-
-        WriteStringSet(writer, _addonTemplateKeys);
 
         writer.Write(_rowLookup.Count);
         foreach (var ((sheet, rowId, field), slots) in _rowLookup)
@@ -211,154 +170,23 @@ public sealed partial class TranslationStore
                     writer.Write(slot);
             }
         }
-
-        WriteStrings(writer, _scriptKeyLookup);
-        WriteStrings(writer, _scriptKeyEnglishLookup);
-        WriteScriptRows(writer);
-        WriteScriptScenes(writer);
-        WriteLineSpeakerAliases(writer);
-        WriteAmbiguousCandidates(writer);
-    }
-
-    /// <summary>
-    /// Writes the script lines that share an English key. Without them a cache hit would answer
-    /// those lines from nowhere, because the shared key was removed from the text lookup.
-    /// </summary>
-    private void WriteAmbiguousCandidates(BinaryWriter writer)
-    {
-        writer.Write(_ambiguousScriptKeys.Count);
-
-        foreach (var (key, candidates) in _ambiguousScriptKeys)
-        {
-            writer.Write(key);
-            writer.Write(candidates.Count);
-
-            foreach (var candidate in candidates)
-            {
-                writer.Write(candidate.Display);
-
-                writer.Write(candidate.SpeakerTokens.Length);
-                foreach (var token in candidate.SpeakerTokens)
-                    writer.Write(token);
-
-                writer.Write(candidate.Keys.Length);
-                foreach (var scriptKey in candidate.Keys)
-                    writer.Write(scriptKey);
-            }
-        }
-    }
-
-    private void ReadAmbiguousCandidates(BinaryReader reader)
-    {
-        var keys = reader.ReadInt32();
-
-        for (var i = 0; i < keys; i++)
-        {
-            var key = reader.ReadString();
-            var count = reader.ReadInt32();
-            var candidates = new List<ScriptCandidate>(count);
-
-            for (var j = 0; j < count; j++)
-            {
-                var display = reader.ReadString();
-
-                var tokens = new string[reader.ReadInt32()];
-                for (var t = 0; t < tokens.Length; t++)
-                    tokens[t] = reader.ReadString();
-
-                var dumpKeys = new string[reader.ReadInt32()];
-                for (var k = 0; k < dumpKeys.Length; k++)
-                    dumpKeys[k] = reader.ReadString();
-
-                candidates.Add(new ScriptCandidate(display, tokens, dumpKeys));
-            }
-
-            _ambiguousScriptKeys.Add(key, candidates);
-        }
-    }
-
-    private void WriteLineSpeakerAliases(BinaryWriter writer)
-    {
-        writer.Write(_lineSpeakerAliases.Count);
-        foreach (var (key, alias) in _lineSpeakerAliases)
-        {
-            writer.Write(key);
-            writer.Write(alias.English);
-            writer.Write(alias.Chinese);
-        }
-    }
-
-    private void ReadLineSpeakerAliases(BinaryReader reader)
-    {
-        var count = reader.ReadInt32();
-        for (var i = 0; i < count; i++)
-            _lineSpeakerAliases.Add(reader.ReadString(), new SpeakerAlias(reader.ReadString(), reader.ReadString()));
-    }
-
-    private void WriteScriptScenes(BinaryWriter writer)
-    {
-        writer.Write(_scriptSceneLookup.Count);
-
-        foreach (var (key, scene) in _scriptSceneLookup)
-        {
-            writer.Write(key);
-            writer.Write(scene);
-        }
-    }
-
-    private void ReadScriptScenes(BinaryReader reader)
-    {
-        var count = reader.ReadInt32();
-
-        for (var i = 0; i < count; i++)
-            _scriptSceneLookup.Add(reader.ReadString(), reader.ReadUInt32());
     }
 
     private void ReadCacheBody(BinaryReader reader)
     {
-        ReadStrings(reader, _textLookup);
-        ReadStrings(reader, _nameLookup);
-        ReadStrings(reader, _branchNeutralLookup);
-        ReadStringSet(reader, _ambiguousBranchKeys);
-        ReadStrings(reader, _addonLookup);
+        _dialogue.ReadFrom(reader);
+        _names.ReadFrom(reader);
+        _addon.ReadFrom(reader);
+        _scripts.ReadFrom(reader);
 
         var count = reader.ReadInt32();
         for (var i = 0; i < count; i++)
         {
             var key = reader.ReadString();
-            var foreground = ReadNullableUshort(reader);
-            var glow = ReadNullableUshort(reader);
+            var foreground = IndexCacheFormat.ReadNullableUshort(reader);
+            var glow = IndexCacheFormat.ReadNullableUshort(reader);
             _styleLookup.Add(key, new UiTextStyle(foreground, glow));
         }
-
-        count = reader.ReadInt32();
-        for (var i = 0; i < count; i++)
-            _nameRowLookup.Add((reader.ReadString(), reader.ReadUInt32()), reader.ReadString());
-
-        count = reader.ReadInt32();
-        for (var i = 0; i < count; i++)
-        {
-            var template = reader.ReadString();
-            var chinese = reader.ReadString();
-            var macro = reader.ReadBoolean() ? reader.ReadString() : null;
-            var length = reader.ReadInt32();
-
-            int[]? indices = null;
-            if (length >= 0)
-            {
-                indices = new int[length];
-                for (var j = 0; j < length; j++)
-                    indices[j] = reader.ReadInt32();
-            }
-
-            _addonTemplates.Add((template, chinese, indices, macro));
-        }
-
-        count = reader.ReadInt32();
-        for (var i = 0; i < count; i++)
-            _scriptTemplates.Add((reader.ReadString(), reader.ReadString()));
-
-        ReadStringSet(reader, _addonTemplateKeys);
 
         count = reader.ReadInt32();
         for (var i = 0; i < count; i++)
@@ -373,97 +201,5 @@ public sealed partial class TranslationStore
 
             _rowLookup.Add((sheet, rowId, field), slots);
         }
-
-        ReadStrings(reader, _scriptKeyLookup);
-        ReadStrings(reader, _scriptKeyEnglishLookup);
-        ReadScriptRows(reader);
-        ReadScriptScenes(reader);
-        ReadLineSpeakerAliases(reader);
-        ReadAmbiguousCandidates(reader);
-    }
-
-    private static void WriteNullableUshort(BinaryWriter writer, ushort? value)
-    {
-        writer.Write(value.HasValue);
-        if (value.HasValue)
-            writer.Write(value.Value);
-    }
-
-    private static ushort? ReadNullableUshort(BinaryReader reader)
-        => reader.ReadBoolean() ? reader.ReadUInt16() : null;
-
-    private static void WriteStrings(BinaryWriter writer, Dictionary<string, string> map)
-    {
-        writer.Write(map.Count);
-        foreach (var (key, value) in map)
-        {
-            writer.Write(key);
-            writer.Write(value);
-        }
-    }
-
-    private static void ReadStrings(BinaryReader reader, Dictionary<string, string> map)
-    {
-        var count = reader.ReadInt32();
-        for (var i = 0; i < count; i++)
-            map.Add(reader.ReadString(), reader.ReadString());
-    }
-
-    /// <summary>
-    /// The script key to row id pairs, the sheet each key came from, and the text keyed
-    /// by sheet row. Without them a cache hit would lose the id-first script lookup.
-    /// </summary>
-    private void WriteScriptRows(BinaryWriter writer)
-    {
-        writer.Write(_scriptRowLookup.Count);
-        foreach (var (key, rowId) in _scriptRowLookup)
-        {
-            writer.Write(key);
-            writer.Write(rowId);
-        }
-
-        writer.Write(_scriptSheetLookup.Count);
-        foreach (var (key, sheet) in _scriptSheetLookup)
-        {
-            writer.Write(key);
-            writer.Write(sheet);
-        }
-
-        writer.Write(_scriptRowTextLookup.Count);
-        foreach (var ((sheet, rowId), text) in _scriptRowTextLookup)
-        {
-            writer.Write(sheet);
-            writer.Write(rowId);
-            writer.Write(text);
-        }
-    }
-
-    private void ReadScriptRows(BinaryReader reader)
-    {
-        var rowIds = reader.ReadInt32();
-        for (var i = 0; i < rowIds; i++)
-            _scriptRowLookup.Add(reader.ReadString(), reader.ReadUInt32());
-
-        var sheets = reader.ReadInt32();
-        for (var i = 0; i < sheets; i++)
-            _scriptSheetLookup.Add(reader.ReadString(), reader.ReadString());
-
-        var texts = reader.ReadInt32();
-        for (var i = 0; i < texts; i++)
-            _scriptRowTextLookup.Add((reader.ReadString(), reader.ReadUInt32()), reader.ReadString());
-    }
-
-    private static void WriteStringSet(BinaryWriter writer, HashSet<string> set)
-    {
-        writer.Write(set.Count);
-        foreach (var value in set)
-            writer.Write(value);
-    }
-
-    private static void ReadStringSet(BinaryReader reader, HashSet<string> set)
-    {
-        var count = reader.ReadInt32();
-        for (var i = 0; i < count; i++)
-            set.Add(reader.ReadString());
     }
 }
