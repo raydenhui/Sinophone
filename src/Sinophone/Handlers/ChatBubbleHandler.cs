@@ -602,20 +602,23 @@ public sealed class ChatBubbleHandler : IDisposable
             var nineGrid = NineGrid == 0 ? null : (AtkNineGridNode*)NineGrid;
             if (nineGrid is not null)
             {
-                // Width changes go to both sides, so the text stays in the middle and the tail
-                // the game placed under it stays centred. A shrink removes half from each side.
+                // A grow adds the extra width to both sides, so the text and tail stay centred.
+                // A shrink keeps the left edge: the text node is left-aligned in the bubble, and
+                // moving the left edge right would push the text out of the bubble.
                 if (nineGrid->AtkResNode.Width != width)
                 {
                     var change = (int)width - nineGrid->AtkResNode.Width;
-                    nineGrid->AtkResNode.X -= change / 2f;
+                    if (change > 0)
+                        nineGrid->AtkResNode.X -= change / 2f;
+
                     nineGrid->AtkResNode.Width = width;
                 }
 
-                // Height changes keep the bottom edge where the game put it, because the tail
-                // hangs under that edge. A grow moves the top up; a shrink moves it down.
-                if (nineGrid->AtkResNode.Height != height)
+                // Height only grows upward. The tail hangs under the bottom edge where the game
+                // put it, so shrinking from the top can cut the first line and detach the tail.
+                if (nineGrid->AtkResNode.Height < height)
                 {
-                    var change = (int)height - nineGrid->AtkResNode.Height;
+                    var change = height - nineGrid->AtkResNode.Height;
                     nineGrid->AtkResNode.Y -= change;
                     nineGrid->AtkResNode.Height = height;
                 }
