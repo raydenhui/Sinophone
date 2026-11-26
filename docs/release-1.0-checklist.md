@@ -30,7 +30,7 @@ script lines 97.0 % with every miss classified.
       inside them. The player reads the quest's premise here, before the journal exists.
       Verify: accept and complete one quest of each type (MSQ, side, leve), both variants.
 - [ ] **`TalkSubtitle` end to end.** The surface for voiced cutscene subtitles still uses the
-      overlay. Verify on a voiced cutscene, plus the font-mod case.
+      overlay. Verify on a voiced cutscene, plus the font-pack case.
 - [ ] **Duty story text.** `ContentTalk`, `InstanceContentTextData`, and battle talk in all three
       styles (plain, image, sound), including a queued line and a line that arrives while another
       is on screen.
@@ -51,8 +51,8 @@ script lines 97.0 % with every miss classified.
 
 ## 2. Display correctness
 
-- [ ] Every row in [native-mode-checklist.md](native-mode-checklist.md) ticked, with and without the
-      font mod.
+- [ ] Every row in [native-mode-checklist.md](native-mode-checklist.md) ticked, with a font pack,
+      with a mod, and with neither.
 - [ ] No line draws outside its box, wraps into a fragment, or shows a macro (`<Sheet(`,
       `<StringParameter(`, `<Unknown60>`).
 - [ ] Selection dialogs: a two-line Chinese prompt in a one-line dialog, a long option list, and an
@@ -71,7 +71,7 @@ script lines 97.0 % with every miss classified.
       appearance overrides.
 - [ ] Data: variant, fallback, conversion, auto-update, manual update, and a status readout.
 - [ ] Logs: one group per component, plus diagnostics; hidden groups cost nothing.
-- [ ] Fresh-install audit: what a new player sees with no font mod, and with one. The defaults are
+- [ ] Fresh-install audit: what a new player sees with no Chinese font, and with one. The defaults are
       part of the product, not an afterthought.
 - [ ] Config version and migrations documented; reset to defaults leaves a working install.
 
@@ -90,12 +90,12 @@ script lines 97.0 % with every miss classified.
 
 - [ ] [architecture.md](architecture.md), [translation-workflow.md](translation-workflow.md),
       [testing.md](testing.md), and `AGENTS.md` match the code.
-- [ ] The three readmes agree, including the font-mod wording.
+- [ ] The three readmes agree, including the font wording.
 - [ ] Manifest fields reviewed; the release notes list every pull request since the previous tag.
 - [ ] CI builds and tests a clean checkout; the release workflow verified on a tag.
 - [ ] Non-goals written down, so 1.0 can be reached:
       other game languages, runtime-built text beyond the measured classes, native menus and lists,
-      and replacing the game font without a mod.
+      and shipping font data.
 
 ## Non-goals for 1.0
 
@@ -106,4 +106,5 @@ Stated here so they do not creep back into the gates:
 - **Runtime-built text** beyond the classes the coverage tool measures (player name, blank gap,
   client labels). Text with no source row stays English by design.
 - **Native menus, lists, and shops.** Whole-UI replacement is not this plugin's goal.
-- **Replacing the game font.** Native surfaces still need the font mod.
+- **Replacing the game font.** The plugin can read a user's font pack, but it ships no font data,
+  so a user without a pack still needs a mod.

@@ -5,6 +5,7 @@ using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using InteropGenerator.Runtime;
 using Sinophone.Data;
+using Sinophone.Diagnostics;
 
 // Lumina also has a sheet called NpcYell; this is the game's rolling yell state.
 using GameNpcYell = FFXIVClientStructs.FFXIV.Client.Game.UI.NpcYell;
@@ -44,6 +45,7 @@ public sealed class BattleTalkHandler : IDisposable
     private readonly PluginLog _log;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
+    private readonly FailureRecorder? _failures;
 
     private readonly List<nint> _buffers = new(BuffersKept + 1);
 
@@ -85,13 +87,15 @@ public sealed class BattleTalkHandler : IDisposable
         IGameInteropProvider interop,
         IPluginLog log,
         Configuration configuration,
-        Func<TranslationStore?> getStore)
+        Func<TranslationStore?> getStore,
+        FailureRecorder? failures = null)
     {
         _addonLifecycle = addonLifecycle;
         _interop = interop;
         _log = new PluginLog(log, configuration, LogCategory.Dialogue);
         _configuration = configuration;
         _getStore = getStore;
+        _failures = failures;
 
         InstallHooks();
 
@@ -324,16 +328,33 @@ public sealed class BattleTalkHandler : IDisposable
         else if (englishName.Length == 0 && yell.Name.Length > 0)
             englishName = yell.Name;
 
-        var content = Resolve(store, _configuration, english, englishName, context, parameters);
+        var trace = _failures?.Begin("battle", nameof(BattleTalkHandler), english);
+        if (trace is not null)
+        {
+            trace.Input("name", englishName);
+            if (context.Row is { } row)
+            {
+                trace.Input("sheet", row.Sheet);
+                trace.Input("row", row.RowId.ToString());
+            }
+        }
+
+        var content = Resolve(store, _configuration, english, englishName, context, parameters, trace);
         if (content is null)
         {
+            trace?.Finish(FailureOutcome.Miss, "no-translation");
             _log.Debug("Battle talk: no translation for a line: {FirstLine}", TalkHandler.FirstLineOf(english));
             return false;
         }
 
         var styled = content.Value;
         if (styled.ChineseText.Length == 0)
+        {
+            trace?.Finish(FailureOutcome.Miss, "empty-translation");
             return false;
+        }
+
+        trace?.Finish(FailureOutcome.Hit);
 
         chineseText = Allocate(styled.ChineseText);
         if (styled.ChineseName.Length > 0)
@@ -400,7 +421,8 @@ public sealed class BattleTalkHandler : IDisposable
         string? englishText,
         string? englishName,
         DialogueContext context = default,
-        IReadOnlyList<int>? integerParameters = null)
+        IReadOnlyList<int>? integerParameters = null,
+        FailureTrace? trace = null)
     {
         if (!configuration.Enabled || !configuration.ShowInBattleTalk)
             return null;
@@ -424,14 +446,19 @@ public sealed class BattleTalkHandler : IDisposable
 
         // Battle talk has no overlay, so a miss is not a decision to hide: the game's own line
         // simply stays. Only a translated line is replaced.
-        if (!store.TryGetDialogue(englishText, in context, englishName, out var chineseText))
+        if (!store.TryGetDialogue(englishText, in context, englishName, out var chineseText, trace))
+        {
+            trace?.Step("battle.text", "miss");
             return null;
+        }
+
+        trace?.Step("battle.text", "hit");
 
         var chineseName = string.Empty;
         if (configuration.ShowSpeakerName && !string.IsNullOrWhiteSpace(englishName))
         {
             if (!hasLineAlias)
-                store.TryGetName(englishName, out chineseName);
+                store.TryGetName(englishName, out chineseName, trace);
             else
                 chineseName = aliasChinese;
         }

@@ -1,4 +1,5 @@
 using FFXIVClientStructs.FFXIV.Client.UI;
+using Sinophone.Diagnostics;
 
 namespace Sinophone.Handlers;
 
@@ -47,6 +48,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
     private readonly ItemNameWindow _window;
     private readonly NativeTextWriter _nativeWriter;
     private readonly PluginLog _log;
+    private readonly FailureRecorder? _failures;
     private readonly EventHandler<ulong> _onHoveredItemChanged;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
 
@@ -66,7 +68,8 @@ public sealed unsafe class ItemNameHandler : IDisposable
         Func<TranslationStore?> getStore,
         ItemNameWindow window,
         NativeTextWriter nativeWriter,
-        IPluginLog log)
+        IPluginLog log,
+        FailureRecorder? failures = null)
     {
         _gameGui = gameGui;
         _dataManager = dataManager;
@@ -75,6 +78,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
         _getStore = getStore;
         _window = window;
         _nativeWriter = nativeWriter;
+        _failures = failures;
         _log = new PluginLog(log, configuration, LogCategory.ItemNames);
         _onHoveredItemChanged = OnHoveredItemChanged;
         _onAddonEvent = OnAddonEvent;
@@ -170,16 +174,26 @@ public sealed unsafe class ItemNameHandler : IDisposable
 
         var itemId = GetBaseItemId(hoveredItem);
         var englishName = GetEnglishName(itemId);
-        var content = Resolve(_getStore(), itemId, englishName);
+        var trace = _failures?.Begin(
+            "item",
+            nameof(ItemNameHandler),
+            string.IsNullOrEmpty(englishName) ? $"item {itemId}" : englishName);
+        trace?.Input("itemId", itemId.ToString());
+
+        var content = Resolve(_getStore(), itemId, englishName, trace);
 
         if (content is null)
         {
+            trace?.Finish(FailureOutcome.Miss, "no-translation");
+
             if (itemId != 0 && !string.IsNullOrEmpty(englishName))
                 _log.Debug("No Chinese name for item {ItemId} ({Name}).", itemId, englishName);
 
             HideAll();
             return;
         }
+
+        trace?.Finish(FailureOutcome.Hit);
 
         if (_configuration.ItemNameNativeMode && TryWriteTooltip(content.Value))
         {
@@ -393,22 +407,41 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// built from an artifact that does not carry this row, and it supplies the
     /// English name for the bracket.
     /// </remarks>
-    internal static ItemNameContent? Resolve(TranslationStore? store, uint itemId, string? englishName)
+    internal static ItemNameContent? Resolve(
+        TranslationStore? store,
+        uint itemId,
+        string? englishName,
+        FailureTrace? trace = null)
     {
         if (store is null || itemId == 0)
+        {
+            trace?.Step("item", "no-store-or-id");
             return null;
+        }
 
         var shownEnglish = string.IsNullOrWhiteSpace(englishName) ? string.Empty : englishName;
 
-        if (store.TryGetNameById("Item", itemId, out var chineseName))
+        if (store.TryGetNameById("Item", itemId, out var chineseName, trace))
+        {
+            trace?.Step("item.id", "hit");
             return new ItemNameContent(chineseName, shownEnglish);
+        }
+
+        trace?.Step("item.id", "miss");
 
         if (shownEnglish.Length == 0)
+        {
+            trace?.Step("item", "no-name");
             return null;
+        }
 
-        if (!store.TryGetName(shownEnglish, out chineseName))
+        if (!store.TryGetName(shownEnglish, out chineseName, trace))
+        {
+            trace?.Step("item.name", "miss");
             return null;
+        }
 
+        trace?.Step("item.name", "hit");
         return new ItemNameContent(chineseName, shownEnglish);
     }
 

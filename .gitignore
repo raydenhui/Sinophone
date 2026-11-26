@@ -22,3 +22,6 @@ TestResults/
 ## Local tooling
 *.log
 *.tmp
+
+## Failure cases a dev build can write inside the checkout
+.dev/

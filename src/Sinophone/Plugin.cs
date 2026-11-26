@@ -1,3 +1,5 @@
+using Sinophone.Diagnostics;
+
 namespace Sinophone;
 
 /// <summary>
@@ -23,6 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] public static ITextureReadbackProvider TextureReadback { get; private set; } = null!;
     [PluginService] public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
+    [PluginService] public static ISigScanner SigScanner { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
@@ -40,7 +43,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BattleTalkHandler _battleTalkHandler;
     private readonly ChatLogRestorer _chatLogRestorer;
     private readonly ItemNameHandler _itemNameHandler;
+    private readonly FontReplacementService _fontReplacement;
     private readonly TranslationDataUpdater _dataUpdater;
+    private readonly FailureRecorder? _failures;
 #if SINOPHONE_TESTING
     private readonly NativeTextProbe _nativeProbe;
     private readonly TalkContextProbe _talkContextProbe;
@@ -90,6 +95,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool _lastItemNameShowEnglish;
     private bool _lastNativeTextMode;
     private bool _lastSharesTranslation;
+    private bool _lastBuiltInFontEnabled;
+    private string _lastBuiltInFontPackPath = string.Empty;
     private bool _lastShowInChatBubbles;
     private bool _lastShowInSelectionDialogs;
     private bool _lastSelectionYesNo;
@@ -106,6 +113,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         _configuration.CustomFontPath ??= string.Empty;
+        _configuration.BuiltInFontPackPath ??= string.Empty;
         _log = new PluginLog(Log, _configuration, LogCategory.Plugin);
 
         if (PluginInterface.IsDev && _configuration.Version < 3)
@@ -144,6 +152,8 @@ public sealed class Plugin : IDalamudPlugin
         _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
         _lastSharesTranslation = _configuration.NativeTextSharesTranslation;
+        _lastBuiltInFontEnabled = _configuration.BuiltInFontEnabled;
+        _lastBuiltInFontPackPath = _configuration.BuiltInFontPackPath ?? string.Empty;
         _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
@@ -159,11 +169,19 @@ public sealed class Plugin : IDalamudPlugin
             PluginInterface.GetPluginConfigDirectory(),
             Log);
 
+        _failures = CreateFailureRecorder();
+        _fontReplacement = new FontReplacementService(
+            _configuration,
+            PluginInterface,
+            GameInteropProvider,
+            SigScanner,
+            Log);
+
         _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _log);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, _configuration, Log);
         _chatLogRestorer = new ChatLogRestorer(ChatGui, _configuration, Log);
-        _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log);
+        _namePlateNameWriter = new NamePlateNameWriter(NamePlateGui, _configuration, () => _store, Log, _failures);
         _itemNameWindow = new ItemNameWindow(_configuration, _fontManager);
 #if SINOPHONE_TESTING
         _nativeProbe = new NativeTextProbe(AddonLifecycle, GameGui, _configuration, Log);
@@ -191,6 +209,7 @@ public sealed class Plugin : IDalamudPlugin
             _dataUpdater,
             BuildDataSourceText,
             BuildAboutText,
+            _fontReplacement,
             _nativeProbe,
             _talkContextProbe,
             _harnessHost,
@@ -203,7 +222,8 @@ public sealed class Plugin : IDalamudPlugin
             BuildStatusText,
             _dataUpdater,
             BuildDataSourceText,
-            BuildAboutText);
+            BuildAboutText,
+            _fontReplacement);
 #endif
 
         _windowSystem.AddWindow(_overlay);
@@ -221,7 +241,8 @@ public sealed class Plugin : IDalamudPlugin
             () => _store,
             _overlay,
             _nativeTextWriter,
-            _chatLogRestorer);
+            _chatLogRestorer,
+            _failures);
         _selectionDialogHandler = new SelectionDialogHandler(
             AddonLifecycle,
             GameGui,
@@ -229,7 +250,8 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _nativeTextWriter,
-            SeStringEvaluator);
+            SeStringEvaluator,
+            _failures);
         _chatBubbleHandler = new ChatBubbleHandler(
             AddonLifecycle,
             GameInteropProvider,
@@ -237,13 +259,15 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _nativeTextWriter,
-            _chatLogRestorer);
+            _chatLogRestorer,
+            _failures);
         _battleTalkHandler = new BattleTalkHandler(
             AddonLifecycle,
             GameInteropProvider,
             Log,
             _configuration,
-            () => _store);
+            () => _store,
+            _failures);
         _itemNameHandler = new ItemNameHandler(
             GameGui,
             DataManager,
@@ -252,7 +276,14 @@ public sealed class Plugin : IDalamudPlugin
             () => _store,
             _itemNameWindow,
             _nativeTextWriter,
-            Log);
+            Log,
+            _failures);
+
+        // The font pack is game-wide, so it is applied as soon as the setting is on. Disabling
+        // the plugin takes it off with the other game changes.
+        _fontReplacement.Apply(
+            _configuration.Enabled && _configuration.BuiltInFontEnabled,
+            _configuration.BuiltInFontPackPath);
 
         // Parsing the artifacts is the slow half and touches no game state, so it
         // runs on a worker task. OnTick finishes the load on the game thread.
@@ -609,6 +640,49 @@ public sealed class Plugin : IDalamudPlugin
             _dataUpdater.SourceIdentity(ChineseVariant.Simplified),
             _dataUpdater.SourceIdentity(ChineseVariant.Traditional));
 
+    /// <summary>
+    /// Turns the failure recorder on for a dev plugin. Every other build gets null,
+    /// so the lookup paths only pay a null check.
+    /// </summary>
+    private FailureRecorder? CreateFailureRecorder()
+    {
+#if SINOPHONE_TESTING
+        if (!PluginInterface.IsDev)
+            return null;
+
+        var level = FailureLevels.Parse(Environment.GetEnvironmentVariable("SINOPHONE_FAILURE_LEVEL"));
+        var root = Environment.GetEnvironmentVariable("SINOPHONE_FAILURE_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+            root = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "failures");
+
+        var assemblyVersion = PluginInterface.Manifest.AssemblyVersion;
+        var build = new FailureBuildInfo(
+            assemblyVersion.ToString(assemblyVersion.Build >= 0 ? 3 : 2),
+            _configuration.Variant.ToString(),
+            GetGameDataVersion(),
+            DataManager.Language.ToString(),
+            TranslationStore.IndexFormatVersion);
+
+        var recorder = FailureRecorder.TryCreate(
+            root,
+            build,
+            level,
+            path =>
+            {
+                if (_configuration.LogFailureFiles)
+                    _log.Info("Failure case written to {Path}.", path);
+            },
+            warning => _log.Warning("{Warning}", warning));
+
+        if (recorder is not null && _configuration.LogFailureFiles)
+            _log.Info("Failure cases are written to {Path}.", recorder.SessionDirectory);
+
+        return recorder;
+#else
+        return null;
+#endif
+    }
+
     private string GetGameDataVersion()
     {
         try
@@ -877,6 +951,12 @@ public sealed class Plugin : IDalamudPlugin
                                        || _lastSelectionOk != _configuration.SelectionOk
                                        || _lastSelectionCutScene != _configuration.SelectionCutScene;
         var pluginDisabled = _lastEnabled && !_configuration.Enabled;
+        var pluginPowerChanged = _lastEnabled != _configuration.Enabled;
+        var fontPackChanged = _lastBuiltInFontEnabled != _configuration.BuiltInFontEnabled
+                              || !string.Equals(
+                                  _lastBuiltInFontPackPath,
+                                  _configuration.BuiltInFontPackPath ?? string.Empty,
+                                  StringComparison.OrdinalIgnoreCase);
 
         _lastVariant = _configuration.Variant;
         _lastConversion = _configuration.Conversion;
@@ -890,6 +970,8 @@ public sealed class Plugin : IDalamudPlugin
         _lastItemNameShowEnglish = _configuration.ShowOriginal;
         _lastNativeTextMode = _configuration.NativeTextMode;
         _lastSharesTranslation = _configuration.NativeTextSharesTranslation;
+        _lastBuiltInFontEnabled = _configuration.BuiltInFontEnabled;
+        _lastBuiltInFontPackPath = _configuration.BuiltInFontPackPath ?? string.Empty;
         _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
         _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
         _lastSelectionYesNo = _configuration.SelectionYesNo;
@@ -938,6 +1020,14 @@ public sealed class Plugin : IDalamudPlugin
             // next dialog event when the setting is on.
             _selectionDialogHandler.RestoreAll();
             _log.Debug("Selection dialog settings changed; restored the game's text.");
+        }
+
+        if (fontPackChanged || pluginPowerChanged)
+        {
+            // The game font is shared by every window, so it follows the plugin's own switch.
+            _fontReplacement.Apply(
+                _configuration.Enabled && _configuration.BuiltInFontEnabled,
+                _configuration.BuiltInFontPackPath);
         }
 
         if (needsStoreReload)
@@ -1001,6 +1091,8 @@ public sealed class Plugin : IDalamudPlugin
         _talkHandler.Dispose();
         _namePlateNameWriter.Disable();
         _itemNameHandler.Dispose();
+        _failures?.Dispose();
+        _fontReplacement.Dispose();
         _windowSystem.RemoveAllWindows();
         _fontManager.Dispose();
     }

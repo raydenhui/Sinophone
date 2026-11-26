@@ -25,14 +25,14 @@ Support for the other three game languages — **Japanese, German, and French** 
 
 ## Compatibility
 
-Sinophone only changes what is drawn on screen. It does not change the game's data or the text
-other plugins read, so other plugins still see the English text. It works alongside them.
+Sinophone only changes what is drawn on screen. It does not change the game's files on disk or the
+text other plugins read, so other plugins still see the English text. It works alongside them.
 
 ## Requirements
 
 - Dalamud API 15 (`Dalamud.NET.SDK/15.0.0`)
 - .NET 10 (`net10.0-windows7.0`)
-- Optional: a font mod, only for the native modes (see [Font setup](#font-setup))
+- Optional: a Chinese font for the native modes (see [Font setup](#font-setup))
 
 ## Install
 
@@ -54,7 +54,20 @@ own windows and need the game to draw Chinese itself.
 
 The game's font files have no Chinese glyphs, so replace them with a font that has them. Pick one
 from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts): the repository has several
-fonts and each folder holds one as a `.ttmp2` modpack. Then install it with either tool.
+fonts and each folder holds one as a `.ttmp2` modpack. Give the pack to the plugin, or install it
+with one of the two mod tools.
+
+### Sinophone
+
+The plugin can use the pack itself, without a mod manager.
+
+1. Open `/sinophone` and go to **Components → Talk**.
+2. Turn on **Replace the game font with a font pack**, and set the path to the `.ttmp2` file or to
+   a folder that holds the font files.
+3. Click **Reload the game font**.
+
+The plugin reads the pack from your disk. It ships no font data and never changes the pack. If
+Penumbra already replaces the game font, the plugin leaves the font to Penumbra.
 
 ### TexTools
 
@@ -67,10 +80,10 @@ fonts and each folder holds one as a `.ttmp2` modpack. Then install it with eith
 2. Import the same `.ttmp2` and enable it. To apply it without restarting, open Penumbra's
    **Settings** tab, go to **Advanced**, and click **Reload Fonts**.
 
-### After either route
+### Either way
 
-Native modes are off by default. Turn on the ones you want in `/sinophone`. Without a font mod,
-every native-mode line shows the missing-glyph character instead of Chinese.
+Native modes are off by default. Turn on the ones you want in `/sinophone`. Without a font pack or
+a mod, every native-mode line shows the missing-glyph character instead of Chinese.
 
 ## Status
 
@@ -112,4 +125,4 @@ The Chinese text itself comes from the game's own Simplified and Traditional loc
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

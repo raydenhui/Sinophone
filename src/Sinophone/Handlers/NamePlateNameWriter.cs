@@ -1,5 +1,6 @@
 using Dalamud.Game.Gui.NamePlate;
 using Dalamud.Game.Text.SeStringHandling;
+using Sinophone.Diagnostics;
 
 namespace Sinophone.Handlers;
 
@@ -28,6 +29,7 @@ public sealed class NamePlateNameWriter
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly PluginLog _log;
+    private readonly FailureRecorder? _failures;
     private readonly INamePlateGui.OnPlateUpdateDelegate _onPlateUpdate;
 
     private bool _enabled;
@@ -36,11 +38,13 @@ public sealed class NamePlateNameWriter
         INamePlateGui namePlateGui,
         Configuration configuration,
         Func<TranslationStore?> getStore,
-        IPluginLog log)
+        IPluginLog log,
+        FailureRecorder? failures = null)
     {
         _namePlateGui = namePlateGui;
         _configuration = configuration;
         _getStore = getStore;
+        _failures = failures;
         _log = new PluginLog(log, configuration, LogCategory.NamePlates);
         _onPlateUpdate = OnPlateUpdate;
     }
@@ -132,8 +136,17 @@ public sealed class NamePlateNameWriter
     private string? Translate(string englishName)
     {
         var store = _getStore();
-        return store is not null && store.TryGetName(englishName, out var chineseName)
-            ? chineseName
-            : null;
+        if (store is null)
+            return null;
+
+        var trace = _failures?.Begin("nameplate", nameof(NamePlateNameWriter), englishName);
+        if (!store.TryGetName(englishName, out var chineseName, trace))
+        {
+            trace?.Finish(FailureOutcome.Miss, "no-translation");
+            return null;
+        }
+
+        trace?.Finish(FailureOutcome.Hit);
+        return chineseName;
     }
 }

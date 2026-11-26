@@ -67,3 +67,29 @@ You may add Your own copyright statement to Your modifications and may provide a
 
 END OF TERMS AND CONDITIONS
 ```
+
+## VFXEditor (file redirection)
+
+`src/Sinophone/Fonts/FontReplacementService.cs` follows the file redirection in
+[Dalamud-VFXEditor](https://github.com/0ceal0t/Dalamud-VFXEditor) at commit `8be61a5`
+(`VFXEditor/Interop/ResourceLoader.Replace.cs`). The two game signatures, the file descriptor
+layout, and the stack file interface come from it.
+
+VFXEditor is licensed under the MIT License. The copyright and permission notice follows.
+
+```
+MIT License
+
+Copyright 2021 Michael Kaminsky
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## Font files
+
+Sinophone ships no font files. A font pack is read from the path the user sets and stays the
+user's file; the pack's own font license applies to the user's copy.

@@ -85,6 +85,19 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public bool NativeTextSharesTranslation { get; set; }
 
+    /// <summary>
+    /// Replace the game's own font files with a pack the user supplies, so native mode can draw
+    /// Chinese without Penumbra or TexTools. The pack is read from the user's disk; the plugin
+    /// ships no font data. Off by default.
+    /// </summary>
+    public bool BuiltInFontEnabled { get; set; }
+
+    /// <summary>
+    /// A <c>.ttmp2</c> font mod or a folder that holds the game's font files. Empty while the
+    /// setting is off.
+    /// </summary>
+    public string BuiltInFontPackPath { get; set; } = string.Empty;
+
     public bool ShowSpeakerName { get; set; } = true;
 
     /// <summary>Color of the speaker name line in the dialogue overlay.</summary>
@@ -225,6 +238,12 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>The debug probes. Debug builds only.</summary>
     public bool LogDiagnostics { get; set; } = true;
+
+    /// <summary>
+    /// Log the path of each failure case file. Development builds only; the case
+    /// files are written either way.
+    /// </summary>
+    public bool LogFailureFiles { get; set; }
 
     public float FontSize { get; set; } = 20f;
 

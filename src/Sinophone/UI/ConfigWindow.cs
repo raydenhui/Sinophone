@@ -22,6 +22,7 @@ public sealed class ConfigWindow : Window
     private readonly TranslationDataUpdater _dataUpdater;
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
+    private readonly FontReplacementService _fontReplacement;
 #if SINOPHONE_TESTING
     // Set by the testing constructor, which chains into the main one.
     private readonly NativeTextProbe _nativeProbe = null!;
@@ -45,11 +46,13 @@ public sealed class ConfigWindow : Window
         TranslationDataUpdater dataUpdater,
         Func<string> dataSourceText,
         Func<string> aboutText,
+        FontReplacementService fontReplacement,
         NativeTextProbe nativeProbe,
         TalkContextProbe talkContextProbe,
         HarnessHost? harnessHost,
         IObjectTable objectTable)
-        : this(configuration, applySettings, showPreview, statusText, dataUpdater, dataSourceText, aboutText)
+        : this(configuration, applySettings, showPreview, statusText, dataUpdater, dataSourceText, aboutText,
+            fontReplacement)
     {
         _nativeProbe = nativeProbe;
         _talkContextProbe = talkContextProbe;
@@ -65,7 +68,8 @@ public sealed class ConfigWindow : Window
         Func<string> statusText,
         TranslationDataUpdater dataUpdater,
         Func<string> dataSourceText,
-        Func<string> aboutText)
+        Func<string> aboutText,
+        FontReplacementService fontReplacement)
         : base("Sinophone###SinophoneConfig", ImGuiWindowFlags.NoCollapse)
     {
         _configuration = configuration;
@@ -75,6 +79,7 @@ public sealed class ConfigWindow : Window
         _dataUpdater = dataUpdater;
         _dataSourceText = dataSourceText;
         _aboutText = aboutText;
+        _fontReplacement = fontReplacement;
 
         Size = new Vector2(540f, 680f);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -309,6 +314,30 @@ public sealed class ConfigWindow : Window
                 Util.OpenLink(FontSetupUrl);
 
             ImGui.TextDisabled(FontSetupUrl);
+        }
+
+        Section("Chinese font");
+        Checkbox("Replace the game font with a font pack", _configuration.BuiltInFontEnabled,
+            v => _configuration.BuiltInFontEnabled = v);
+
+        if (_configuration.BuiltInFontEnabled)
+        {
+            ImGui.TextDisabled(
+                "A .ttmp2 font mod or a folder that holds the game's font files. The plugin reads " +
+                "the pack from your disk and ships no font data.");
+            var packPath = _configuration.BuiltInFontPackPath ?? string.Empty;
+            ImGui.SetNextItemWidth(-1f);
+            if (ImGui.InputText("##builtInFontPackPath", ref packPath, 1024))
+                _configuration.BuiltInFontPackPath = packPath;
+
+            if (ImGui.IsItemDeactivatedAfterEdit())
+                _applySettings();
+
+            if (ImGui.Button("Reload the game font"))
+                _fontReplacement.Reapply();
+
+            ImGui.SameLine();
+            ImGui.TextWrapped(_fontReplacement.Status);
         }
 
         Section("Display");
@@ -720,6 +749,12 @@ public sealed class ConfigWindow : Window
             "Test code. These tabs write into the game's own windows to check the display. " +
             "Reload the plugin to undo everything.");
         ImGui.PopStyleColor();
+
+        ImGui.Spacing();
+        Checkbox(
+            "Log the path of each failure case file",
+            _configuration.LogFailureFiles,
+            value => _configuration.LogFailureFiles = value);
 
         if (_harnessHost is null)
         {
@@ -1360,6 +1395,8 @@ public sealed class ConfigWindow : Window
         _configuration.OffsetFromBottom = defaults.OffsetFromBottom;
         _configuration.AnchorOverlayBottom = defaults.AnchorOverlayBottom;
         _configuration.CustomFontPath = defaults.CustomFontPath;
+        _configuration.BuiltInFontEnabled = defaults.BuiltInFontEnabled;
+        _configuration.BuiltInFontPackPath = defaults.BuiltInFontPackPath;
         _configuration.CheckForDataUpdates = defaults.CheckForDataUpdates;
         _applySettings();
     }

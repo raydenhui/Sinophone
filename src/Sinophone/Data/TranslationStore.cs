@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Sinophone.Diagnostics;
 
 namespace Sinophone.Data;
 
@@ -246,38 +247,63 @@ public sealed partial class TranslationStore
         string? englishText,
         in DialogueContext context,
         string? speakerName,
-        out string chineseText)
+        out string chineseText,
+        FailureTrace? trace = null)
     {
-        if (TryGetDialogueById(englishText, context, out chineseText))
+        trace?.Step("lookup", "enter");
+
+        if (TryGetDialogueById(englishText, context, out chineseText, trace))
             return true;
 
         chineseText = string.Empty;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0)
+        {
+            trace?.Step("text", "empty");
             return false;
+        }
 
-        if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText))
+        trace?.Input("normalized", key);
+
+        if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText, trace))
             return true;
 
         if (_textLookup.TryGetValue(key, out var stored))
         {
+            trace?.Step("text.exact", "hit");
             chineseText = ResolveDisplay(stored);
             return true;
         }
+
+        trace?.Step("text.exact", "miss");
 
         // Second chances, only after a miss so the common line stays one hit. The
         // game fills in the player's name where the dumps have a placeholder, and
         // script lines from the English dump hold one gender's wording.
         if (TryLookupPlayerNamePlaceholder(key, in context, speakerName, out chineseText))
+        {
+            trace?.Step("text.playerName", "hit", approximate: true);
             return true;
+        }
+
+        trace?.Step("text.playerName", "miss");
 
         if (TryLookupScriptTemplate(key, out chineseText))
+        {
+            trace?.Step("text.scriptTemplate", "hit", approximate: true);
             return true;
+        }
+
+        trace?.Step("text.scriptTemplate", "miss");
 
         if (!TryLookupBranchNeutral(key, out var match))
+        {
+            trace?.Step("text.branchNeutral", "miss");
             return false;
+        }
 
+        trace?.Step("text.branchNeutral", "hit", approximate: true);
         chineseText = ResolveDisplay(match);
         return true;
     }
@@ -308,12 +334,16 @@ public sealed partial class TranslationStore
         string key,
         string? speakerName,
         in DialogueContext context,
-        out string chineseText)
+        out string chineseText,
+        FailureTrace? trace = null)
     {
         chineseText = string.Empty;
 
         if (!_ambiguousScriptKeys.TryGetValue(key, out var candidates))
+        {
+            trace?.Step("text.ambiguous", "none");
             return false;
+        }
 
         var narrowed = candidates;
 
@@ -346,6 +376,7 @@ public sealed partial class TranslationStore
 
         if (narrowed.Count == 1)
         {
+            trace?.Step("text.ambiguous", "hit", "one candidate");
             chineseText = ResolveDisplay(narrowed[0].Display);
             _log.Debug(
                 "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}: {Keys}.",
@@ -359,6 +390,7 @@ public sealed partial class TranslationStore
             var match = OnlyMatch(narrowed, candidate => HoldsCutscene(candidate, cutsceneId));
             if (match is not null)
             {
+                trace?.Step("text.ambiguous", "hit", $"cutscene {cutsceneId}");
                 chineseText = ResolveDisplay(match.Value.Display);
                 _log.Debug(
                     "Dialogue matched the cutscene {CutsceneId} line out of {Count} script lines " +
@@ -370,6 +402,7 @@ public sealed partial class TranslationStore
 
         if (MacroNormalizer.IsOnlySoundMarkers(key))
         {
+            trace?.Step("text.ambiguous", "hit", "sound only");
             chineseText = ResolveDisplay(narrowed[0].Display);
             _log.Debug(
                 "Dialogue picked one of {Count} lines that hold only a sound ({Key}).",
@@ -382,6 +415,7 @@ public sealed partial class TranslationStore
             var match = OnlyMatch(narrowed, candidate => HoldsUnlockLine(candidate) != standUnlocked);
             if (match is not null)
             {
+                trace?.Step("text.ambiguous", "hit", $"chocobo {(standUnlocked ? "unlocked" : "locked")}");
                 chineseText = ResolveDisplay(match.Value.Display);
                 _log.Debug(
                     "Dialogue picked the {State} chocobo taxi greeting out of {Count} script lines " +
@@ -395,6 +429,7 @@ public sealed partial class TranslationStore
         // differs only in a closing mark. Saying either is right, so answer instead of refusing.
         if (AllSayTheSame(narrowed))
         {
+            trace?.Step("text.ambiguous", "hit", "same text");
             chineseText = ResolveDisplay(narrowed[0].Display);
             _log.Debug(
                 "Dialogue picked one of {Count} script lines that share a key and differ only in " +
@@ -408,6 +443,7 @@ public sealed partial class TranslationStore
         // from this scene, so use the first (default) branch instead of leaving the line English.
         if (narrowed.Count > 1 && AllLinesInOneCutscene(narrowed, cutsceneId))
         {
+            trace?.Step("text.ambiguous", "hit", "branch line");
             chineseText = ResolveDisplay(narrowed[0].Display);
             _log.Debug(
                 "Dialogue picked the first of {Count} branch lines in cutscene {CutsceneId}: {Keys}.",
@@ -427,6 +463,14 @@ public sealed partial class TranslationStore
                 speakerName ?? string.Empty,
                 cutsceneId,
                 string.Join(", ", candidates.Select(Describe)));
+
+            if (trace is not null)
+            {
+                trace.Step(
+                    "text.ambiguous",
+                    "no-choice",
+                    string.Join("; ", candidates.Take(6).Select(Describe)));
+            }
         }
 
         return false;
@@ -961,19 +1005,30 @@ public sealed partial class TranslationStore
         return suffix >= 12;
     }
 
-    private bool TryGetDialogueById(string? englishText, in DialogueContext context, out string chineseText)
+    private bool TryGetDialogueById(
+        string? englishText,
+        in DialogueContext context,
+        out string chineseText,
+        FailureTrace? trace = null)
     {
         chineseText = string.Empty;
 
         // A cutscene subtitle or another script line the game names by sheet row.
-        if (context.ScriptRow is { } scriptRow
-            && _scriptRowTextLookup.TryGetValue((scriptRow.Sheet, scriptRow.RowId), out var rowText))
+        if (context.ScriptRow is { } scriptRow)
         {
-            chineseText = ResolveDisplay(rowText);
-            _log.Debug(
-                "Dialogue matched by {Sheet} row {RowId}.",
-                scriptRow.Sheet, scriptRow.RowId);
-            return true;
+            if (_scriptRowTextLookup.TryGetValue((scriptRow.Sheet, scriptRow.RowId), out var rowText))
+            {
+                if (trace is not null)
+                    trace.Step("id.scriptRow", "hit", $"{scriptRow.Sheet} row {scriptRow.RowId}");
+                chineseText = ResolveDisplay(rowText);
+                _log.Debug(
+                    "Dialogue matched by {Sheet} row {RowId}.",
+                    scriptRow.Sheet, scriptRow.RowId);
+                return true;
+            }
+
+            if (trace is not null)
+                trace.Step("id.scriptRow", "miss", $"{scriptRow.Sheet} row {scriptRow.RowId}");
         }
 
         if (context.ScriptKeys is not null)
@@ -986,7 +1041,10 @@ public sealed partial class TranslationStore
 
                 var trimmed = scriptKey.Trim();
                 if (!_scriptKeyLookup.TryGetValue(trimmed, out var script))
+                {
+                    trace?.Step("id.scriptKey", "not-indexed", trimmed);
                     continue;
+                }
 
                 // The live Lua text map can reuse a key for another line. The live row
                 // id is the same id the dump wrote for the line, so a match needs no
@@ -1000,9 +1058,19 @@ public sealed partial class TranslationStore
                         _log.Debug(
                             "Dialogue ignored script key {ScriptKey}: the live row {LiveRow} is not {DumpRow}.",
                             trimmed, liveRowId, artifactRowId);
+                        if (trace is not null)
+                        {
+                            trace.Step(
+                                "id.scriptKey",
+                                "row-mismatch",
+                                $"{trimmed}: live row {liveRowId} vs dump row {artifactRowId}");
+                        }
+
                         continue;
                     }
 
+                    if (trace is not null)
+                        trace.Step("id.scriptKey", "hit", $"{trimmed} row {liveRowId}");
                     chineseText = ResolveDisplay(script);
                     _log.Debug(
                         "Dialogue matched by script key {ScriptKey} and row {RowId}.",
@@ -1028,10 +1096,19 @@ public sealed partial class TranslationStore
                         _log.Debug(
                             "Dialogue ignored script key {ScriptKey}: it names {Paired}, not {Live}.",
                             trimmed, pairedKey, liveKey);
+                        if (trace is not null)
+                        {
+                            trace.Step(
+                                "id.scriptKey",
+                                "rejected",
+                                $"{trimmed}: live \"{liveForCompare}\" vs dump \"{pairedKey}\"");
+                        }
+
                         continue;
                     }
                 }
 
+                trace?.Step("id.scriptKey", "hit", trimmed);
                 chineseText = ResolveDisplay(script);
                 _log.Debug("Dialogue matched by script key {ScriptKey}.", scriptKey);
                 return true;
@@ -1039,24 +1116,38 @@ public sealed partial class TranslationStore
         }
 
         if (context.Row is not { } row)
+        {
+            trace?.Step("id.sheetRow", "none");
             return false;
+        }
 
         if (!_rowLookup.TryGetValue((row.Sheet, row.RowId, row.Field), out var slots))
+        {
+            if (trace is not null)
+                trace.Step("id.sheetRow", "missing", $"{row.Sheet} row {row.RowId} {row.Field}");
             return false;
+        }
 
         if (row.Slot >= 0)
         {
             if (row.Slot >= slots.Length || string.IsNullOrEmpty(slots[row.Slot]))
+            {
+                if (trace is not null)
+                    trace.Step("id.sheetRow", "empty-slot", $"{row.Sheet} row {row.RowId} slot {row.Slot}");
                 return false;
+            }
 
+            trace?.Step("id.sheetRow", "hit", $"{row.Sheet} row {row.RowId} slot {row.Slot}");
             chineseText = ResolveDisplay(slots[row.Slot]);
             _log.Debug("Dialogue matched by {Sheet} row {RowId} slot {Slot}.",
                 row.Sheet, row.RowId, row.Slot);
             return true;
         }
 
-        if (TrySelectRowSlot(row, englishText, slots, out var selected, out var compared))
+        if (TrySelectRowSlot(row, englishText, slots, out var selected, out var compared, trace))
         {
+            if (trace is not null)
+                trace.Step("id.sheetRow", "hit", $"{row.Sheet} row {row.RowId} slot {selected}");
             chineseText = ResolveDisplay(slots[selected]);
             _log.Debug("Dialogue matched by {Sheet} row {RowId} after selecting slot {Slot}.",
                 row.Sheet, row.RowId, selected);
@@ -1070,6 +1161,14 @@ public sealed partial class TranslationStore
         {
             _log.Debug("Dialogue did not match any slot of {Sheet} row {RowId}; using the text fallback.",
                 row.Sheet, row.RowId);
+            if (trace is not null)
+            {
+                trace.Step(
+                    "id.sheetRow",
+                    "slot-mismatch",
+                    $"{row.Sheet} row {row.RowId} {row.Field}");
+            }
+
             return false;
         }
 
@@ -1081,14 +1180,23 @@ public sealed partial class TranslationStore
                 continue;
 
             if (onlySlot >= 0)
+            {
+                if (trace is not null)
+                    trace.Step("id.sheetRow", "several-slots", $"{row.Sheet} row {row.RowId}");
                 return false;
+            }
 
             onlySlot = i;
         }
 
         if (onlySlot < 0)
+        {
+            if (trace is not null)
+                trace.Step("id.sheetRow", "no-slot", $"{row.Sheet} row {row.RowId}");
             return false;
+        }
 
+        trace?.Step("id.sheetRow", "only-slot", $"{row.Sheet} row {row.RowId} slot {onlySlot}", approximate: true);
         chineseText = ResolveDisplay(slots[onlySlot]);
         _log.Debug("Dialogue matched by {Sheet} row {RowId}, the only translated slot.",
             row.Sheet, row.RowId);
@@ -1108,7 +1216,8 @@ public sealed partial class TranslationStore
         string? englishText,
         string[] slots,
         out int selected,
-        out bool compared)
+        out bool compared,
+        FailureTrace? trace = null)
     {
         selected = -1;
         compared = false;
@@ -1117,12 +1226,16 @@ public sealed partial class TranslationStore
             || !_descriptorByKey.TryGetValue((row.Sheet, row.Field), out var descriptor)
             || !descriptor.TryExtract(row.RowId, out var englishSlots))
         {
+            trace?.Step("id.sheetRow.compare", "no-live-text");
             return false;
         }
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0)
+        {
+            trace?.Step("id.sheetRow.compare", "empty-key");
             return false;
+        }
 
         // The sheet writes "Player" where the game inserts the character's name, so the live line
         // never equals the sheet's wording. Put the placeholder back before comparing, or every row
@@ -1193,14 +1306,24 @@ public sealed partial class TranslationStore
     /// Looks up a short Addon-sheet label such as "Yes.", "No.", or "Skip cutscene?".
     /// The separate lookup keeps a same-text NpcYell or script row from winning.
     /// </summary>
-    public bool TryGetAddonLabel(string? englishText, out string chineseText)
+    public bool TryGetAddonLabel(string? englishText, out string chineseText, FailureTrace? trace = null)
     {
         chineseText = string.Empty;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
-        if (key.Length == 0 || !_addonLookup.TryGetValue(key, out var stored))
+        if (key.Length == 0)
+        {
+            trace?.Step("addon.label", "empty");
             return false;
+        }
 
+        if (!_addonLookup.TryGetValue(key, out var stored))
+        {
+            trace?.Step("addon.label", "miss");
+            return false;
+        }
+
+        trace?.Step("addon.label", "hit");
         chineseText = ResolveDisplay(stored);
         return true;
     }
@@ -1262,7 +1385,8 @@ public sealed partial class TranslationStore
         out string chineseText,
         out string[] captures,
         out int[]? parameterIndices,
-        out string? macroTemplate)
+        out string? macroTemplate,
+        FailureTrace? trace = null)
     {
         chineseText = string.Empty;
         captures = [];
@@ -1270,20 +1394,31 @@ public sealed partial class TranslationStore
         macroTemplate = null;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
-        if (key.Length == 0 || _addonTemplates.Count == 0)
+        if (key.Length == 0)
+        {
+            trace?.Step("addon.template", "empty");
             return false;
+        }
+
+        if (_addonTemplates.Count == 0)
+        {
+            trace?.Step("addon.template", "no-templates");
+            return false;
+        }
 
         foreach (var (template, chinese, indices, macro) in _addonTemplates)
         {
             if (!ScriptTextTemplate.TryMatch(template, key, out captures))
                 continue;
 
+            trace?.Step("addon.template", "hit", template);
             chineseText = chinese;
             parameterIndices = indices;
             macroTemplate = macro;
             return true;
         }
 
+        trace?.Step("addon.template", "miss");
         return false;
     }
 
@@ -1305,34 +1440,56 @@ public sealed partial class TranslationStore
     /// text. The item tooltip knows its row id, so this works on every client
     /// language and cannot pick another row that shares the same name.
     /// </summary>
-    public bool TryGetNameById(string sheet, uint rowId, out string chineseName)
+    public bool TryGetNameById(
+        string sheet,
+        uint rowId,
+        out string chineseName,
+        FailureTrace? trace = null)
     {
         chineseName = string.Empty;
 
         if (!_nameRowLookup.TryGetValue((sheet, rowId), out var stored))
+        {
+            if (trace is not null)
+                trace.Step("name.id", "miss", $"{sheet} row {rowId}");
             return false;
+        }
 
+        trace?.Step("name.id", "hit", $"{sheet} row {rowId}");
         chineseName = ResolveDisplay(stored);
         return chineseName.Length > 0;
     }
 
-    public bool TryGetName(string? englishName, out string chineseName)
+    public bool TryGetName(string? englishName, out string chineseName, FailureTrace? trace = null)
     {
         chineseName = string.Empty;
 
         var key = MacroNormalizer.NormalizeKey(englishName);
         if (key.Length == 0)
-            return false;
-
-        if (!_nameLookup.TryGetValue(key, out var stored))
         {
-            // Speaker aliases can carry punctuation, for example "Pattin?".
-            // The name sheet stores the name without it.
-            var trimmed = key.TrimEnd('?', '!', '.', '？', '！', '。', '…');
-            if (trimmed.Length == 0 || trimmed == key || !_nameLookup.TryGetValue(trimmed, out stored))
-                return false;
+            trace?.Step("name", "empty");
+            return false;
         }
 
+        trace?.Input("name", key);
+
+        if (_nameLookup.TryGetValue(key, out var stored))
+        {
+            trace?.Step("name.exact", "hit");
+            chineseName = ResolveDisplay(stored);
+            return true;
+        }
+
+        // Speaker aliases can carry punctuation, for example "Pattin?".
+        // The name sheet stores the name without it.
+        var trimmed = key.TrimEnd('?', '!', '.', '？', '！', '。', '…');
+        if (trimmed.Length == 0 || trimmed == key || !_nameLookup.TryGetValue(trimmed, out stored))
+        {
+            trace?.Step("name.exact", "miss");
+            return false;
+        }
+
+        trace?.Step("name.trimmed", "hit", trimmed, approximate: true);
         chineseName = ResolveDisplay(stored);
         return true;
     }
