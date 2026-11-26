@@ -63,9 +63,9 @@ public sealed class Configuration : IPluginConfiguration
     public bool ShowInChatBubbles { get; set; }
 
     /// <summary>
-    /// Alpha. Write the translation into the game's own dialogue box instead of drawing
-    /// the overlay. Needs a font mod: without one the game font has no CJK glyphs and the
-    /// line shows the missing-glyph character. Off by default.
+    /// Alpha. Write the translation into the game's own dialogue box and subtitle band instead
+    /// of drawing the overlay. Needs a font mod: without one the game font has no CJK glyphs
+    /// and the line shows the missing-glyph character. Off by default.
     /// </summary>
     public bool NativeTextMode { get; set; }
 

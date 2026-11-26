@@ -206,16 +206,17 @@ the measurement into findings. A new surface is one driver class.
 
 ### Native text mode
 
-Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialog from the overlay
-to the game's own dialogue box. The Talk component labels this **Native (game dialogue box)** and
-warns that a Chinese font is required.
+Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialog and the cutscene
+subtitle band from the overlay to the game's own windows. The Talk component labels this
+**Native (game's own windows)** and warns that a font mod is required.
 
-The Chinese goes in before the game lays the window out. `TalkHandler` hooks the `Talk` addon's own
-`OnSetup` and `OnRefresh` (from `AddonTalk.VirtualTable`) and replaces the English strings in the
-`AtkValue` array with the translation, so the game measures, wraps, and sizes the dialogue box for
-the Chinese line. This is the same thing the Chinese client does, and it is the only way a long
-line stays inside the box: a node written after layout only makes the text node taller than the
-panel the game sized for English.
+The Chinese goes in before the game lays the window out. `TalkHandler` hooks each addon's own
+`OnSetup` and `OnRefresh` (from that addon's `VirtualTable`) and replaces the English strings in the
+`AtkValue` array with the translation, so the game measures, wraps, and sizes the window for the
+Chinese line. This is the same thing the Chinese client does, and it is the only way a long line
+stays inside the box: a node written after layout only makes the text node taller than the panel
+the game sized for English. `Talk` and `TalkSubtitle` are separate addon classes, so each gets its
+own hook pair from its own vtable.
 
 The caller's `AtkValue` strings are put back inside the same hook call, right after the addon has read
 them. The addon copies the line, so the Chinese stays on screen, while everything that reads the
@@ -251,6 +252,12 @@ the game still wraps it in the box, which is the same overlap. If nothing fits, 
 game's text and the line falls back to the overlay, so a long translation is never drawn outside the
 box. The `AtkValue` hook also skips the `PostRefresh` lookup: the values already hold Chinese, so a
 second pass would miss.
+
+`TalkSubtitle` takes the same value swap but no node write. The band draws one line and scales it
+to `SubtitleMaxWidth`, so the Chinese is not pre-wrapped, the speaker name is not read, and the
+`NativeTextSharesTranslation` choice does not apply: a subtitle always gets the caller's values
+back. The overlay stays hidden only when the hook laid that English line out; with no hook, no
+data, or a line it left English, the overlay draws the line.
 
 The line is wrapped to the Talk text area's width before the game reads the values, by
 `CjkLineWrapper`. The Chinese data is broken for the Chinese client's box, and with the CJK font the
@@ -341,8 +348,11 @@ know leaves the English line in place.
 - An untranslated line, a missing store, or a failed write calls `Forget`, which drops the saved
   node without writing it. Without that, `Reapply` would keep the previous line's Chinese over the
   game's new English line.
-- Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
-  are checked in game. A failed write falls back to the overlay.
+- `Talk` writes text nodes and reapplies them every frame. `TalkSubtitle` writes no node, as above.
+  A subtitle with no hook or no data falls back to the overlay, and a line with no translation
+  stays English. The two addons are separate classes, so each vtable is hooked on its own. A
+  subtitle layout logs the band's scale and width once per line (native text log group), so an
+  in-game run can tell whether a long line scales or overflows.
 
 #### The game font
 

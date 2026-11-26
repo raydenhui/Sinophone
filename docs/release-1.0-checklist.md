@@ -29,8 +29,9 @@ script lines 97.0 % with every miss classified.
 - [ ] **Quest accept and complete dialogs.** `JournalAccept`, `JournalResult`, and the reward list
       inside them. The player reads the quest's premise here, before the journal exists.
       Verify: accept and complete one quest of each type (MSQ, side, leve), both variants.
-- [ ] **`TalkSubtitle` end to end.** The surface for voiced cutscene subtitles still uses the
-      overlay. Verify on a voiced cutscene, plus the font-pack case.
+- [ ] **`TalkSubtitle` end to end.** The band takes the line from its `AtkValues`; the overlay is
+      the fallback. Verify on a voiced cutscene, with and without the font mod, and note whether
+      a long line scales or runs past the band.
 - [ ] **Duty story text.** `ContentTalk`, `InstanceContentTextData`, and battle talk in all three
       styles (plain, image, sound), including a queued line and a line that arrives while another
       is on screen.

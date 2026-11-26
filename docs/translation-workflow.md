@@ -50,7 +50,7 @@ flowchart LR
 
 | Component | In-game target | Hook mechanism | Search method | Display output | Fallback behavior |
 | --- | --- | --- | --- | --- | --- |
-| `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + `AddonTalk.VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` key + row id / `EventFramework` row / cutscene sheet row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default, and all `TalkSubtitle`) or native `AtkValue` / nodes (`NativeTextMode`) | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
+| `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + each addon's own `VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` key + row id / `EventFramework` row / cutscene sheet row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default) or native `AtkValue` / nodes (`NativeTextMode`): `Talk` writes nodes, `TalkSubtitle` is laid out from its values | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
 | `SelectionDialogHandler` | `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, `CutSceneSelectString` | `IAddonLifecycle` (`PostSetup`, `PostRefresh`, `PreDraw`, `PostHide`, `PostClose`, `PreFinalize`) | `Addon` label -> dialogue lookup with the live or sibling cutscene scene and event script hints -> `Addon` template (evaluated, or filled from the live line) -> punctuation trim -> short label `+ "."` | In-place `AtkTextNode` (`NativeTextWriter.WriteAt`) | Unresolved templates or misses leave original English; `FitPromptLines` keeps multi-line layout if single-line exceeds node bounds |
 | `ChatBubbleHandler` | `_MiniTalk` (yells & default balloons) | `NpcYellBalloon.OpenBalloon` detour + `IAddonLifecycle` on `_MiniTalk` | Yells: `NpcYell.YellInfo` row ID -> dialogue lookup; Default balloons: plain text -> dialogue lookup | Yells: pre-layout text replacement; Balloons: in-place `BubbleTextNode` + `BubbleLayout.GrowTo` | Misses keep English and are hashed so they are not re-queried every frame; no overlay |
 | `BattleTalkHandler` | `UIModule` battle talk (`ShowBattleTalk`, `ShowBattleTalkImage`, `ShowBattleTalkSound`) | Virtual table hook at indices 198, 199, 201 | `NpcYell` row id -> dialogue lookup (id first), otherwise the normalized text; name via the line's dump alias, then `TryGetName` | UTF-8 name and text swapped before the game measures the box | A miss, a disabled setting, or a failed lookup passes the game's own pointers through; no overlay |
@@ -221,8 +221,9 @@ directly. A hook that fails costs one untranslated line, never a throw into the 
 `TalkHandler` handles both `Talk` (standard dialogue box) and `TalkSubtitle` (cutscene subtitles).
 
 #### Hooking & lifecycle
-- Subscribes to `IAddonLifecycle` events for `Talk` and `TalkSubtitle`: `PostSetup`, `PostRefresh`, `PostClose`, `PostHide`, `PreFinalize`.
-- For `Talk` only, also subscribes to `PostUpdate` and `PreDraw` (for native node reapplication and layout logging), and installs Detour hooks (`IGameInteropProvider.HookFromAddress`) on `AddonTalk.VirtualTable->OnSetup` and `OnRefresh` (`EnsureValueHook`).
+- Subscribes to `IAddonLifecycle` events for `Talk` and `TalkSubtitle`: `PostSetup`, `PostRefresh`, `PostClose`, `PostHide`, `PreFinalize`, `PostUpdate`, `PreDraw`.
+- `PostUpdate` and `PreDraw` reapply the `Talk` native text nodes; on `TalkSubtitle` they only carry the once-per-line layout log.
+- Installs Detour hooks (`IGameInteropProvider.HookFromAddress`) on each addon's own `VirtualTable->OnSetup` and `OnRefresh` (`EnsureValueHook`). The two addons are separate vtable entries, so each needs its own hook pair. The hook puts the Chinese into `AtkValue[0]` (and, for `Talk`, `AtkValue[1]`) before the game lays the window out, then puts the caller's values back.
 - A `Talk` line can appear while `PlayCutSceneTask` is unreadable. The handler remembers the scene of a line that names exactly one (`TryGetCutsceneId`) and passes it to later lines that several scenes share. The remembered scene is cleared on `PostSetup`, `PostClose`, and `PreFinalize`.
 - A cutscene can reuse one English line and one speaker for two player-progress branches, such as `The significance of these details...` in scene 6006. The addon exposes no branch id, and both lines belong to that scene, so the store uses the first (default) branch instead of leaving the line English.
 
@@ -237,16 +238,16 @@ sequenceDiagram
     participant Event as TalkHandler (OnAddonEvent)
 
     Game->>Hook: Call OnSetup / OnRefresh (AtkValue* values)
-    alt NativeTextMode ON & Talk & Store ready
+    alt NativeTextMode ON & (Talk or TalkSubtitle) & Store ready
         Hook->>Reader: ReadContext(englishText, Target.Address)
         Reader-->>Hook: DialogueContext (Row, ScriptKeys, CutsceneId, TaxiUnlocked)
         Hook->>Store: TryGetDialogue + TryGetName
         alt Translation found
-            Hook->>Wrap: WrapForTalkBox(addon, chineseText)
-            Hook->>Hook: Swap AtkValue[0..1] to unmanaged UTF-8 buffer (or ManagedString if NativeTextSharesTranslation)
-            Hook->>Log: Remember(wrapped, english) and Remember(unwrapped, english) and Remember(chineseName, englishName)
+            Hook->>Wrap: WrapForTalkBox(addon, chineseText) (Talk only)
+            Hook->>Hook: Swap AtkValue[0] (and [1] on Talk) to unmanaged UTF-8 buffer (or ManagedString if NativeTextSharesTranslation)
+            Hook->>Log: Remember(wrapped, english) and Remember(unwrapped, english) and Remember(chineseName, englishName) (Talk only)
             Hook->>Game: Call Original(addon, count, values) with Chinese
-            Note over Game: Game measures & sizes dialogue box for Chinese
+            Note over Game: Game measures & sizes the dialogue box or subtitle band for Chinese
             Hook->>Game: RestoreValues() puts caller's original AtkValues back (unless sharing)
         else Miss
             Hook->>Game: Call Original() with English
@@ -254,20 +255,22 @@ sequenceDiagram
     end
 
     Game->>Event: PostSetup / PostRefresh
-    alt IsLaidOutByHook(englishText, _laidOutChineseText)
+    alt IsLaidOutByHook(text, laid-out Chinese)
         Event->>Event: ForgetNativeText & Overlay.Hide (already laid out)
-    else Overlay mode, TalkSubtitle, or hook unavailable/missed
+    else Overlay mode or hook unavailable/missed
         Event->>Reader: ReadContext(englishText, Target.Address)
         Event->>Store: Resolve(englishText, englishName, context, intParams)
         opt Miss on Talk AtkValue[0]
             Event->>Event: GetTextNodeCandidates() reads AtkTextNode220..248 and retries Resolve
         end
-        alt NativeTextMode ON (hook fallback)
+        alt NativeTextMode ON, Talk (hook fallback)
             Event->>Event: NativeTextWriter.WriteFitted (shrinks FontSize down to 10)
             alt Cannot fit
                 Event->>Event: Restore node & show OverlayWindow
             end
-        else Overlay mode or TalkSubtitle
+        else NativeTextMode ON, TalkSubtitle, line laid out by the hook
+            Event->>Event: Overlay.Hide (the band already draws the Chinese)
+        else Overlay mode, or a TalkSubtitle the hook did not lay out
             Event->>Event: OverlayWindow.SetContent()
         end
     end
@@ -293,7 +296,7 @@ sequenceDiagram
 - **Speaker alias**: A script dump can prefix the English line with `(-Voice from the Past-)`. `NormalizeKey` removes that prefix for every lookup, because battle talk can pass the live line with the alias still attached while the indexed key has it stripped. The alias also wins over the name field: battle talk can pass the player's name there, and the dump alias is the speaker who actually said the line.
 - **Alias per line**: A generic alias such as `(-All-)` is used by several groups with different Chinese labels. `_lineSpeakerAliases` stores the English and Chinese alias with the exact English line, so `(-All-)Aye!` gets `拂曉的同伴們`, not the first `All` the name index saw.
 - **Oblique / multi-node fallback**: When `AtkValue[0]` misses in `OnAddonEvent` (e.g. a line with oblique formatting split across nodes where `AtkValue[0]` only holds the first segment), `GetTextNodeCandidates` reads `AtkTextNode220`, `228`, `238`, `240`, and `248` via `ReadOnlySeStringSpan.ExtractText()` and retries `Resolve` (excluding the speaker name node first, then including all segments).
-- **Pre-layout CJK wrapping (`CjkLineWrapper`)**: In the `AtkValue` hook, wraps Chinese to `nodeWidth - nodeFontSize` using `AtkTextNode.GetTextDrawSize`, keeping closing punctuation (`。，、．；：？！）］｝」』】〉》”’…`) off line starts, opening punctuation (`（［｛「『【〈《“‘`) off line ends, and rebalancing last lines shorter than 1/4 width.
+- **Pre-layout CJK wrapping (`CjkLineWrapper`)**: In the `AtkValue` hook for `Talk` only, wraps Chinese to `nodeWidth - nodeFontSize` using `AtkTextNode.GetTextDrawSize`, keeping closing punctuation (`。，、．；：？！）］｝」』】〉》”’…`) off line starts, opening punctuation (`（［｛「『【〈《“‘`) off line ends, and rebalancing last lines shorter than 1/4 width. A `TalkSubtitle` line is not wrapped: its band is one line, and `SubtitleMaxWidth`/`SubtitleScale` decide the fit.
 - **Speaker formatting**: `FormatSpeakerName` builds `{chinese} ({english})`, leaves masked names (`???`) unrevealed, and omits brackets when Chinese equals English.
 - **Overlay fallback**: `OverlayWindow` displays Chinese only, or falls back to original English when `HideWhenNoTranslation` is false.
 
@@ -301,7 +304,7 @@ sequenceDiagram
 
 ### 2. Chat log restoration (`ChatLogRestorer`)
 
-When native `Talk` or `ChatBubbleHandler` feeds Chinese to the game, the game may copy that text into the Story chat tab or chat log from the addon's internal copy even after `AtkValue`s are restored.
+When native `Talk` or `ChatBubbleHandler` feeds Chinese to the game, the game may copy that text into the Story chat tab or chat log from the addon's internal copy even after `AtkValue`s are restored. A `TalkSubtitle` line remembers its pair too, because whether the game logs a subtitle is not confirmed yet; a pair the log never shows costs only a history slot.
 
 - **Hook**: Subscribes to `IChatGui.ChatMessage`.
 - **History**: `ChatLogHistory` stores up to 64 recent `(Chinese, English)` pairs (both wrapped and unwrapped dialogue lines, plus speaker names) as an MRU linked list.
