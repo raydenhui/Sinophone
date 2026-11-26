@@ -394,7 +394,8 @@ things that feed the `_MiniTalk` addon:
   nine-grid is the visible bubble, and it changes by the **change in text size**: the game drew the
   English line plus whatever margin the balloon keeps, so `bubble + (chinese - english)` keeps that
   margin without measuring it. A shorter translation shrinks the background from the right instead
-  of leaving the English line's empty width. Measuring the
+  of leaving the English line's empty width. A background much larger than the English text still
+  holds an earlier line, so it is sized to the Chinese plus the nine-grid borders instead. Measuring the
   margin on its own fails both ways: the background can still hold the previous line's size, and a
   margin that comes out as zero leaves the text spilling
   out of both sides of the bubble. The English size comes from the text node before the write, so a

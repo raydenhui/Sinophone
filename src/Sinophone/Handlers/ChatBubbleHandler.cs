@@ -581,6 +581,11 @@ public sealed class ChatBubbleHandler : IDisposable
 
             var target = TargetSize(bubbleSize, englishTextSize, chineseTextSize);
 
+            // A background much larger than the English text still holds an earlier line. It has
+            // no margin worth carrying over; size it to the Chinese plus the balloon borders.
+            if (caps > 0 && bubbleSize > englishTextSize + caps)
+                return Math.Max(chineseTextSize + caps, chineseTextSize);
+
             if (bubbleSize >= englishTextSize)
                 return Math.Max(target, chineseTextSize);
 
@@ -614,11 +619,11 @@ public sealed class ChatBubbleHandler : IDisposable
                     nineGrid->AtkResNode.Width = width;
                 }
 
-                // Height only grows upward. The tail hangs under the bottom edge where the game
-                // put it, so shrinking from the top can cut the first line and detach the tail.
-                if (nineGrid->AtkResNode.Height < height)
+                // Height changes keep the bottom edge where the game put it: the text is
+                // bottom-aligned and the tail hangs under that edge. A shrink moves the top down.
+                if (nineGrid->AtkResNode.Height != height)
                 {
-                    var change = height - nineGrid->AtkResNode.Height;
+                    var change = (int)height - nineGrid->AtkResNode.Height;
                     nineGrid->AtkResNode.Y -= change;
                     nineGrid->AtkResNode.Height = height;
                 }

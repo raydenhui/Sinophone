@@ -44,7 +44,7 @@ public class ChatBubbleHandlerTests
         Assert.Equal(174, ChatBubbleHandler.BubbleLayout.GrownSize(100, 122, 154, 20));
 
         // A plain background: the carried-over change wins.
-        Assert.Equal(181, ChatBubbleHandler.BubbleLayout.GrownSize(149, 122, 154, 20));
+        Assert.Equal(181, ChatBubbleHandler.BubbleLayout.GrownSize(149, 122, 154, 36));
 
         // No offsets to read: the text itself is the floor.
         Assert.Equal(154, ChatBubbleHandler.BubbleLayout.GrownSize(100, 122, 154, 0));
@@ -57,6 +57,14 @@ public class ChatBubbleHandlerTests
         // from the English line does not stay around the shorter Chinese.
         Assert.Equal(111, ChatBubbleHandler.BubbleLayout.GrownSize(151, 124, 84, 34));
         Assert.Equal(36, ChatBubbleHandler.BubbleLayout.GrownSize(36, 21, 21, 34));
+    }
+
+    [Fact]
+    public void GrownSize_ResizesABackgroundThatStillHoldsAnEarlierLine()
+    {
+        // English 68 wide, Chinese 60, but the background is still 212 from a longer line.
+        Assert.Equal(96, ChatBubbleHandler.BubbleLayout.GrownSize(212, 68, 60, 36));
+        Assert.Equal(55, ChatBubbleHandler.BubbleLayout.GrownSize(68, 21, 21, 34));
     }
 
     [Fact]
