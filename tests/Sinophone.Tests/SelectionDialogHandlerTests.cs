@@ -15,7 +15,7 @@ public class SelectionDialogHandlerTests
              "Sheets":{"Addon":{"3":{"Text":["是"]},"4":{"Text":["否"]}}}}
             """);
 
-        Assert.True(SelectionDialogHandler.TryTranslate(store, "Yes.", out var chinese));
+        Assert.True(SelectionPromptText.TryTranslate(store, "Yes.", out var chinese));
         Assert.Equal("是", chinese);
     }
 
@@ -27,7 +27,7 @@ public class SelectionDialogHandlerTests
              "Sheets":{"Addon":{"3":{"Text":["是"]},"4":{"Text":["否"]}}}}
             """);
 
-        Assert.True(SelectionDialogHandler.TryTranslate(store, "Yes", out var chinese));
+        Assert.True(SelectionPromptText.TryTranslate(store, "Yes", out var chinese));
         Assert.Equal("是", chinese);
     }
 
@@ -39,7 +39,7 @@ public class SelectionDialogHandlerTests
              "Sheets":{"Addon":{"1":{"Text":["確定"]}}}}
             """);
 
-        Assert.True(SelectionDialogHandler.TryTranslate(store, "OK.", out var chinese));
+        Assert.True(SelectionPromptText.TryTranslate(store, "OK.", out var chinese));
         Assert.Equal("確定", chinese);
     }
 
@@ -61,11 +61,11 @@ public class SelectionDialogHandlerTests
             [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
         Assert.NotNull(store);
 
-        var scene = SelectionDialogHandler.DialogCutscene(
+        var scene = SelectionPromptText.DialogCutscene(
             store, ["Meteion...", "It's her...the bringer of despair."]);
 
         Assert.Equal(6006u, scene);
-        Assert.True(SelectionDialogHandler.TryTranslate(
+        Assert.True(SelectionPromptText.TryTranslate(
             store, "Meteion...", new DialogueContext(CutsceneId: scene), out var chinese));
         Assert.Equal("梅蒂恩！", chinese);
     }
@@ -96,7 +96,7 @@ public class SelectionDialogHandlerTests
             new FakePluginLog());
         Assert.NotNull(store);
 
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "确定要用<Sheet(Item,IntegerParameter(1),0)/>×<Format(IntegerParameter(2),FF022C)/>，\r\n换取以下道具吗？",
             "Exchange 1,820 MGC for the following item?",
             ["1,820", "MGC"], store, [2, -1]);
@@ -112,7 +112,7 @@ public class SelectionDialogHandlerTests
              "Sheets":{"Addon":{"3":{"Text":["是"]}}}}
             """);
 
-        Assert.False(SelectionDialogHandler.TryTranslate(store, "A line that is not in the sheet.", out var chinese));
+        Assert.False(SelectionPromptText.TryTranslate(store, "A line that is not in the sheet.", out var chinese));
         Assert.Empty(chinese);
     }
 
@@ -122,7 +122,7 @@ public class SelectionDialogHandlerTests
         // A script line found by its text has no captures, so the price comes from the English.
         const string chinese = "確定要支付<Format(IntegerParameter(1),FF022C)/>Gil嗎？";
 
-        var resolved = SelectionDialogHandler.ResolveAddonText(chinese, "Pay 2,000 gil?");
+        var resolved = SelectionPromptText.ResolveAddonText(chinese, "Pay 2,000 gil?");
 
         Assert.Equal("確定要支付2,000Gil嗎？", resolved);
     }
@@ -132,7 +132,7 @@ public class SelectionDialogHandlerTests
     {
         const string chinese = "確定要支付<Format(IntegerParameter(1),FF022C)/>Gil嗎？";
 
-        Assert.Empty(SelectionDialogHandler.ResolveAddonText(chinese, "Pay gil?"));
+        Assert.Empty(SelectionPromptText.ResolveAddonText(chinese, "Pay gil?"));
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class SelectionDialogHandlerTests
             "**※Level sync is in effect.** If you are above the maximum allowed level, " +
             "it will be synced as follows:\n\n\uE0BC Level: 90\n\uE0BD Item level: 665**";
 
-        var resolved = SelectionDialogHandler.ResolveAddonText(chinese, live);
+        var resolved = SelectionPromptText.ResolveAddonText(chinese, live);
 
         Assert.Contains("Inform the Cold?", resolved);
         Assert.Contains("等级：90", resolved);
@@ -163,7 +163,7 @@ public class SelectionDialogHandlerTests
     {
         const string chinese = "「」×IntegerParameter(2)需要提交軍票。";
 
-        Assert.Empty(SelectionDialogHandler.ResolveAddonText(chinese, "Exchange 430 MGC for the following item?"));
+        Assert.Empty(SelectionPromptText.ResolveAddonText(chinese, "Exchange 430 MGC for the following item?"));
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class SelectionDialogHandlerTests
         const string live =
             "Prepare the bed with a bag of grade 3 Thanalan '+n+'topsoil and a bag of voidrake seeds?";
 
-        var resolved = SelectionDialogHandler.ResolveAddonText(chinese, live);
+        var resolved = SelectionPromptText.ResolveAddonText(chinese, live);
 
         Assert.Contains("bag of voidrake seeds", resolved);
         Assert.Contains("bag of grade 3 Thanalan", resolved);
@@ -192,7 +192,7 @@ public class SelectionDialogHandlerTests
         const string chinese = "金币管理　[现保管金币：<Format(IntegerParameter(1),FF022C)/>]";
         const string live = "Entrust or withdraw gil. (Gil entrusted: 1,234)";
 
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             chinese, live, ["1,234"], parameterIndices: [1]);
 
         Assert.Equal("金币管理　[现保管金币：1,234]", resolved);
@@ -201,7 +201,7 @@ public class SelectionDialogHandlerTests
     [Fact]
     public void ResolveAddonText_FillsFormattedValueFromNumbers_WhenNoCapture()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "所持Gil：<Format(IntegerParameter(1),FF022C)/>", "Current Gil: 42");
 
         Assert.Equal("所持Gil：42", resolved);
@@ -210,7 +210,7 @@ public class SelectionDialogHandlerTests
     [Fact]
     public void ResolveAddonText_ReturnsEmpty_WhenFormattedValueIsMissing()
     {
-        Assert.Empty(SelectionDialogHandler.ResolveAddonText(
+        Assert.Empty(SelectionPromptText.ResolveAddonText(
             "<Format(IntegerParameter(2),FF022C)/>", "No values here."));
     }
 
@@ -219,7 +219,7 @@ public class SelectionDialogHandlerTests
     {
         // Addon row 2384. The SetTime macro fills the date and clock values but
         // draws nothing, so the values have to come from the English line.
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             VenturePrompt, "View venture report. (Complete on 8/27 8:00)",
             now: new DateTime(2026, 8, 20));
 
@@ -229,7 +229,7 @@ public class SelectionDialogHandlerTests
     [Fact]
     public void ResolveAddonText_ReadsDayFirstDate()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             VenturePrompt, "View venture report. (Complete on 27/8 8:00)",
             now: new DateTime(2026, 8, 20));
 
@@ -239,7 +239,7 @@ public class SelectionDialogHandlerTests
     [Fact]
     public void ResolveAddonText_UsesNextYear_WhenTheDateHasPassed()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             VenturePrompt, "View venture report. (Complete on 8/27 8:00)",
             now: new DateTime(2026, 11, 7));
 
@@ -253,13 +253,13 @@ public class SelectionDialogHandlerTests
             "<Time(IntegerParameter(1))/><Value>TopLevelParameter(218)</Value>:" +
             "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>";
 
-        Assert.Equal("20:00", SelectionDialogHandler.ResolveAddonText(chinese, "8:00 p.m."));
+        Assert.Equal("20:00", SelectionPromptText.ResolveAddonText(chinese, "8:00 p.m."));
     }
 
     [Fact]
     public void ResolveAddonText_ReturnsEmpty_WhenTheDateIsMissing()
     {
-        Assert.Empty(SelectionDialogHandler.ResolveAddonText(VenturePrompt, "View venture report."));
+        Assert.Empty(SelectionPromptText.ResolveAddonText(VenturePrompt, "View venture report."));
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public class SelectionDialogHandlerTests
              "Sheets":{"Addon":{"5":{"Text":["刻木匠"]}}}}
             """);
 
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "设置雇员职业　[<Value>IntegerParameter(2)</Value>级<Sheet(ClassJob,IntegerParameter(1),0)/>]",
             "Reset retainer class. (Carpenter: Lv. 50)",
             ["Carpenter", "50"], store, [-1, 2]);
@@ -288,7 +288,7 @@ public class SelectionDialogHandlerTests
              "Sheets":{"Addon":{"3":{"Text":["是"]}}}}
             """);
 
-        Assert.Empty(SelectionDialogHandler.ResolveAddonText(
+        Assert.Empty(SelectionPromptText.ResolveAddonText(
             "设置雇员职业　[<Value>IntegerParameter(2)</Value>级<Sheet(ClassJob,IntegerParameter(1),0)/>]",
             "Reset retainer class. (Carpenter: Lv. 50)",
             ["Carpenter", "50"], store, [-1, 2]));
@@ -299,7 +299,7 @@ public class SelectionDialogHandlerTests
     {
         // Addon row 11194. The English prompt is one line, so the dialog is laid out
         // for one line and the Chinese break would push the second line over the icon.
-        var fitted = SelectionDialogHandler.FitPromptLines(
+        var fitted = SelectionPromptText.FitPromptLines(
             "Exchange 1,820 MGC for the following item?",
             "確定要用金碟點×1,820，\n換取以下道具嗎？",
             344,
@@ -312,7 +312,7 @@ public class SelectionDialogHandlerTests
     [Fact]
     public void FitPromptLines_JoinsTheLines_WhenTheTextUsesACarriageReturn()
     {
-        var fitted = SelectionDialogHandler.FitPromptLines(
+        var fitted = SelectionPromptText.FitPromptLines(
             "Exchange 1,820 MGC for the following item?",
             "確定要用金碟點×1,820，\r\n換取以下道具嗎？",
             344,
@@ -327,7 +327,7 @@ public class SelectionDialogHandlerTests
     {
         var chinese = "確定要用金碟點×1,820，\n換取以下道具嗎？";
 
-        var fitted = SelectionDialogHandler.FitPromptLines(
+        var fitted = SelectionPromptText.FitPromptLines(
             "Exchange 1,820 MGC for the following item?",
             chinese,
             344,
@@ -342,7 +342,7 @@ public class SelectionDialogHandlerTests
     {
         var chinese = "確定要用金碟點×1,820，\n換取以下道具嗎？";
 
-        var fitted = SelectionDialogHandler.FitPromptLines(
+        var fitted = SelectionPromptText.FitPromptLines(
             "Exchange 1,820 MGC for the following item?",
             chinese,
             344,
@@ -357,7 +357,7 @@ public class SelectionDialogHandlerTests
     {
         var chinese = "第一行\n第二行";
 
-        var fitted = SelectionDialogHandler.FitPromptLines(
+        var fitted = SelectionPromptText.FitPromptLines(
             "First line\nSecond line",
             chinese,
             344,

@@ -40,6 +40,7 @@ src/Sinophone/
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     AtkTextMeasure.cs     Measures a text node with a null-terminated UTF-8 string.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
+    SelectionPromptText.cs  The dialog's lookup, template fill, date, and line fitting.
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window or the game tooltip.
     HookGuard.cs          Runs a hook callback so a throw does not reach the game's frame.
