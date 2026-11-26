@@ -496,19 +496,8 @@ public sealed class TalkHandler : IDisposable
         if (width < 120)
             return chineseText;
 
-        var address = (nint)node;
-
         int Measure(string candidate)
-        {
-            var bytes = Encoding.UTF8.GetBytes(candidate);
-            ushort measuredWidth = 0;
-            ushort measuredHeight = 0;
-
-            fixed (byte* pointer = bytes)
-                ((AtkTextNode*)address)->GetTextDrawSize(&measuredWidth, &measuredHeight, pointer);
-
-            return measuredWidth;
-        }
+            => AtkTextMeasure.Measure(node, candidate).Width;
 
         // Leave one glyph of slack. Our measurement and the game's layout can differ by a pixel or
         // two at the line end, and a line that measured to the exact width is the one the game

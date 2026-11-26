@@ -230,7 +230,7 @@ public sealed unsafe class ItemNameHandler : IDisposable
             _nativeWriter.ForgetAt(ItemDetailAddon, _tooltipNode);
 
         var text = FormatItemName(content.ChineseName, content.EnglishName, _configuration.ShowOriginal);
-        var (textWidth, _) = MeasureText((AtkTextNode*)node, text);
+        var (textWidth, _) = AtkTextMeasure.Measure((AtkTextNode*)node, text);
         var available = AvailableWidth((AtkTextNode*)node);
 
         // The tooltip is not wide enough for both languages on one line, so the
@@ -287,18 +287,6 @@ public sealed unsafe class ItemNameHandler : IDisposable
             node->Width = width;
 
         node->Height = originalHeight;
-    }
-
-    /// <summary>Measures a candidate name without writing it into the node.</summary>
-    private static unsafe (ushort Width, ushort Height) MeasureText(AtkTextNode* node, string text)
-    {
-        var utf8 = Encoding.UTF8.GetBytes(text);
-        ushort width = 0;
-        ushort height = 0;
-        fixed (byte* pointer = utf8)
-            node->GetTextDrawSize(&width, &height, pointer);
-
-        return (width, height);
     }
 
     /// <summary>
