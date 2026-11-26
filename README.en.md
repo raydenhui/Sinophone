@@ -6,8 +6,10 @@ A [Dalamud](https://github.com/goatcorp/Dalamud) plugin for **Final Fantasy XIV*
 official Simplified (CN) or Traditional (TC) Chinese translation of the game's text. It covers:
 
 - Dialogue above the Talk window, or written into the game's own dialogue box.
+- Cutscene subtitles above the game's subtitle band, or written into the band itself.
 - Battle talk, the large line a boss, dungeon narration, or a duty NPC shows near the top of the
   screen.
+- Chat bubbles above NPCs.
 - Selection dialogs, such as yes/no, string, and icon prompts.
 - Nameplates above NPCs and objects.
 - The name in the item tooltip.
@@ -18,15 +20,18 @@ the native modes, which write Chinese into the game's own windows, need one (see
 
 ## Game language support
 
-Currently only the **English** client is supported: dialogue is matched by the English text the
-game displays, which is then mapped to Chinese.
+The client can run in **English, Japanese, German, or French**. The translation is always Chinese.
 
-Support for the other three game languages — **Japanese, German, and French** — is planned.
+Sheet text, names, item names, and cutscene subtitles are matched by the game's own row ids, so
+they work in any client language. Script dialogue resolves by id when the game exposes one. When it
+does not, the English script dump is still the key, so a Japanese, German, or French client can
+miss that line. A few selection-dialog values are read from the line in English or Japanese forms,
+so a German or French prompt can also stay as it is.
 
 ## Compatibility
 
 Sinophone only changes what is drawn on screen. It does not change the game's files on disk or the
-text other plugins read, so other plugins still see the English text. It works alongside them.
+text other plugins read, so other plugins still see the game's own text. It works alongside them.
 
 ## Requirements
 
@@ -88,8 +93,8 @@ a mod, every native-mode line shows the missing-glyph character instead of Chine
 ## Status
 
 Sinophone can now be used normally. Expect bugs and gaps: the CN and TC dumps trail the live game,
-so new or rewritten lines can have no translation, and some surfaces are still English only. The
-settings and the translation data format may still change between releases.
+so new or rewritten lines can have no translation, and some surfaces still show the game's own
+text. The settings and the translation data format may still change between releases.
 
 If a line is not translated, or something looks wrong, open an
 [issue](https://github.com/raydenhui/Sinophone/issues). Feature requests are welcome there too.
