@@ -51,6 +51,15 @@ public class ChatBubbleHandlerTests
     }
 
     [Fact]
+    public void GrownSize_LeavesTheBackgroundAlone_WhenTheTranslationIsNotLarger()
+    {
+        // The bubble already holds the English line. A shorter line must not grow it to the
+        // nine-grid caps: the azure-haired boy's bubble became tall and empty this way.
+        Assert.Equal(151, ChatBubbleHandler.BubbleLayout.GrownSize(151, 124, 84, 34));
+        Assert.Equal(36, ChatBubbleHandler.BubbleLayout.GrownSize(36, 21, 21, 34));
+    }
+
+    [Fact]
     public void TargetSize_LeavesTheBackgroundAlone_WhenTheEnglishSizeIsUnreadable()
     {
         // A node the game has not laid out reports no English size; guessing a margin from that

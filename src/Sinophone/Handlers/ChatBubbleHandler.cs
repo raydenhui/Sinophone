@@ -569,18 +569,26 @@ public sealed class ChatBubbleHandler : IDisposable
             => englishTextSize <= 0 ? bubbleSize : bubbleSize + chineseTextSize - englishTextSize;
 
         /// <summary>
-        /// The size to grow to: the change carried over from the English layout, but never less than
-        /// the text plus the balloon's borders.
+        /// The size to grow to: the change carried over from the English layout. A background
+        /// that was not laid out for the English line gets the caps as a floor, so its text is
+        /// never clipped. A background that already holds the English line keeps its margin.
         /// </summary>
-        /// <remarks>
-        /// The carried-over size is right when the background was laid out for the English line. It
-        /// is not when that background came out smaller than the text (the game had not laid it out
-        /// yet): the difference is then too small and the text is clipped by the balloon's caps. The
-        /// caps are the floor, so a short measure can only leave the text touching the border, never
-        /// under it.
-        /// </remarks>
         internal static int GrownSize(int bubbleSize, int englishTextSize, int chineseTextSize, int caps)
-            => Math.Max(TargetSize(bubbleSize, englishTextSize, chineseTextSize), chineseTextSize + caps);
+        {
+            if (englishTextSize <= 0)
+                return bubbleSize;
+
+            var target = TargetSize(bubbleSize, englishTextSize, chineseTextSize);
+
+            // The background already held the English line. Its margin is real, so do not grow
+            // it to the full nine-grid caps: a shorter translation must leave the bubble alone.
+            if (bubbleSize >= englishTextSize)
+                return Math.Max(bubbleSize, Math.Max(target, chineseTextSize));
+
+            // The background is smaller than the English text, so it was not laid out for this
+            // line. The caps are the floor that keeps the text inside the bubble.
+            return Math.Max(bubbleSize, Math.Max(target, chineseTextSize + caps));
+        }
 
         /// <summary>
         /// Grows the background and the bubble by the change in text size, so the margin the game
@@ -594,7 +602,8 @@ public sealed class ChatBubbleHandler : IDisposable
             var width = Clamp(GrownSize(NineGridWidth, TextWidth, node->Width, Caps(horizontal: true)));
             var height = Clamp(GrownSize(NineGridHeight, TextHeight, node->Height, Caps(horizontal: false)));
 
-            if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
+            var nineGrid = NineGrid == 0 ? null : (AtkNineGridNode*)NineGrid;
+            if (nineGrid is not null)
             {
                 // Extra width goes to both sides, so the text stays in the middle and the tail the
                 // game placed under it stays centred.
@@ -615,7 +624,8 @@ public sealed class ChatBubbleHandler : IDisposable
                 }
             }
 
-            if (Bubble != 0 && (AtkResNode*)Bubble is var bubble && bubble is not null)
+            var bubble = Bubble == 0 ? null : (AtkResNode*)Bubble;
+            if (bubble is not null)
             {
                 if (bubble->Width < width)
                     bubble->Width = width;
@@ -624,7 +634,17 @@ public sealed class ChatBubbleHandler : IDisposable
                     bubble->Height = height;
             }
 
-            return (width, height);
+            // The target can be smaller than the node when the translation is shorter. Report the
+            // size the node actually has, not the target, or the log claims a shrink that never
+            // happened.
+            var actualWidth = nineGrid is not null
+                ? nineGrid->AtkResNode.Width
+                : bubble is not null ? bubble->Width : (ushort)width;
+            var actualHeight = nineGrid is not null
+                ? nineGrid->AtkResNode.Height
+                : bubble is not null ? bubble->Height : (ushort)height;
+
+            return (actualWidth, actualHeight);
         }
 
         /// <summary>

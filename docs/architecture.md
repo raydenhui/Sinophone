@@ -392,8 +392,9 @@ things that feed the `_MiniTalk` addon:
   and the next lookup then sees fragments instead of the line. Instead the background grows: the
   nine-grid is the visible bubble, and it grows by the **change in text size**: the game drew the
   English line plus whatever margin the balloon keeps, so `bubble + (chinese - english)` keeps that
-  margin without measuring it. Measuring the margin on its own fails both ways: the background can
-  still hold the previous line's size, and a margin that comes out as zero leaves the text spilling
+  margin without measuring it. A shorter translation leaves the game's size alone. Measuring the
+  margin on its own fails both ways: the background can still hold the previous line's size, and a
+  margin that comes out as zero leaves the text spilling
   out of both sides of the bubble. The English size comes from the text node before the write, so a
   node the game has not laid out yet leaves the background alone.
 
