@@ -84,31 +84,11 @@ public sealed class Plugin : IDalamudPlugin
 
     private bool _disposed;
 
-    private ChineseVariant _lastVariant;
-    private ChineseConversion _lastConversion;
-    private bool _lastFallback;
-    private bool _lastDownloadBoth;
-    private bool _lastEnabled;
-    private bool _lastShowTargetName;
-    private bool _lastTargetNameShowEnglish;
-    private bool _lastShowItemName;
-    private bool _lastItemNameNativeMode;
-    private bool _lastItemNameShowEnglish;
-    private bool _lastNativeTextMode;
-    private bool _lastSharesTranslation;
-    private bool _lastBuiltInFontEnabled;
-    private string _lastBuiltInFontPackPath = string.Empty;
-    private bool _lastShowInChatBubbles;
-    private bool _lastShowInSelectionDialogs;
-    private bool _lastSelectionYesNo;
-    private bool _lastSelectionString;
-    private bool _lastSelectionIconString;
-    private bool _lastSelectionOk;
-    private bool _lastSelectionCutScene;
+    /// <summary>The settings as they were when work was last applied.</summary>
+    private SettingsSnapshot _settings;
+
     private bool _announceUpdate;
     private bool _updateWasBusy;
-    private float _lastFontSize;
-    private string _lastFontPath;
 
     public Plugin()
     {
@@ -141,30 +121,9 @@ public sealed class Plugin : IDalamudPlugin
 
         // Every value compared by ApplySettings must start at the saved value. A field left at its
         // default reads as "changed" on the first settings click and reloads all data, which takes
-        // about 15 seconds. Conversion was missing here and did exactly that.
-        _lastVariant = _configuration.Variant;
-        _lastConversion = _configuration.Conversion;
-        _lastFallback = _configuration.UseFallbackVariant;
-        _lastDownloadBoth = _configuration.DownloadBothVariants;
-        _lastEnabled = _configuration.Enabled;
-        _lastShowTargetName = _configuration.ShowTargetName;
-        _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
-        _lastShowItemName = _configuration.ShowItemName;
-        _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
-        _lastItemNameShowEnglish = _configuration.ShowOriginal;
-        _lastNativeTextMode = _configuration.NativeTextMode;
-        _lastSharesTranslation = _configuration.NativeTextSharesTranslation;
-        _lastBuiltInFontEnabled = _configuration.BuiltInFontEnabled;
-        _lastBuiltInFontPackPath = _configuration.BuiltInFontPackPath ?? string.Empty;
-        _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
-        _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
-        _lastSelectionYesNo = _configuration.SelectionYesNo;
-        _lastSelectionString = _configuration.SelectionString;
-        _lastSelectionIconString = _configuration.SelectionIconString;
-        _lastSelectionOk = _configuration.SelectionOk;
-        _lastSelectionCutScene = _configuration.SelectionCutScene;
-        _lastFontSize = _configuration.FontSize;
-        _lastFontPath = _configuration.CustomFontPath;
+        // about 15 seconds. The snapshot is captured in one place so a value cannot be compared
+        // without also being updated.
+        _settings = SettingsSnapshot.Capture(_configuration);
 
         _dataUpdater = new TranslationDataUpdater(
             _configuration,
@@ -940,78 +899,18 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ApplySettings()
     {
-        var needsStoreReload = _configuration.Variant != _lastVariant
-                               || _configuration.Conversion != _lastConversion
-                               || _configuration.UseFallbackVariant != _lastFallback;
+        var current = SettingsSnapshot.Capture(_configuration);
+        var changes = current.Diff(_settings);
+        _settings = current;
 
-        var needsDownloadCheck = _configuration.DownloadBothVariants != _lastDownloadBoth;
-
-        var needsFontRebuild = needsStoreReload
-                               || Math.Abs(_configuration.FontSize - _lastFontSize) > 0.01f
-                               || !string.Equals(_configuration.CustomFontPath, _lastFontPath, StringComparison.OrdinalIgnoreCase);
-
-        var targetNameEnglishChanged = _configuration.TargetNameShowEnglish != _lastTargetNameShowEnglish;
-        var needsTargetRefresh = needsStoreReload
-                                 || _configuration.Enabled != _lastEnabled
-                                 || _configuration.ShowTargetName != _lastShowTargetName
-                                 || targetNameEnglishChanged;
-
-        var needsItemRefresh = needsStoreReload
-                               || _configuration.Enabled != _lastEnabled
-                               || _configuration.ShowItemName != _lastShowItemName
-                               || _configuration.ItemNameNativeMode != _lastItemNameNativeMode
-                               || _configuration.ShowOriginal != _lastItemNameShowEnglish;
-
-        var nativeTextModeChanged = _lastNativeTextMode != _configuration.NativeTextMode;
-        var sharesTranslationChanged =
-            _lastSharesTranslation != _configuration.NativeTextSharesTranslation;
-        var chatBubbleSettingsChanged = _lastShowInChatBubbles != _configuration.ShowInChatBubbles;
-        var selectionSettingsChanged = _lastShowInSelectionDialogs != _configuration.ShowInSelectionDialogs
-                                       || _lastSelectionYesNo != _configuration.SelectionYesNo
-                                       || _lastSelectionString != _configuration.SelectionString
-                                       || _lastSelectionIconString != _configuration.SelectionIconString
-                                       || _lastSelectionOk != _configuration.SelectionOk
-                                       || _lastSelectionCutScene != _configuration.SelectionCutScene;
-        var pluginDisabled = _lastEnabled && !_configuration.Enabled;
-        var pluginPowerChanged = _lastEnabled != _configuration.Enabled;
-        var fontPackChanged = _lastBuiltInFontEnabled != _configuration.BuiltInFontEnabled
-                              || !string.Equals(
-                                  _lastBuiltInFontPackPath,
-                                  _configuration.BuiltInFontPackPath ?? string.Empty,
-                                  StringComparison.OrdinalIgnoreCase);
-
-        _lastVariant = _configuration.Variant;
-        _lastConversion = _configuration.Conversion;
-        _lastFallback = _configuration.UseFallbackVariant;
-        _lastDownloadBoth = _configuration.DownloadBothVariants;
-        _lastEnabled = _configuration.Enabled;
-        _lastShowTargetName = _configuration.ShowTargetName;
-        _lastTargetNameShowEnglish = _configuration.TargetNameShowEnglish;
-        _lastShowItemName = _configuration.ShowItemName;
-        _lastItemNameNativeMode = _configuration.ItemNameNativeMode;
-        _lastItemNameShowEnglish = _configuration.ShowOriginal;
-        _lastNativeTextMode = _configuration.NativeTextMode;
-        _lastSharesTranslation = _configuration.NativeTextSharesTranslation;
-        _lastBuiltInFontEnabled = _configuration.BuiltInFontEnabled;
-        _lastBuiltInFontPackPath = _configuration.BuiltInFontPackPath ?? string.Empty;
-        _lastShowInChatBubbles = _configuration.ShowInChatBubbles;
-        _lastShowInSelectionDialogs = _configuration.ShowInSelectionDialogs;
-        _lastSelectionYesNo = _configuration.SelectionYesNo;
-        _lastSelectionString = _configuration.SelectionString;
-        _lastSelectionIconString = _configuration.SelectionIconString;
-        _lastSelectionOk = _configuration.SelectionOk;
-        _lastSelectionCutScene = _configuration.SelectionCutScene;
-        _lastFontSize = _configuration.FontSize;
-        _lastFontPath = _configuration.CustomFontPath ?? string.Empty;
-
-        if (sharesTranslationChanged)
+        if (changes.SharesTranslationChanged)
         {
             // Lines laid out under the old choice must not be rewritten under the new one.
             _chatLogRestorer.Clear();
             _log.Debug("Native text sharing changed; the chat log history was cleared.");
         }
 
-        if (nativeTextModeChanged || pluginDisabled)
+        if (changes.NativeTextModeChanged || changes.PluginDisabled)
         {
             // Turning native mode off, or disabling the plugin, must put the game's own
             // line back instead of leaving Chinese in the dialogue box until the next line.
@@ -1021,7 +920,7 @@ public sealed class Plugin : IDalamudPlugin
             _overlay.Hide();
         }
 
-        if (chatBubbleSettingsChanged || pluginDisabled)
+        if (changes.ChatBubbleSettingsChanged || changes.PluginDisabled)
         {
             // Put the game's own bubble text back now; the handler translates the next bubble
             // when the setting is on.
@@ -1029,14 +928,14 @@ public sealed class Plugin : IDalamudPlugin
             _log.Debug("Chat bubble settings changed; restored the game's text.");
         }
 
-        if (_configuration.ShowInBattleTalk && !pluginDisabled)
+        if (_configuration.ShowInBattleTalk && !changes.PluginDisabled)
         {
             // The plugin can load before the UI module is up, so a load that found none retries
             // here rather than staying English until the next reload.
             _battleTalkHandler.EnsureHooks();
         }
 
-        if (selectionSettingsChanged || pluginDisabled)
+        if (changes.SelectionSettingsChanged || changes.PluginDisabled)
         {
             // Put the game's own prompt back now; the handler re-translates on the
             // next dialog event when the setting is on.
@@ -1044,7 +943,7 @@ public sealed class Plugin : IDalamudPlugin
             _log.Debug("Selection dialog settings changed; restored the game's text.");
         }
 
-        if (fontPackChanged || pluginPowerChanged)
+        if (changes.FontPackChanged || changes.PluginPowerChanged)
         {
             // The game font is shared by every window, so it follows the plugin's own switch.
             _fontReplacement.Apply(
@@ -1052,7 +951,7 @@ public sealed class Plugin : IDalamudPlugin
                 _configuration.BuiltInFontPackPath);
         }
 
-        if (needsStoreReload)
+        if (changes.StoreReload)
         {
             // Settings changed while a load may be running. Start over on the new
             // variant; the older task's result is dropped before it is built.
@@ -1064,20 +963,20 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         // Turning the second variant back on needs its file, which may never have been downloaded.
-        if (needsDownloadCheck
+        if (changes.DownloadCheck
             && !string.IsNullOrEmpty(_configuration.LastDataVersion)
             && _dataUpdater.IsMissingRequiredFile())
         {
             _dataUpdater.StartUpdate();
         }
 
-        if (needsFontRebuild)
+        if (changes.FontRebuild)
             _fontManager.Rebuild();
 
-        if (needsTargetRefresh)
-            RefreshNamePlates(needsStoreReload || targetNameEnglishChanged);
+        if (changes.TargetRefresh)
+            RefreshNamePlates(changes.StoreReload || changes.TargetNameEnglishChanged);
 
-        if (needsItemRefresh)
+        if (changes.ItemRefresh)
             _itemNameHandler.Refresh();
 
         SaveConfiguration();
