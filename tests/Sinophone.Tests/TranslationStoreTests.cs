@@ -2315,6 +2315,53 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void Cache_RoundTrip_KeepsTheSheetSampleAndTheCutsceneScene()
+    {
+        // The testing tab samples SheetTextEntries, and a selection dialog asks the store
+        // for the scene. A cache hit must still answer both.
+        var talk = TalkSheet((1, "Hello there."));
+        var scripts = ScriptsWithKeys(
+            ("TEXT_VOICEMAN_06005_003840_THANCRED", "A line.", "台詞。"));
+
+        var artifacts = Artifacts(
+            null,
+            Artifact("TC", scripts, (SheetName, FieldName, 1, "你好。")));
+
+        var store = TranslationStore.Load(
+            [talk],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "key", store, log);
+
+            Assert.True(TranslationStore.TryLoadCache(
+                path, "key", [talk], log, s => s, null, out var cached));
+            Assert.NotNull(cached);
+
+            Assert.Equal([("Hello there.", "你好。")], cached.SheetTextEntries);
+
+            Assert.True(cached.TryGetCutsceneId("A line.", out var scene));
+            Assert.Equal(6005u, scene);
+
+            Assert.True(cached.TryGetDialogue("A line.", out var chinese));
+            Assert.Equal("台詞。", chinese);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Cache_IsIgnored_WhenTheKeyDiffers()
     {
         var descriptor = TalkSheet((1, "Hello there."));
