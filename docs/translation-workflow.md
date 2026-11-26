@@ -315,7 +315,7 @@ When native `Talk` or `ChatBubbleHandler` feeds Chinese to the game, the game ma
 
 ### 3. Selection dialogs (`SelectionDialogHandler`)
 
-Covers `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, and `CutSceneSelectString` (native in-place only; no overlay).
+Covers `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, and `CutSceneSelectString` (native in-place only; no overlay). The handler owns the addon hooks and node writes; the text work (lookup, template fill, date and clock reading, line fitting) is in `SelectionPromptText`.
 
 #### Hooking & node discovery
 - Registers `PostSetup`, `PostRefresh`, `PostHide`, `PostClose`, `PreFinalize`, and `PreDraw` on all five addon names.

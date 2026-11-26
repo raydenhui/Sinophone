@@ -29,7 +29,7 @@ public class SelectionDialogLanguageTests
         // Addon row 2: the Japanese client draws キャンセル, the CN row says 取消.
         var store = AddonStore((2, "キャンセル", "取消"));
 
-        Assert.True(SelectionDialogHandler.TryTranslate(store, "キャンセル", out var chinese));
+        Assert.True(SelectionPromptText.TryTranslate(store, "キャンセル", out var chinese));
         Assert.Equal("取消", chinese);
     }
 
@@ -38,14 +38,14 @@ public class SelectionDialogLanguageTests
     {
         var store = AddonStore((2, "Cancel", "取消"));
 
-        Assert.True(SelectionDialogHandler.TryTranslate(store, "Cancel", out var chinese));
+        Assert.True(SelectionPromptText.TryTranslate(store, "Cancel", out var chinese));
         Assert.Equal("取消", chinese);
     }
 
     [Fact]
     public void ResolveAddonText_FillsAJapaneseDate()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             DateTemplate, "2013年8月27日 8:00", now: Now);
 
         Assert.Equal("2013/8/27 8:00", resolved);
@@ -54,7 +54,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAJapaneseClock()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "<Time(IntegerParameter(1))/>" +
             "<Value>TopLevelParameter(218)</Value>:" +
             "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>",
@@ -67,7 +67,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAMorningClock()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "<Time(IntegerParameter(1))/>" +
             "<Value>TopLevelParameter(218)</Value>:" +
             "<TwoDigitValue>TopLevelParameter(217)</TwoDigitValue>",
@@ -80,7 +80,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAJapaneseLevel()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "等级<Value>IntegerParameter(1)</Value>", "レベル90", now: Now);
 
         Assert.Equal("等级90", resolved);
@@ -89,7 +89,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAJapaneseQuestName()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "接受「<Highlight>StringParameter(1)</Highlight>」", "「新生の日々」を受注しますか？", now: Now);
 
         Assert.Equal("接受「新生の日々」", resolved);
@@ -98,7 +98,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAnEnglishDate()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             DateTemplate, "8/27/2026 8:00 p.m.", now: Now);
 
         Assert.Equal("2026/8/27 20:00", resolved);
@@ -107,7 +107,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsADayFirstDate()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             DateTemplate, "27/8/2013 8:00", now: Now);
 
         Assert.Equal("2013/8/27 8:00", resolved);
@@ -116,7 +116,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAnEnglishLevel()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "等级<Value>IntegerParameter(1)</Value>", "Level: 90", now: Now);
 
         Assert.Equal("等级90", resolved);
@@ -125,7 +125,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_FillsAnEnglishQuestName()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             "接受「<Highlight>StringParameter(1)</Highlight>」", "Accept “A New Day”?", now: Now);
 
         Assert.Equal("接受「A New Day」", resolved);
@@ -134,7 +134,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void ResolveAddonText_ReturnsEmpty_WhenADateCannotBeRead()
     {
-        var resolved = SelectionDialogHandler.ResolveAddonText(
+        var resolved = SelectionPromptText.ResolveAddonText(
             DateTemplate, "tomorrow", now: Now);
 
         Assert.Equal(string.Empty, resolved);
@@ -143,7 +143,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void BuildAddonLocals_PlacesNumbersAndStringsAtTheirIndex()
     {
-        var locals = SelectionDialogHandler.BuildAddonLocals(["5", "Wood"], [1, 2]);
+        var locals = SelectionPromptText.BuildAddonLocals(["5", "Wood"], [1, 2]);
 
         Assert.Equal(2, locals.Length);
         Assert.False(locals[0].IsString);
@@ -155,7 +155,7 @@ public class SelectionDialogLanguageTests
     [Fact]
     public void BuildAddonLocals_StripsThousandsSeparators()
     {
-        var locals = SelectionDialogHandler.BuildAddonLocals(["2,000"], [1]);
+        var locals = SelectionPromptText.BuildAddonLocals(["2,000"], [1]);
 
         Assert.False(locals[0].IsString);
         Assert.Equal(2000u, locals[0].UIntValue);
@@ -163,11 +163,11 @@ public class SelectionDialogLanguageTests
 
     [Fact]
     public void EvaluateAddonTemplate_ReturnsNull_WithoutAnEvaluator()
-        => Assert.Null(SelectionDialogHandler.EvaluateAddonTemplate(null, "<num(lnum1)>", ["5"], [1]));
+        => Assert.Null(SelectionPromptText.EvaluateAddonTemplate(null, "<num(lnum1)>", ["5"], [1]));
 
     [Fact]
     public void EvaluateAddonTemplate_ReturnsNull_ForATemplateWithoutMacros()
-        => Assert.Null(SelectionDialogHandler.EvaluateAddonTemplate(null, null, null, null));
+        => Assert.Null(SelectionPromptText.EvaluateAddonTemplate(null, null, null, null));
 
     [Fact]
     public void TryGetAddonText_ReturnsTheConvertedTemplate()
