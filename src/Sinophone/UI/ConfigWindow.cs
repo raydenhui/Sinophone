@@ -275,13 +275,15 @@ public sealed class ConfigWindow : Window
         InterfaceLanguage.Japanese,
     ];
 
+    // Names are in the current language, not each language's own script: an English window uses a
+    // font without CJK glyphs, so native names would draw as boxes.
     private string LanguageName(InterfaceLanguage language)
         => language switch
         {
-            InterfaceLanguage.English => "English",
-            InterfaceLanguage.SimplifiedChinese => "简体中文",
-            InterfaceLanguage.TraditionalChinese => "繁體中文",
-            InterfaceLanguage.Japanese => "日本語",
+            InterfaceLanguage.English => Text.LanguageEnglish,
+            InterfaceLanguage.SimplifiedChinese => Text.LanguageSimplifiedChinese,
+            InterfaceLanguage.TraditionalChinese => Text.LanguageTraditionalChinese,
+            InterfaceLanguage.Japanese => Text.LanguageJapanese,
             _ => Text.InterfaceLanguageAuto,
         };
 

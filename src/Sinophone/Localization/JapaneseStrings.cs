@@ -15,6 +15,10 @@ internal static class JapaneseStrings
         InterfaceLanguageHint =
             "設定ウィンドウのみ変わります。翻訳は下の中国語テキストのソースに従います。",
         InterfaceLanguageAuto = "Dalamud に合わせる",
+        LanguageEnglish = "英語",
+        LanguageSimplifiedChinese = "簡体字中国語",
+        LanguageTraditionalChinese = "繁体字中国語",
+        LanguageJapanese = "日本語",
 
         GeneralEnable = "翻訳を有効にする",
         SectionChineseSource = "中国語テキストのソース",

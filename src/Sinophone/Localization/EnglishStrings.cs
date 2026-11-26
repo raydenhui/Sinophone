@@ -16,6 +16,10 @@ internal static class EnglishStrings
             "Only the settings window changes. The translation still follows the Chinese text " +
             "source below.",
         InterfaceLanguageAuto = "Follow Dalamud",
+        LanguageEnglish = "English",
+        LanguageSimplifiedChinese = "Simplified Chinese",
+        LanguageTraditionalChinese = "Traditional Chinese",
+        LanguageJapanese = "Japanese",
 
         GeneralEnable = "Enable translations",
         SectionChineseSource = "Chinese text source",

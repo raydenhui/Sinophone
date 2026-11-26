@@ -14,6 +14,10 @@ internal static class TraditionalChineseStrings
         InterfaceLanguageLabel = "語言",
         InterfaceLanguageHint = "只會變更設定視窗。翻譯仍由下方的中文文字來源決定。",
         InterfaceLanguageAuto = "跟隨 Dalamud",
+        LanguageEnglish = "英文",
+        LanguageSimplifiedChinese = "簡體中文",
+        LanguageTraditionalChinese = "繁體中文",
+        LanguageJapanese = "日文",
 
         GeneralEnable = "啟用翻譯",
         SectionChineseSource = "中文文字來源",

@@ -17,6 +17,10 @@ public sealed class InterfaceStrings
     public required string InterfaceLanguageLabel { get; init; }
     public required string InterfaceLanguageHint { get; init; }
     public required string InterfaceLanguageAuto { get; init; }
+    public required string LanguageEnglish { get; init; }
+    public required string LanguageSimplifiedChinese { get; init; }
+    public required string LanguageTraditionalChinese { get; init; }
+    public required string LanguageJapanese { get; init; }
 
     public required string GeneralEnable { get; init; }
     public required string SectionChineseSource { get; init; }
