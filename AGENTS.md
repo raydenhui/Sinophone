@@ -36,6 +36,11 @@ The plugin is a data pipeline plus a runtime lookup plus addon handlers. DataPre
 gzipped artifacts from game dumps; `TranslationStore` indexes them; handlers feed the
 overlay or the native text writer.
 
+`TranslationStore` is a facade over four indexes: `DialogueTextIndex` for exact dialogue
+text, `ScriptIndex` for script keys and shared-key candidates, `AddonIndex` for prompts and
+templates, and `NameIndex` for names. Each index writes its own part of the index cache. Put
+a new lookup collection in the index that owns that kind of text, not in the facade.
+
 Read [docs/architecture.md](docs/architecture.md) for the file map, data flow, id-first
 dialogue lookup, overlay behavior, native text mode, and runtime data updates.
 

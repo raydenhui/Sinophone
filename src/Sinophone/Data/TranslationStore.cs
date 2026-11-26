@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Sinophone.Diagnostics;
 
 namespace Sinophone.Data;
@@ -29,91 +28,19 @@ public sealed partial class TranslationStore
     /// </remarks>
     public const int IndexFormatVersion = 11;
 
-    private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Keys added by a sheet row, such as <c>NpcYell</c>. A script line with the same English
-    /// text is a different line; the sheet text stays as the text fallback while the script
-    /// candidates can still be chosen by their speaker, scene, or script family.
-    /// </summary>
-    private readonly HashSet<string> _sheetTextKeys = new(StringComparer.Ordinal);
-    // Names are matched without case: the sheet stores generic NPC names in lower
-    // case ("skywatcher") and the game shows them capitalised ("Skywatcher").
-    private readonly Dictionary<string, string> _nameLookup = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// The speaker alias attached to one exact script line. The alias is not unique: "All" is
-    /// used by a party, a group of guests, and other crowds, each with its own Chinese label, so
-    /// the line has to name its own alias instead of a global name lookup.
-    /// </summary>
-    private readonly Dictionary<string, SpeakerAlias> _lineSpeakerAliases = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Script lines under a key with the branch words collapsed: pronouns, nouns of
-    /// address, and the time of day. Only tried after an exact miss, because the
-    /// English dump stores one branch.
-    /// </summary>
-    private readonly Dictionary<string, string> _branchNeutralLookup = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Collapsed keys that two script lines share with different Chinese. The
-    /// collapsed key cannot tell the lines apart, so it is not used at all.
-    /// </summary>
-    private readonly HashSet<string> _ambiguousBranchKeys = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Addon-sheet prompts with UNKNOWN placeholders, matched as templates. The
-    /// game fills those values at runtime, so an exact lookup cannot match them.
-    /// </summary>
-    private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
+    private readonly DialogueTextIndex _dialogue = new();
+    private readonly NameIndex _names = new();
+    private readonly AddonIndex _addon = new();
+    private readonly ScriptIndex _scripts = new();
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string Sheet, uint RowId), string> _nameRowLookup = new();
-    private readonly List<(string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate)> _addonTemplates = [];
-    private readonly List<(string Template, string Chinese)> _scriptTemplates = [];
-    private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Translations keyed by the sheet row the game says it is showing. This is the
     /// id-first path: it resolves a line even when the same English text appears in
-    /// several rows.
+    /// several rows. A sheet row is not a name and not a script line, so it stays here
+    /// rather than in one of the indexes.
     /// </summary>
     private readonly Dictionary<(string Sheet, uint RowId, string Field), string[]> _rowLookup = new();
-
-    /// <summary>Script translations keyed by the dump's text key, when the game exposes it.</summary>
-    private readonly Dictionary<string, string> _scriptKeyLookup = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>The normalized English line each script key was paired with in the dump.</summary>
-    private readonly Dictionary<string, string> _scriptKeyEnglishLookup = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// The row id each script key uses in the game's Lua text map. The live map can
-    /// reuse a key for another line; a matching row id is the line's identity.
-    /// </summary>
-    private readonly Dictionary<string, uint> _scriptRowLookup = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>The dump sheet a script key came from, such as <c>cut_scene/022/VoiceMan_02200</c>.</summary>
-    private readonly Dictionary<string, string> _scriptSheetLookup = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Script text keyed by the sheet row the game names, such as a cutscene subtitle.</summary>
-    private readonly Dictionary<(string Sheet, uint RowId), string> _scriptRowTextLookup = new();
-
-    /// <summary>
-    /// Script lines that share one English key but have different Chinese, such as the
-    /// three different "You bastard!" lines. The key alone cannot tell them apart, so
-    /// the text lookup never answers from it. The candidates stay here so the speaker
-    /// name can still pick one.
-    /// </summary>
-    private readonly Dictionary<string, List<ScriptCandidate>> _ambiguousScriptKeys = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// The cutscene number an English script line belongs to, when every key that holds the
-    /// line names the same scene. A selection dialog's options come from one cutscene, so a
-    /// single unambiguous option can name the scene for its ambiguous siblings.
-    /// </summary>
-    private readonly Dictionary<string, uint> _scriptSceneLookup = new(StringComparer.Ordinal);
-
-    /// <summary>Lines that a cutscene key and a key outside a cutscene both hold, so no scene.</summary>
-    private readonly HashSet<string> _scriptSceneConflicts = new(StringComparer.Ordinal);
 
     private readonly Dictionary<(string Sheet, string Field), ISheetDescriptor> _descriptorByKey = new();
 
@@ -127,44 +54,6 @@ public sealed partial class TranslationStore
     private readonly Func<string, string> _indexResolver;
     private readonly Func<string?>? _playerName;
     private readonly PluginLog _log;
-
-    private int _scriptEntryCount;
-
-    /// <summary>One line of a script key that more than one Chinese line shares.</summary>
-    /// <remarks>
-    /// <see cref="Keys"/> holds every dump key whose Chinese is <see cref="Display"/>, because two
-    /// keys with the same Chinese are one candidate. The speaker token, the cutscene number, and
-    /// the <c>UNLOCK</c> marker are all read from those keys.
-    /// </remarks>
-    private readonly record struct SpeakerAlias(string English, string Chinese);
-
-    private readonly record struct ScriptCandidate(string Display, string[] SpeakerTokens, string[] Keys)
-    {
-        /// <summary>Adds another dump key that holds the same Chinese line.</summary>
-        public ScriptCandidate WithKey(string scriptKey, string[] tokens)
-        {
-            var knownKeys = Keys;
-            var knownTokens = SpeakerTokens;
-
-            if (Array.IndexOf(knownKeys, scriptKey) >= 0)
-                return this;
-
-            var added = Array.FindAll(tokens, token => Array.IndexOf(knownTokens, token) < 0);
-
-            string[] keys = knownKeys.Length == 0 ? [scriptKey] : [.. knownKeys, scriptKey];
-            string[] allTokens;
-            if (added.Length == 0)
-            {
-                allTokens = knownTokens;
-            }
-            else
-            {
-                allTokens = [.. knownTokens, .. added];
-            }
-
-            return this with { Keys = keys, SpeakerTokens = allTokens };
-        }
-    }
 
     private TranslationStore(
         ChineseVariant primaryVariant,
@@ -192,7 +81,7 @@ public sealed partial class TranslationStore
     /// <summary>True when the other variant was merged in to cover missing keys.</summary>
     public bool UsedFallback { get; }
 
-    public int TextEntryCount => _textLookup.Count;
+    public int TextEntryCount => _dialogue.Count;
 
     /// <summary>
     /// The English text of every sheet row, with the Chinese stored for it. Sorted, so a
@@ -201,31 +90,17 @@ public sealed partial class TranslationStore
     /// tab to sample lines, which then asks the store for the answer. The list is built per
     /// call, so a caller keeps the result instead of asking again.
     /// </summary>
-    public IReadOnlyList<(string English, string Chinese)> SheetTextEntries
-    {
-        get
-        {
-            var entries = new List<(string English, string Chinese)>(_sheetTextKeys.Count);
-            foreach (var key in _sheetTextKeys)
-            {
-                if (key.Length > 0)
-                    entries.Add((key, _textLookup[key]));
-            }
+    public IReadOnlyList<(string English, string Chinese)> SheetTextEntries => _dialogue.SheetEntries();
 
-            entries.Sort(static (left, right) => string.CompareOrdinal(left.English, right.English));
-            return entries;
-        }
-    }
-
-    public int NameEntryCount => _nameLookup.Count;
+    public int NameEntryCount => _names.Count;
 
     /// <summary>Script-dump lines in the text lookup. Already counted in <see cref="TextEntryCount"/>.</summary>
-    public int ScriptEntryCount => _scriptEntryCount;
+    public int ScriptEntryCount => _dialogue.ScriptEntryCount;
 
     /// <summary>Script English keys that map to more than one Chinese line.</summary>
-    internal int AmbiguousScriptKeyCount => _ambiguousScriptKeys.Count;
+    internal int AmbiguousScriptKeyCount => _scripts.AmbiguousKeyCount;
 
-    internal int AddonTemplateCount => _addonTemplates.Count;
+    internal int AddonTemplateCount => _addon.TemplateCount;
 
     public bool TryGetDialogue(string? englishText, out string chineseText)
         => TryGetDialogue(englishText, default, null, out chineseText);
@@ -269,7 +144,7 @@ public sealed partial class TranslationStore
         if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText, trace))
             return true;
 
-        if (_textLookup.TryGetValue(key, out var stored))
+        if (_dialogue.TryGetExact(key, out var stored))
         {
             trace?.Step("text.exact", "hit");
             chineseText = ResolveDisplay(stored);
@@ -321,14 +196,13 @@ public sealed partial class TranslationStore
         if (key.Length == 0)
             return false;
 
-        return _scriptSceneLookup.TryGetValue(key, out cutsceneId);
+        return _scripts.TryGetCutsceneId(key, out cutsceneId);
     }
 
     /// <summary>
-    /// Answers a key that several script lines share. The speaker name narrows the candidates by
-    /// the token in each dump key, such as <c>..._JULLUS</c>; a cutscene narrows them by the
-    /// cutscene number in a <c>VOICEMAN</c> key. A key with no name and no cutscene, or with more
-    /// than one candidate left, stays unanswered rather than guessing.
+    /// Answers a key that several script lines share. The script index picks a candidate by the
+    /// speaker, the cutscene, the chocobo stand state, or the script family; the store resolves
+    /// the chosen line for display.
     /// </summary>
     private bool TryLookupAmbiguousScript(
         string key,
@@ -337,505 +211,31 @@ public sealed partial class TranslationStore
         out string chineseText,
         FailureTrace? trace = null)
     {
-        chineseText = string.Empty;
-
-        if (!_ambiguousScriptKeys.TryGetValue(key, out var candidates))
+        if (!_scripts.TryLookupAmbiguous(
+                key,
+                speakerName,
+                in context,
+                _dialogue.Contains(key),
+                _log,
+                trace,
+                out var stored))
         {
-            trace?.Step("text.ambiguous", "none");
+            chineseText = string.Empty;
             return false;
         }
 
-        var narrowed = candidates;
-
-        var words = SpeakerWords(speakerName);
-        if (words.Length > 0)
-        {
-            var spoken = candidates.FindAll(candidate => CandidateIsSpokenBy(candidate, words));
-            if (spoken.Count > 0)
-                narrowed = spoken;
-        }
-
-        // The event script that produced a selection dialog is a stronger hint than the
-        // English text alone. One of its keys, or a key from a sibling option, names the
-        // script family the answer must come from.
-        if (context.ScriptKeyHints is { Count: > 0 } hints)
-        {
-            var hinted = narrowed.FindAll(candidate => CandidateMatchesAnyHint(candidate, hints));
-            if (hinted.Count > 0)
-            {
-                if (hinted.Count < narrowed.Count)
-                {
-                    _log.Debug(
-                        "Dialogue narrowed {Count} shared script lines to {Matched} by the event script {Hints}.",
-                        narrowed.Count, hinted.Count, string.Join(", ", hints));
-                }
-
-                narrowed = hinted;
-            }
-        }
-
-        if (narrowed.Count == 1)
-        {
-            trace?.Step("text.ambiguous", "hit", "one candidate");
-            chineseText = ResolveDisplay(narrowed[0].Display);
-            _log.Debug(
-                "Dialogue matched one of {Count} script lines that share a key, by speaker {Speaker}: {Keys}.",
-                candidates.Count, speakerName ?? string.Empty, Describe(narrowed[0]));
-            return true;
-        }
-
-        var cutsceneId = context.CutsceneId;
-        if (cutsceneId != 0)
-        {
-            var match = OnlyMatch(narrowed, candidate => HoldsCutscene(candidate, cutsceneId));
-            if (match is not null)
-            {
-                trace?.Step("text.ambiguous", "hit", $"cutscene {cutsceneId}");
-                chineseText = ResolveDisplay(match.Value.Display);
-                _log.Debug(
-                    "Dialogue matched the cutscene {CutsceneId} line out of {Count} script lines " +
-                    "that share a key.",
-                    cutsceneId, narrowed.Count);
-                return true;
-            }
-        }
-
-        if (MacroNormalizer.IsOnlySoundMarkers(key))
-        {
-            trace?.Step("text.ambiguous", "hit", "sound only");
-            chineseText = ResolveDisplay(narrowed[0].Display);
-            _log.Debug(
-                "Dialogue picked one of {Count} lines that hold only a sound ({Key}).",
-                narrowed.Count, key);
-            return true;
-        }
-
-        if (context.ChocoboTaxiStandUnlocked is { } standUnlocked)
-        {
-            var match = OnlyMatch(narrowed, candidate => HoldsUnlockLine(candidate) != standUnlocked);
-            if (match is not null)
-            {
-                trace?.Step("text.ambiguous", "hit", $"chocobo {(standUnlocked ? "unlocked" : "locked")}");
-                chineseText = ResolveDisplay(match.Value.Display);
-                _log.Debug(
-                    "Dialogue picked the {State} chocobo taxi greeting out of {Count} script lines " +
-                    "that share a key.",
-                    standUnlocked ? "unlocked" : "locked", narrowed.Count);
-                return true;
-            }
-        }
-
-        // Two scenes of one cutscene file can hold the same line twice, and the localisation
-        // differs only in a closing mark. Saying either is right, so answer instead of refusing.
-        if (AllSayTheSame(narrowed))
-        {
-            trace?.Step("text.ambiguous", "hit", "same text");
-            chineseText = ResolveDisplay(narrowed[0].Display);
-            _log.Debug(
-                "Dialogue picked one of {Count} script lines that share a key and differ only in " +
-                "punctuation ({Keys}).",
-                narrowed.Count, Describe(narrowed[0]));
-            return true;
-        }
-
-        // A cutscene can hold two versions of one line for different player progress, with the
-        // same speaker and scene. No id on the addon says which branch is playing, and both are
-        // from this scene, so use the first (default) branch instead of leaving the line English.
-        if (narrowed.Count > 1 && AllLinesInOneCutscene(narrowed, cutsceneId))
-        {
-            trace?.Step("text.ambiguous", "hit", "branch line");
-            chineseText = ResolveDisplay(narrowed[0].Display);
-            _log.Debug(
-                "Dialogue picked the first of {Count} branch lines in cutscene {CutsceneId}: {Keys}.",
-                narrowed.Count, cutsceneId, Describe(narrowed[0]));
-            return true;
-        }
-
-        // A sheet row may still answer this key by text after the script candidates fail.
-        if (!_textLookup.ContainsKey(key))
-        {
-            // The line stays English. Name the dump keys, because a report of a missing line
-            // cannot say which scenes collided from a count alone.
-            _log.Debug(
-                "Dialogue line has {Count} script candidates and none was chosen ({Speaker}, cutscene " +
-                "{CutsceneId}): {Keys}.",
-                candidates.Count,
-                speakerName ?? string.Empty,
-                cutsceneId,
-                string.Join(", ", candidates.Select(Describe)));
-
-            if (trace is not null)
-            {
-                trace.Step(
-                    "text.ambiguous",
-                    "no-choice",
-                    string.Join("; ", candidates.Take(6).Select(Describe)));
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>True when every remaining candidate belongs to the one cutscene that is playing.</summary>
-    private static bool AllLinesInOneCutscene(List<ScriptCandidate> candidates, uint cutsceneId)
-    {
-        if (cutsceneId != 0)
-            return candidates.All(candidate => HoldsCutscene(candidate, cutsceneId));
-
-        uint scene = 0;
-        foreach (var candidate in candidates)
-        {
-            foreach (var key in candidate.Keys)
-            {
-                var keyScene = CutsceneIdOf(key);
-                if (keyScene == 0)
-                    return false;
-
-                if (scene == 0)
-                    scene = keyScene;
-                else if (scene != keyScene)
-                    return false;
-            }
-        }
-
-        return scene != 0;
-    }
-
-    /// <summary>True when every candidate shows the same text once punctuation and space are gone.</summary>
-    private static bool AllSayTheSame(List<ScriptCandidate> candidates)
-    {
-        if (candidates.Count < 2)
-            return false;
-
-        var first = TextWithoutPunctuation(candidates[0].Display);
-        if (first.Length == 0)
-            return false;
-
-        for (var i = 1; i < candidates.Count; i++)
-        {
-            if (!string.Equals(first, TextWithoutPunctuation(candidates[i].Display), StringComparison.Ordinal))
-                return false;
-        }
-
+        chineseText = ResolveDisplay(stored);
         return true;
     }
 
-    private static string TextWithoutPunctuation(string? text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return string.Empty;
+    /// <summary>The cutscene number in a <c>VOICEMAN</c> dump key. Zero for any other key.</summary>
+    internal static uint CutsceneIdOf(string? scriptKey) => ScriptIndex.CutsceneIdOf(scriptKey);
 
-        var builder = new System.Text.StringBuilder(text.Length);
-        foreach (var character in MacroNormalizer.CleanForDisplay(text))
-        {
-            if (char.IsPunctuation(character) || char.IsWhiteSpace(character) || char.IsSymbol(character))
-                continue;
+    /// <summary>The script a dump key belongs to, without the line suffix.</summary>
+    internal static string ScriptFamilyOf(string? key) => ScriptIndex.ScriptFamilyOf(key);
 
-            builder.Append(character);
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>The dump keys behind one candidate, for the debug log.</summary>
-    private static string Describe(ScriptCandidate candidate)
-        => candidate.Keys.Length == 0 ? "(no key)" : string.Join(" / ", candidate.Keys);
-
-    /// <summary>
-    /// True when the candidate's dump key marks a line for a feature that has just unlocked, such
-    /// as <c>TEXT_CHOCOBOTAXISTAND_00000_CHOCOBOTAXI_UNLOCK_01</c>.
-    /// </summary>
-    private static bool HoldsUnlockLine(ScriptCandidate candidate)
-        => Array.Exists(candidate.Keys, key => key.Contains("_UNLOCK", StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>The one candidate that matches, or null when none or several do.</summary>
-    private static ScriptCandidate? OnlyMatch(List<ScriptCandidate> candidates, Predicate<ScriptCandidate> matches)
-    {
-        ScriptCandidate? match = null;
-
-        foreach (var candidate in candidates)
-        {
-            if (!matches(candidate))
-                continue;
-
-            if (match is not null)
-                return null;
-
-            match = candidate;
-        }
-
-        return match;
-    }
-
-    /// <summary>True when any of the candidate's dump keys is the line for this cutscene.</summary>
-    private static bool HoldsCutscene(ScriptCandidate candidate, uint cutsceneId)
-        => Array.Exists(candidate.Keys, key => CutsceneIdOf(key) == cutsceneId);
-
-    private static bool CandidateMatchesAnyHint(ScriptCandidate candidate, IReadOnlyList<string> hints)
-    {
-        foreach (var key in candidate.Keys)
-        {
-            var family = ScriptFamilyOf(key);
-            if (family.Length == 0)
-                continue;
-
-            foreach (var hint in hints)
-            {
-                var hintFamily = ScriptFamilyOf(hint);
-                if (hintFamily.Length == 0)
-                    continue;
-
-                if (string.Equals(family, hintFamily, StringComparison.OrdinalIgnoreCase)
-                    || family.StartsWith($"{hintFamily}_", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// The script a dump key belongs to, without the line suffix. <c>TEXT_REGUNI5BASEOMICRON_00760_A1_000_001</c>
-    /// and <c>REGUNI5BASEOMICRON_00760</c> both name <c>REGUNI5BASEOMICRON_00760</c>, so a Lua key and a dump
-    /// key can be compared.
-    /// </summary>
-    internal static string ScriptFamilyOf(string? key)
-    {
-        if (string.IsNullOrEmpty(key))
-            return string.Empty;
-
-        var slash = key.LastIndexOfAny(['/', '\\']);
-        if (slash >= 0)
-            key = key[(slash + 1)..];
-
-        var dot = key.IndexOf('.');
-        if (dot > 0)
-            key = key[..dot];
-
-        const string prefix = "TEXT_";
-        var name = key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? key[prefix.Length..]
-            : key;
-
-        var first = name.IndexOf('_');
-        if (first <= 0)
-            return name;
-
-        var second = name.IndexOf('_', first + 1);
-        if (second < 0)
-            return name;
-
-        // Most keys are SCRIPT_NAME + a five digit id. Keep both.
-        if (uint.TryParse(name.AsSpan(first + 1, second - first - 1), out _))
-            return name[..second];
-
-        return name[..first];
-    }
-
-    /// <summary>
-    /// True when a line still holds Japanese kana. A few rows in the CN and TC dumps were never
-    /// localised, and their name is Japanese. The middle dot and long-vowel mark are excluded,
-    /// because Chinese names use them too ("拜克・拉各").
-    /// </summary>
-    private static bool HasJapaneseKana(string text)
-    {
-        foreach (var character in text)
-        {
-            if (character is >= '\u3041' and <= '\u3096'
-                or >= '\u3099' and <= '\u309F'
-                or >= '\u30A1' and <= '\u30FA'
-                or >= '\u30FD' and <= '\u30FE')
-            {
-                return true;
-            }
-
-            if (character is >= '\uFF66' and <= '\uFF9D' && character != '\uFF70')
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Records the scene one script key names, and drops the line when another key disagrees or
-    /// sits outside a cutscene. The artifact is scanned first so the order of its keys does not
-    /// decide the answer.
-    /// </summary>
-    private static void NoteScriptScene(
-        Dictionary<string, uint> scenes,
-        HashSet<string> conflicts,
-        string key,
-        string scriptKey)
-    {
-        if (conflicts.Contains(key))
-            return;
-
-        var scene = CutsceneIdOf(scriptKey);
-        if (!scenes.TryGetValue(key, out var known))
-        {
-            scenes[key] = scene;
-            return;
-        }
-
-        if (known == scene)
-            return;
-
-        scenes.Remove(key);
-        conflicts.Add(key);
-    }
-
-    /// <summary>Adds the scenes this artifact agreed on to the lookup the handler reads.</summary>
-    private void MergeScriptScenes(
-        Dictionary<string, uint> scenes,
-        HashSet<string> conflicts)
-    {
-        foreach (var (key, scene) in scenes)
-        {
-            if (scene == 0 || _scriptSceneConflicts.Contains(key))
-                continue;
-
-            if (_scriptSceneLookup.TryGetValue(key, out var known))
-            {
-                if (known == scene)
-                    continue;
-
-                _scriptSceneLookup.Remove(key);
-                _scriptSceneConflicts.Add(key);
-                continue;
-            }
-
-            _scriptSceneLookup[key] = scene;
-        }
-
-        foreach (var key in conflicts)
-        {
-            if (_scriptSceneLookup.Remove(key))
-                _scriptSceneConflicts.Add(key);
-        }
-    }
-
-    /// <summary>
-    /// The cutscene number in a <c>VOICEMAN</c> dump key: <c>TEXT_VOICEMAN_06005_003840_THANCRED</c>
-    /// is cutscene 6005. Zero for any other key, so the cutscene step does not apply to it.
-    /// </summary>
-    internal static uint CutsceneIdOf(string? scriptKey)
-    {
-        const string prefix = "TEXT_VOICEMAN_";
-
-        if (scriptKey is null || !scriptKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            return 0;
-
-        var start = prefix.Length;
-        var end = scriptKey.IndexOf('_', start);
-        if (end <= start)
-            return 0;
-
-        return uint.TryParse(scriptKey.AsSpan(start, end - start), out var id) ? id : 0;
-    }
-
-    /// <summary>
-    /// True when the dump key names the speaker, such as <c>TEXT_VOICEMAN_06005_000910_JULLUS</c>
-    /// for "Jullus". Keys are matched on whole tokens so a scene name cannot match.
-    /// </summary>
-    private static bool CandidateIsSpokenBy(ScriptCandidate candidate, string[] speakerWords)
-    {
-        foreach (var token in candidate.SpeakerTokens)
-        {
-            foreach (var word in speakerWords)
-            {
-                if (string.Equals(token, word, StringComparison.Ordinal))
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// The words of a speaker name that can appear in a dump key. Titles and short
-    /// words are dropped; "Jullus" and "Emet-Selch" both survive.
-    /// </summary>
-    private static string[] SpeakerWords(string? speakerName)
-    {
-        if (string.IsNullOrWhiteSpace(speakerName))
-            return [];
-
-        var words = new List<string>(4);
-        var whole = new StringBuilder(speakerName.Length);
-
-        var start = -1;
-        for (var i = 0; i <= speakerName.Length; i++)
-        {
-            var isLetter = i < speakerName.Length && char.IsLetter(speakerName[i]);
-            if (isLetter)
-            {
-                whole.Append(char.ToUpperInvariant(speakerName[i]));
-
-                if (start < 0)
-                    start = i;
-
-                continue;
-            }
-
-            if (start < 0)
-                continue;
-
-            if (i - start >= 4)
-                words.Add(speakerName[start..i].ToUpperInvariant());
-
-            start = -1;
-        }
-
-        // A dump key writes a two-part name as one token: "G'raha Tia" is GRAHATIA. The
-        // apostrophe and the space are not part of the name, so the whole name without them is
-        // a candidate too.
-        var fullName = whole.ToString();
-        if (fullName.Length >= 4 && !words.Contains(fullName))
-            words.Add(fullName);
-
-        return words.Count == 0 ? [] : words.ToArray();
-    }
-
-    /// <summary>
-    /// The words in a script key that can name a speaker. Digits and short tokens such
-    /// as <c>TEXT</c> are dropped so only real names remain.
-    /// </summary>
-    private static string[] KeySpeakerTokens(string? scriptKey)
-    {
-        if (string.IsNullOrEmpty(scriptKey))
-            return [];
-
-        var tokens = new List<string>(4);
-
-        var start = -1;
-        for (var i = 0; i <= scriptKey.Length; i++)
-        {
-            var isLetter = i < scriptKey.Length && char.IsLetter(scriptKey[i]);
-            if (isLetter)
-            {
-                if (start < 0)
-                    start = i;
-                continue;
-            }
-
-            if (start < 0)
-                continue;
-
-            var length = i - start;
-            if (length >= 4)
-            {
-                var token = scriptKey[start..i].ToUpperInvariant();
-                if (!string.Equals(token, "TEXT", StringComparison.Ordinal) && !tokens.Contains(token))
-                    tokens.Add(token);
-            }
-
-            start = -1;
-        }
-
-        return tokens.Count == 0 ? [] : tokens.ToArray();
-    }
+    /// <summary>Collapses every word the English dump may have resolved to another branch.</summary>
+    private static string CollapseBranchWords(string key) => DialogueTextIndex.CollapseBranchWords(key);
 
     /// <summary>
     /// Retries a miss with the player's name put back as a dump placeholder. The
@@ -937,20 +337,7 @@ public sealed partial class TranslationStore
     }
 
     private bool TryLookupScriptTemplate(string key, out string chineseText)
-    {
-        chineseText = string.Empty;
-
-        foreach (var (template, chinese) in _scriptTemplates)
-        {
-            if (!ScriptTextTemplate.TryMatch(template, key, out _))
-                continue;
-
-            chineseText = chinese;
-            return true;
-        }
-
-        return false;
-    }
+        => _scripts.TryGetTemplate(key, out chineseText);
 
     private bool TryLookupWithGenderFallback(
         string key,
@@ -963,7 +350,7 @@ public sealed partial class TranslationStore
         if (TryLookupAmbiguousScript(key, speakerName, in context, out chineseText))
             return true;
 
-        if (_textLookup.TryGetValue(key, out var stored))
+        if (_dialogue.TryGetExact(key, out var stored))
         {
             chineseText = ResolveDisplay(stored);
             return true;
@@ -1016,7 +403,7 @@ public sealed partial class TranslationStore
         // A cutscene subtitle or another script line the game names by sheet row.
         if (context.ScriptRow is { } scriptRow)
         {
-            if (_scriptRowTextLookup.TryGetValue((scriptRow.Sheet, scriptRow.RowId), out var rowText))
+            if (_scripts.TryGetRowText(scriptRow.Sheet, scriptRow.RowId, out var rowText))
             {
                 if (trace is not null)
                     trace.Step("id.scriptRow", "hit", $"{scriptRow.Sheet} row {scriptRow.RowId}");
@@ -1040,7 +427,7 @@ public sealed partial class TranslationStore
                     continue;
 
                 var trimmed = scriptKey.Trim();
-                if (!_scriptKeyLookup.TryGetValue(trimmed, out var script))
+                if (!_scripts.TryGetText(trimmed, out var script))
                 {
                     trace?.Step("id.scriptKey", "not-indexed", trimmed);
                     continue;
@@ -1051,7 +438,7 @@ public sealed partial class TranslationStore
                 // text comparison and works in any client language.
                 if (context.ScriptRowIds is not null
                     && context.ScriptRowIds.TryGetValue(trimmed, out var liveRowId)
-                    && _scriptRowLookup.TryGetValue(trimmed, out var artifactRowId))
+                    && _scripts.TryGetRowId(trimmed, out var artifactRowId))
                 {
                     if (artifactRowId != liveRowId)
                     {
@@ -1081,7 +468,7 @@ public sealed partial class TranslationStore
                 // Without a live row id, trust the key only when the dump paired it with
                 // the same English line. Put the player name back and collapse gender/time
                 // wording first, because those differences are expected.
-                if (_scriptKeyEnglishLookup.TryGetValue(trimmed, out var pairedKey))
+                if (_scripts.TryGetPairedEnglish(trimmed, out var pairedKey))
                 {
                     var liveForCompare = PlayerNamePlaceholderKey(liveKey);
                     if (liveForCompare.Length == 0)
@@ -1276,32 +663,14 @@ public sealed partial class TranslationStore
     /// </summary>
     private bool TryLookupBranchNeutral(string key, out string stored)
     {
-        stored = string.Empty;
-
-        if (_branchNeutralLookup.Count == 0)
+        if (!_dialogue.TryGetBranchNeutral(key, out stored))
             return false;
-
-        var neutral = CollapseBranchWords(key);
-        if (ReferenceEquals(neutral, key))
-            return false;
-
-        if (_ambiguousBranchKeys.Contains(neutral)
-            || !_branchNeutralLookup.TryGetValue(neutral, out var match))
-        {
-            return false;
-        }
 
         _log.Debug("Line matched after collapsing the branch words.");
-        stored = match;
         return true;
     }
 
     /// <summary>
-    /// Collapses every word the English dump may have resolved to another branch.
-    /// </summary>
-    private static string CollapseBranchWords(string key)
-        => TimeOfDayWords.Neutralize(GenderedNouns.Neutralize(GenderedPronouns.Neutralize(key)));
-
     /// <summary>
     /// Looks up a short Addon-sheet label such as "Yes.", "No.", or "Skip cutscene?".
     /// The separate lookup keeps a same-text NpcYell or script row from winning.
@@ -1317,7 +686,7 @@ public sealed partial class TranslationStore
             return false;
         }
 
-        if (!_addonLookup.TryGetValue(key, out var stored))
+        if (!_addon.TryGetLabel(key, out var stored))
         {
             trace?.Step("addon.label", "miss");
             return false;
@@ -1350,24 +719,7 @@ public sealed partial class TranslationStore
     /// what a live client newer than the data looks like.
     /// </summary>
     public bool HasAddonPromptLike(string? englishText, int prefixLength = 8)
-    {
-        var key = MacroNormalizer.NormalizeKey(englishText);
-        if (key.Length < prefixLength)
-            return false;
-
-        var prefix = key[..prefixLength];
-
-        foreach (var (template, _, _, _) in _addonTemplates)
-        {
-            if (template.Length == 0 || template[0] == ScriptTextTemplate.Wildcard)
-                continue;
-
-            if (template.StartsWith(prefix, StringComparison.Ordinal))
-                return true;
-        }
-
-        return false;
-    }
+        => _addon.HasPromptLike(MacroNormalizer.NormalizeKey(englishText), prefixLength);
 
     public bool TryGetAddonText(
         string? englishText,
@@ -1388,38 +740,18 @@ public sealed partial class TranslationStore
         out string? macroTemplate,
         FailureTrace? trace = null)
     {
-        chineseText = string.Empty;
-        captures = [];
-        parameterIndices = null;
-        macroTemplate = null;
-
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0)
         {
+            chineseText = string.Empty;
+            captures = [];
+            parameterIndices = null;
+            macroTemplate = null;
             trace?.Step("addon.template", "empty");
             return false;
         }
 
-        if (_addonTemplates.Count == 0)
-        {
-            trace?.Step("addon.template", "no-templates");
-            return false;
-        }
-
-        foreach (var (template, chinese, indices, macro) in _addonTemplates)
-        {
-            if (!ScriptTextTemplate.TryMatch(template, key, out captures))
-                continue;
-
-            trace?.Step("addon.template", "hit", template);
-            chineseText = chinese;
-            parameterIndices = indices;
-            macroTemplate = macro;
-            return true;
-        }
-
-        trace?.Step("addon.template", "miss");
-        return false;
+        return _addon.TryGetText(key, trace, out chineseText, out captures, out parameterIndices, out macroTemplate);
     }
 
     /// <summary>True when the stored line carried UI text colors.</summary>
@@ -1427,12 +759,6 @@ public sealed partial class TranslationStore
     {
         style = default;
         return !string.IsNullOrEmpty(displayText) && _styleLookup.TryGetValue(displayText, out style);
-    }
-
-    private void RegisterStyle(string display, string rawText)
-    {
-        if (UiTextStyle.TryParse(rawText, out var style))
-            _styleLookup.TryAdd(display, style);
     }
 
     /// <summary>
@@ -1448,7 +774,7 @@ public sealed partial class TranslationStore
     {
         chineseName = string.Empty;
 
-        if (!_nameRowLookup.TryGetValue((sheet, rowId), out var stored))
+        if (!_names.TryGetRow(sheet, rowId, out var stored))
         {
             if (trace is not null)
                 trace.Step("name.id", "miss", $"{sheet} row {rowId}");
@@ -1473,23 +799,22 @@ public sealed partial class TranslationStore
 
         trace?.Input("name", key);
 
-        if (_nameLookup.TryGetValue(key, out var stored))
+        var match = _names.Match(key, out var stored, out var matchedKey);
+
+        if (match == NameMatch.Exact)
         {
             trace?.Step("name.exact", "hit");
             chineseName = ResolveDisplay(stored);
             return true;
         }
 
-        // Speaker aliases can carry punctuation, for example "Pattin?".
-        // The name sheet stores the name without it.
-        var trimmed = key.TrimEnd('?', '!', '.', '？', '！', '。', '…');
-        if (trimmed.Length == 0 || trimmed == key || !_nameLookup.TryGetValue(trimmed, out stored))
+        if (match == NameMatch.None)
         {
             trace?.Step("name.exact", "miss");
             return false;
         }
 
-        trace?.Step("name.trimmed", "hit", trimmed, approximate: true);
+        trace?.Step("name.trimmed", "hit", matchedKey, approximate: true);
         chineseName = ResolveDisplay(stored);
         return true;
     }
@@ -1505,706 +830,12 @@ public sealed partial class TranslationStore
         chineseName = string.Empty;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
-        if (key.Length == 0 || !_lineSpeakerAliases.TryGetValue(key, out var alias))
+        if (key.Length == 0 || !_dialogue.TryGetAlias(key, out var alias))
             return false;
 
         englishName = alias.English;
         chineseName = alias.Chinese;
         return chineseName.Length > 0;
-    }
-
-    /// <summary>
-    /// Builds a store for the configured variant. Returns null when neither the
-    /// primary nor the fallback artifact could be read. The opener decides where
-    /// artifacts come from; the plugin prefers downloaded files and falls back to
-    /// the copies embedded in the assembly.
-    /// </summary>
-    public static TranslationStore? Load(
-        Configuration configuration,
-        IDataManager dataManager,
-        IPluginLog log,
-        Func<ChineseVariant, Stream?> openResource,
-        Func<ChineseVariant, Stream?>? fallbackResource = null,
-        Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null)
-        => Load(
-            SheetCatalog.Create(dataManager),
-            configuration.Variant,
-            configuration.UseFallbackVariant,
-            openResource,
-            log,
-            fallbackResource,
-            displayResolver,
-            playerName,
-            configuration);
-
-    /// <summary>
-    /// Reads and parses the artifacts for the configured variant without touching
-    /// any Lumina sheet.
-    /// </summary>
-    /// <remarks>
-    /// Parsing is the expensive half that is safe to run on a worker task. Reading
-    /// rows from the live game sheets is not: Dalamud forbids that off the game
-    /// thread. <see cref="Build"/> takes the result and finishes the load on the
-    /// game thread.
-    /// </remarks>
-    public static ParsedArtifacts? Parse(
-        Configuration configuration,
-        IPluginLog log,
-        Func<ChineseVariant, Stream?> openResource,
-        Func<ChineseVariant, Stream?>? fallbackResource = null)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var parsed = ParseArtifacts(
-            configuration.Variant,
-            configuration.UseFallbackVariant,
-            openResource,
-            log,
-            fallbackResource);
-
-        if (parsed is not null)
-        {
-            new PluginLog(log, configuration, LogCategory.Data).Debug(
-                "Parsed {Variant} artifacts in {Elapsed} ms.",
-                configuration.Variant, stopwatch.ElapsedMilliseconds);
-        }
-
-        return parsed;
-    }
-
-    /// <summary>
-    /// Finishes a load from artifacts that came from <see cref="Parse"/>. Does the
-    /// sheet reads and the indexing, so it must run on the game thread.
-    /// </summary>
-    public static TranslationStore? Build(
-        ParsedArtifacts parsed,
-        Configuration configuration,
-        IDataManager dataManager,
-        IPluginLog log,
-        Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null)
-        => Build(
-            parsed,
-            SheetCatalog.Create(dataManager),
-            configuration.Variant,
-            log,
-            displayResolver,
-            playerName,
-            configuration);
-
-    /// <summary>
-    /// Builds a store from explicit inputs. Tests use this to supply their own
-    /// sheet descriptors and artifact streams instead of the embedded ones.
-    /// </summary>
-    /// <param name="displayResolver">
-    /// Turns stored text into what the overlay shows. Lines with a conditional are
-    /// resolved on each lookup, because the answer depends on the player. Lines
-    /// without one are resolved once here.
-    /// </param>
-    /// <param name="playerName">
-    /// The player's full name. A line the game filled in with it can still match the
-    /// dump's placeholder. Null skips that second lookup.
-    /// </param>
-    internal static TranslationStore? Load(
-        IReadOnlyList<ISheetDescriptor> descriptors,
-        ChineseVariant variant,
-        bool useFallback,
-        Func<ChineseVariant, Stream?> openResource,
-        IPluginLog log,
-        Func<ChineseVariant, Stream?>? fallbackResource = null,
-        Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null,
-        Configuration? configuration = null)
-    {
-        var parsed = ParseArtifacts(variant, useFallback, openResource, log, fallbackResource);
-        if (parsed is null)
-            return null;
-
-        return Build(parsed, descriptors, variant, log, displayResolver, playerName, configuration);
-    }
-
-    /// <summary>
-    /// Builds a store from already parsed artifacts. This overload reads the live
-    /// sheets and indexes on the calling thread; the plugin uses the overload below
-    /// so the sheet reads never run in one frame.
-    /// </summary>
-    internal static TranslationStore? Build(
-        ParsedArtifacts parsed,
-        IReadOnlyList<ISheetDescriptor> descriptors,
-        ChineseVariant variant,
-        IPluginLog log,
-        Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null,
-        Configuration? configuration = null,
-        Func<string, string>? indexResolver = null)
-    {
-        var extraction = new SheetExtraction(parsed, descriptors);
-        extraction.Extract(TimeSpan.MaxValue);
-        return Build(
-            parsed,
-            descriptors,
-            extraction,
-            variant,
-            log,
-            displayResolver,
-            playerName,
-            configuration,
-            indexResolver);
-    }
-
-    /// <summary>
-    /// Builds a store from artifacts and English text already read from the live
-    /// sheets. Touches no Lumina sheet, so it can run on a worker task.
-    /// </summary>
-    internal static TranslationStore? Build(
-        ParsedArtifacts parsed,
-        IReadOnlyList<ISheetDescriptor> descriptors,
-        SheetExtraction extraction,
-        ChineseVariant variant,
-        IPluginLog log,
-        Func<string, string>? displayResolver = null,
-        Func<string?>? playerName = null,
-        Configuration? configuration = null,
-        Func<string, string>? indexResolver = null)
-    {
-        var stopwatch = Stopwatch.StartNew();
-
-        var primary = parsed.Primary;
-        var fallback = parsed.Fallback;
-
-        if (primary is null && fallback is null)
-            return null;
-
-        // Without settings there is nothing to filter by, which is what the test
-        // seams use.
-        var dataLog = configuration is null
-            ? new PluginLog(log)
-            : new PluginLog(log, configuration, LogCategory.Data);
-        var dialogueLog = configuration is null
-            ? new PluginLog(log)
-            : new PluginLog(log, configuration, LogCategory.Dialogue);
-
-        var store = new TranslationStore(
-            variant,
-            fallback is not null,
-            descriptors,
-            displayResolver ?? (static text => MacroNormalizer.CleanForDisplay(text)),
-            indexResolver,
-            playerName,
-            dialogueLog);
-
-        if (primary is not null)
-            store.Index(primary, descriptors, extraction, dataLog);
-
-        var primaryTextCount = store._textLookup.Count;
-        var primaryNameCount = store._nameLookup.Count;
-        var primaryScriptCount = store._scriptEntryCount;
-
-        if (fallback is not null)
-            store.Index(fallback, descriptors, extraction, dataLog);
-
-        // Several rows can match one prompt. A row that draws a word with a
-        // conditional macro matches almost any text in its place, so its template
-        // also matches prompts written for another row. The template with the most
-        // literal text names the prompt most exactly, so try it first.
-        store._addonTemplates.Sort(CompareAddonTemplates);
-
-        stopwatch.Stop();
-        dataLog.Info(
-            "Loaded {Variant}{Fallback} translations: {Text:N0} dialogue, {Name:N0} names and {Script:N0} script lines " +
-            "in {Elapsed} ms (fallback added {AddedText:N0} dialogue / {AddedName:N0} names / {AddedScript:N0} script lines).",
-            store.PrimaryVariant,
-            store.UsedFallback ? " + fallback" : string.Empty,
-            store._textLookup.Count,
-            store._nameLookup.Count,
-            store._scriptEntryCount,
-            stopwatch.ElapsedMilliseconds,
-            store._textLookup.Count - primaryTextCount,
-            store._nameLookup.Count - primaryNameCount,
-            store._scriptEntryCount - primaryScriptCount);
-
-        return store;
-    }
-
-    /// <summary>
-    /// Orders Addon templates from the most literal text to the least. A template
-    /// with fewer wildcards wins a tie, because it allows less text to vary.
-    /// </summary>
-    private static int CompareAddonTemplates(
-        (string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate) left,
-        (string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate) right)
-    {
-        var literal = ScriptTextTemplate.LiteralLength(right.Template)
-            .CompareTo(ScriptTextTemplate.LiteralLength(left.Template));
-        if (literal != 0)
-            return literal;
-
-        var wildcards = CountWildcards(left.Template).CompareTo(CountWildcards(right.Template));
-        if (wildcards != 0)
-            return wildcards;
-
-        return string.CompareOrdinal(left.Template, right.Template);
-    }
-
-    private static int CountWildcards(string template)
-    {
-        var count = 0;
-        foreach (var ch in template)
-        {
-            if (ch == ScriptTextTemplate.Wildcard)
-                count++;
-        }
-
-        return count;
-    }
-
-    private static ChineseVariant Other(ChineseVariant variant)
-        => variant == ChineseVariant.Traditional ? ChineseVariant.Simplified : ChineseVariant.Traditional;
-
-    /// <summary>
-    /// Reads and parses the artifacts. Returns null when neither variant is
-    /// available. Touches no game state, so a caller may run this on a worker task.
-    /// </summary>
-    private static ParsedArtifacts? ParseArtifacts(
-        ChineseVariant variant,
-        bool useFallback,
-        Func<ChineseVariant, Stream?> openResource,
-        IPluginLog log,
-        Func<ChineseVariant, Stream?>? fallbackResource)
-    {
-        var primary = LoadArtifact(variant, openResource, fallbackResource, log);
-        if (primary is null)
-        {
-            log.Warning("Primary artifact for {Variant} was not available.", variant);
-        }
-
-        var fallback = useFallback
-            ? LoadArtifact(Other(variant), openResource, fallbackResource, log)
-            : null;
-
-        if (primary is null && fallback is null)
-        {
-            log.Error("No translation artifacts are available. Talk text will not be translated.");
-            return null;
-        }
-
-        return new ParsedArtifacts(variant, primary, fallback);
-    }
-
-    private void Index(
-        TranslationArtifact artifact,
-        IReadOnlyList<ISheetDescriptor> descriptors,
-        SheetExtraction extraction,
-        PluginLog log)
-    {
-        var indexedRows = 0;
-        var indexedSlots = 0;
-
-        foreach (var descriptor in descriptors)
-        {
-            if (!artifact.Sheets.TryGetValue(descriptor.Name, out var rows))
-            {
-                log.Debug("Artifact has no rows for sheet {Sheet}.", descriptor.Name);
-                continue;
-            }
-
-            var target = descriptor.IsNameSheet ? _nameLookup : _textLookup;
-
-            foreach (var (rowKey, fields) in rows)
-            {
-                if (!uint.TryParse(rowKey, out var rowId))
-                    continue;
-
-                if (!fields.TryGetValue(descriptor.FieldName, out var chineseSlots) || chineseSlots.Length == 0)
-                    continue;
-
-                if (!extraction.TryGet(descriptor.Name, descriptor.FieldName, rowId, out var extracted))
-                    continue;
-
-                var englishSlots = extracted.EnglishSlots;
-
-                var slotCount = Math.Min(englishSlots.Count, chineseSlots.Length);
-
-                string[]? rowSlots = null;
-                var idKey = (Sheet: descriptor.Name, RowId: rowId, Field: descriptor.FieldName);
-
-                if (!descriptor.IsNameSheet)
-                {
-                    if (!_rowLookup.TryGetValue(idKey, out rowSlots))
-                    {
-                        rowSlots = new string[chineseSlots.Length];
-                        _rowLookup[idKey] = rowSlots;
-                    }
-                    else if (rowSlots.Length < chineseSlots.Length)
-                    {
-                        Array.Resize(ref rowSlots, chineseSlots.Length);
-                        _rowLookup[idKey] = rowSlots;
-                    }
-                }
-
-                for (var i = 0; i < slotCount; i++)
-                {
-                    var display = PrepareDisplay(chineseSlots[i]);
-                    if (display.Length == 0)
-                        continue;
-
-                    RegisterStyle(display, chineseSlots[i]);
-
-                    if (descriptor.IsNameSheet)
-                        _nameRowLookup.TryAdd((descriptor.Name, rowId), display);
-
-                    if (rowSlots is not null && string.IsNullOrEmpty(rowSlots[i]))
-                        rowSlots[i] = display;
-
-                    var variants = englishSlots[i];
-                    for (var v = 0; v < variants.Count; v++)
-                    {
-                        var key = MacroNormalizer.NormalizeKey(variants[v]);
-                        if (key.Length == 0)
-                            continue;
-
-                        if (target.TryAdd(key, display))
-                        {
-                            indexedSlots++;
-                            if (ReferenceEquals(target, _textLookup))
-                                _sheetTextKeys.Add(key);
-                        }
-                        else if (HasJapaneseKana(target[key]) && !HasJapaneseKana(display))
-                        {
-                            // The CN and TC dumps leave a few rows in Japanese. Another row
-                            // with the same English name can hold the localised one, so the
-                            // kana row must not win just because its id comes first.
-                            target[key] = display;
-                            log.Debug("Replaced a Japanese row with a Chinese one for {Text}.", key);
-                        }
-
-                        // A sheet row can branch on the player's gender too, as "Ah, Master
-                        // Player" does against "Ah, Mistress Player". Keep a key with the
-                        // gendered words collapsed so either wording finds the row, in case the
-                        // live sheet's branch list is not the one the game drew.
-                        if (!descriptor.IsNameSheet)
-                        {
-                            var neutralKey = CollapseBranchWords(key);
-                            if (!ReferenceEquals(neutralKey, key)
-                                && !_textLookup.ContainsKey(neutralKey)
-                                && !_branchNeutralLookup.TryAdd(neutralKey, display)
-                                && !string.Equals(
-                                    _branchNeutralLookup[neutralKey], display, StringComparison.Ordinal))
-                            {
-                                _ambiguousBranchKeys.Add(neutralKey);
-                            }
-                        }
-
-                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
-                            && !descriptor.IsNameSheet)
-                        {
-                            if (!_addonLookup.TryAdd(key, display)
-                                && HasJapaneseKana(_addonLookup[key])
-                                && !HasJapaneseKana(display))
-                            {
-                                _addonLookup[key] = display;
-                            }
-
-                            if (extracted.ParameterTemplate is { } parameterTemplate
-                                // "Enter ?" is only 7 literal characters and would match
-                                // unrelated prompts such as "Enter the estate hall?".
-                                && ScriptTextTemplate.LiteralLength(parameterTemplate.Template) >= 10
-                                && _addonTemplateKeys.Add(parameterTemplate.Template))
-                            {
-                                _addonTemplates.Add((
-                                    parameterTemplate.Template,
-                                    chineseSlots[i],
-                                    parameterTemplate.ParameterIndices,
-                                    MacroTemplateFor(artifact, rowId)));
-                            }
-                        }
-
-                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
-                            && variants[v].Contains("UNKNOWN", StringComparison.Ordinal))
-                        {
-                            var template = ScriptTextTemplate.BuildFromPlainText(variants[v]);
-                            if (ScriptTextTemplate.LiteralLength(template) >= 4
-                                && _addonTemplateKeys.Add(template))
-                            {
-                                _addonTemplates.Add((template, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
-                            }
-
-                            var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
-                            if (ScriptTextTemplate.LiteralLength(loose) >= 4
-                                && !string.Equals(loose, template, StringComparison.Ordinal)
-                                && _addonTemplateKeys.Add(loose))
-                            {
-                                _addonTemplates.Add((loose, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
-                            }
-
-                            // A prompt with several lines can change which detail
-                            // lines the game shows. Match the first line and let the
-                            // trailing wildcard cover the rest.
-                            var firstLineEnd = variants[v].IndexOf('\n');
-                            if (firstLineEnd > 0 && firstLineEnd < variants[v].Length - 1)
-                            {
-                                var firstLine = variants[v][..firstLineEnd].Trim();
-                                var prefix = ScriptTextTemplate.BuildLooseFromPlainText(firstLine)
-                                             + ScriptTextTemplate.Wildcard;
-                                if (ScriptTextTemplate.LiteralLength(prefix) >= 4
-                                    && _addonTemplateKeys.Add(prefix))
-                                {
-                                    _addonTemplates.Add((prefix, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
-                                }
-                            }
-                        }
-
-                        // Blank placeholders in the English Addon row become
-                        // double spaces. Treat each gap between words as dynamic.
-                        if (string.Equals(descriptor.Name, "Addon", StringComparison.Ordinal)
-                            && variants[v].Contains("  ", StringComparison.Ordinal))
-                        {
-                            var wordTemplate = ScriptTextTemplate.BuildWordGapTemplate(variants[v]);
-                            if (ScriptTextTemplate.LiteralLength(wordTemplate) >= 4
-                                && _addonTemplateKeys.Add(wordTemplate))
-                            {
-                                _addonTemplates.Add((
-                                    wordTemplate,
-                                    chineseSlots[i],
-                                    null,
-                                    MacroTemplateFor(artifact, rowId)));
-                            }
-                        }
-                    }
-                }
-
-                indexedRows++;
-            }
-        }
-
-        var indexedScripts = IndexScripts(artifact, log);
-
-        log.Debug("Indexed {Rows:N0} rows, {Slots:N0} text slots and {Scripts:N0} script lines from the {Language} artifact.",
-            indexedRows, indexedSlots, indexedScripts, artifact.Language);
-    }
-
-    /// <summary>
-    /// Indexes dialogue that has no Lumina row. The artifact carries both the English
-    /// key and the translated text, because there is no sheet to read the English from.
-    /// </summary>
-    private int IndexScripts(TranslationArtifact artifact, PluginLog log)
-    {
-        var added = 0;
-
-        // Keys this artifact added, so a collision inside one artifact is told apart
-        // from the other variant simply owning the line.
-        var indexedInThisArtifact = new Dictionary<string, ScriptCandidate>(StringComparer.Ordinal);
-
-        // The scene each English line belongs to, from every key in this artifact. A line with
-        // a key outside a cutscene, or keys from two cutscenes, cannot name one scene.
-        var scenesInThisArtifact = new Dictionary<string, uint>(StringComparer.Ordinal);
-        var sceneConflicts = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var (scriptKey, entry) in artifact.Scripts)
-        {
-            // Event speakers such as "Distant Echo" often exist only as a script
-            // alias, not as a row in a name sheet. Learn the Chinese alias from the
-            // translated line so the speaker node can use it.
-            var englishAlias = MacroNormalizer.ExtractSpeakerPrefix(entry.English);
-            var chineseAlias = MacroNormalizer.ExtractSpeakerPrefix(entry.Text);
-            if (englishAlias.Length > 0
-                && chineseAlias.Length > 0
-                && !string.Equals(englishAlias, "Player", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(englishAlias, MacroNormalizer.PlayerNamePlaceholder, StringComparison.OrdinalIgnoreCase))
-            {
-                var aliasKey = MacroNormalizer.NormalizeKey(englishAlias);
-                var aliasText = MacroNormalizer.CleanForDisplay(chineseAlias);
-                if (aliasKey.Length > 0 && aliasText.Length > 0)
-                    _nameLookup.TryAdd(aliasKey, aliasText);
-            }
-
-            // The dumps may prefix the English line with a speaker alias such as
-            // "(-Radio-)". The game draws that name in a separate node, so the
-            // dialogue text lookup must not include it.
-            var key = MacroNormalizer.NormalizeKey(MacroNormalizer.StripSpeakerPrefix(entry.English));
-            if (key.Length == 0 || string.Equals(key, "UNKNOWN", StringComparison.OrdinalIgnoreCase))
-            {
-                log.Debug("Skipping script entry with placeholder English: {ScriptKey}", scriptKey);
-                continue;
-            }
-
-            var display = PrepareDisplay(entry.Text);
-            if (display.Length == 0)
-                continue;
-
-            if (englishAlias.Length > 0 && chineseAlias.Length > 0)
-            {
-                var aliasText = MacroNormalizer.CleanForDisplay(chineseAlias);
-                if (aliasText.Length > 0)
-                    _lineSpeakerAliases.TryAdd(key, new SpeakerAlias(englishAlias.Trim(), aliasText));
-            }
-
-            NoteScriptScene(scenesInThisArtifact, sceneConflicts, key, scriptKey);
-
-            RegisterStyle(display, entry.Text);
-
-            // Some script dumps leave a double-space gap where a runtime value
-            // such as an item name is inserted. Keep a template for that case.
-            if (entry.English.Contains("  ", StringComparison.Ordinal))
-            {
-                var blankTemplate = ScriptTextTemplate.BuildBlankGapTemplate(
-                    MacroNormalizer.StripSpeakerPrefix(entry.English));
-                if (ScriptTextTemplate.LiteralLength(blankTemplate) >= 4)
-                    _scriptTemplates.Add((blankTemplate, display));
-            }
-
-            // The dump key is the game's own id for this line. The game sometimes
-            // exposes it through the event handler, so keep it separate from the
-            // English key and let an id lookup win over duplicate text.
-            if (!string.IsNullOrWhiteSpace(scriptKey))
-            {
-                _scriptKeyLookup.TryAdd(scriptKey, display);
-                _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
-
-                if (!string.IsNullOrEmpty(entry.Sheet))
-                {
-                    _scriptRowLookup.TryAdd(scriptKey, entry.RowId);
-                    _scriptSheetLookup.TryAdd(scriptKey, entry.Sheet);
-                    _scriptRowTextLookup.TryAdd((entry.Sheet, entry.RowId), display);
-                }
-            }
-
-            if (_ambiguousScriptKeys.TryGetValue(key, out var known))
-            {
-                AddScriptCandidate(known, scriptKey, display);
-                continue;
-            }
-
-            if (indexedInThisArtifact.TryGetValue(key, out var first))
-            {
-                if (string.Equals(first.Display, display, StringComparison.Ordinal))
-                    continue;
-
-                // Two script lines share this English key with different Chinese. The
-                // key cannot tell them apart, so it must not answer either one. Keep
-                // both candidates so the speaker name can still choose.
-                _textLookup.Remove(key);
-                added--;
-                _scriptEntryCount--;
-
-                var candidates = new List<ScriptCandidate>(3) { first };
-                AddScriptCandidate(candidates, scriptKey, display);
-                _ambiguousScriptKeys[key] = candidates;
-
-                // The collapsed key would give the same wrong answer for the other
-                // wording of the line.
-                var collapsed = CollapseBranchWords(key);
-                if (!ReferenceEquals(collapsed, key)
-                    && _branchNeutralLookup.TryGetValue(collapsed, out var collapsedDisplay)
-                    && string.Equals(collapsedDisplay, first.Display, StringComparison.Ordinal))
-                {
-                    _branchNeutralLookup.Remove(collapsed);
-                }
-
-                continue;
-            }
-
-            if (!_textLookup.TryAdd(key, display))
-            {
-                if (_sheetTextKeys.Contains(key)
-                    && !string.Equals(_textLookup[key], display, StringComparison.Ordinal))
-                {
-                    // A sheet row owns this English text, but a script line also uses it and
-                    // says something else. Keep the sheet text as the text fallback and let
-                    // the script candidates be selected by their own identity.
-                    if (_ambiguousScriptKeys.TryGetValue(key, out var sheetCandidates))
-                    {
-                        AddScriptCandidate(sheetCandidates, scriptKey, display);
-                    }
-                    else
-                    {
-                        _ambiguousScriptKeys[key] = [new ScriptCandidate(
-                            display,
-                            KeySpeakerTokens(scriptKey),
-                            string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey])];
-                    }
-                }
-
-                // Otherwise the configured variant already owns this line. Its collapsed key
-                // is built, and the other variant's Chinese only conflicts with it, so the
-                // whole index would look ambiguous.
-                continue;
-            }
-
-            added++;
-            _scriptEntryCount++;
-            indexedInThisArtifact[key] = new ScriptCandidate(
-                display, KeySpeakerTokens(scriptKey), string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey]);
-
-            // The English dump holds one branch's wording, so keep a key with the
-            // branch words collapsed for the others. A line that already matches
-            // exactly keeps priority, because the exact lookup runs first.
-            var neutral = CollapseBranchWords(key);
-            if (!ReferenceEquals(neutral, key) && !_textLookup.ContainsKey(neutral)
-                && !_branchNeutralLookup.TryAdd(neutral, display)
-                && !string.Equals(_branchNeutralLookup[neutral], display, StringComparison.Ordinal))
-            {
-                // Two lines collapse to the same key with different Chinese. The
-                // key cannot tell them apart, so it must not answer either one.
-                _ambiguousBranchKeys.Add(neutral);
-            }
-        }
-
-        MergeScriptScenes(scenesInThisArtifact, sceneConflicts);
-
-        if (_branchNeutralLookup.Count > 0)
-        {
-            log.Debug("Indexed {Count:N0} collapsed script keys.", _branchNeutralLookup.Count);
-        }
-
-        if (_ambiguousBranchKeys.Count > 0)
-        {
-            log.Debug(
-                "{Count:N0} collapsed script keys map to more than one line and are not used.",
-                _ambiguousBranchKeys.Count);
-        }
-
-        if (_ambiguousScriptKeys.Count > 0)
-        {
-            log.Debug(
-                "{Count:N0} script keys map to more than one line; the speaker name picks one.",
-                _ambiguousScriptKeys.Count);
-        }
-
-        return added;
-    }
-
-    /// <summary>
-    /// Keeps one more line for an English key that several script lines share. A line
-    /// with the same Chinese as one already kept adds nothing.
-    /// </summary>
-    private static void AddScriptCandidate(
-        List<ScriptCandidate> candidates,
-        string? scriptKey,
-        string display)
-    {
-        var tokens = KeySpeakerTokens(scriptKey);
-
-        for (var i = 0; i < candidates.Count; i++)
-        {
-            // The same dump key can arrive again from the other variant's artifact, with that
-            // variant's Chinese. It is one line, not a second scene: keep the configured variant's
-            // text and the key it already carries, or the candidate list grows a phantom entry and
-            // the speaker and cutscene steps can no longer see that only one line matches.
-            if (!string.IsNullOrEmpty(scriptKey) && Array.IndexOf(candidates[i].Keys, scriptKey) >= 0)
-                return;
-
-            if (!string.Equals(candidates[i].Display, display, StringComparison.Ordinal))
-                continue;
-
-            if (!string.IsNullOrEmpty(scriptKey))
-                candidates[i] = candidates[i].WithKey(scriptKey, tokens);
-
-            return;
-        }
-
-        candidates.Add(new ScriptCandidate(
-            display, tokens, string.IsNullOrEmpty(scriptKey) ? [] : [scriptKey]));
     }
 
     /// <summary>
@@ -2214,10 +845,6 @@ public sealed partial class TranslationStore
     /// </summary>
     private string PrepareDisplay(string rawText)
         => NeedsLateResolution(rawText) ? rawText : ResolveWith(_indexResolver, rawText);
-
-    /// <summary>The converted macro string the artifact stored for one Addon row.</summary>
-    private static string? MacroTemplateFor(TranslationArtifact artifact, uint rowId)
-        => artifact.AddonTemplates.TryGetValue(rowId.ToString(), out var macro) ? macro : null;
 
     private string ResolveDisplay(string stored)
         => NeedsLateResolution(stored) ? ResolveWith(_displayResolver, stored) : stored;
@@ -2244,7 +871,7 @@ public sealed partial class TranslationStore
                 _ => sheet,
             };
 
-            return _nameRowLookup.TryGetValue((lookupSheet, rowId), out var name)
+            return _names.TryGetRow(lookupSheet, rowId, out var name)
                 ? name
                 : match.Value;
         });
@@ -2256,218 +883,4 @@ public sealed partial class TranslationStore
     /// </summary>
     private static bool NeedsLateResolution(string text)
         => ConditionalText.HasConditional(text) || MacroNormalizer.HasObjectParameter(text);
-
-    private static TranslationArtifact? LoadArtifact(
-        ChineseVariant variant,
-        Func<ChineseVariant, Stream?> openResource,
-        Func<ChineseVariant, Stream?>? fallbackResource,
-        IPluginLog log)
-    {
-        var artifact = TryLoadArtifact(variant, openResource, log);
-
-        if (artifact is not null || fallbackResource is null)
-            return artifact;
-
-        // The primary stream exists but could not be read. Keep working with the
-        // copy shipped in the assembly instead of running with no translations.
-        log.Warning("Could not read the {Variant} artifact. Using the embedded copy.", variant);
-        return TryLoadArtifact(variant, fallbackResource, log);
-    }
-
-    private static TranslationArtifact? TryLoadArtifact(
-        ChineseVariant variant,
-        Func<ChineseVariant, Stream?> openResource,
-        IPluginLog log)
-    {
-        try
-        {
-            using var stream = openResource(variant);
-            if (stream is null)
-                return null;
-
-            using var gzip = new GZipStream(stream, CompressionMode.Decompress);
-            return JsonSerializer.Deserialize<TranslationArtifact>(gzip);
-        }
-        catch (Exception ex)
-        {
-            log.Error(ex, "Failed to load the {Variant} translation artifact.", variant);
-            return null;
-        }
-    }
-
-    /// <summary>Opens the artifact embedded in the plugin assembly, if present.</summary>
-    public static Stream? OpenEmbeddedResource(ChineseVariant variant)
-    {
-        var suffix = variant == ChineseVariant.Traditional ? ResourceTcSuffix : ResourceCnSuffix;
-        var assembly = typeof(TranslationStore).Assembly;
-
-        var name = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
-
-        return name is null ? null : assembly.GetManifestResourceStream(name);
-    }
-}
-
-/// <summary>
-/// English text read from the live sheets for one artifact row, plus the Addon
-/// template when the row has one. Reading a sheet is a game-thread operation.
-/// </summary>
-internal sealed class ExtractedRow
-{
-    public ExtractedRow(
-        IReadOnlyList<IReadOnlyList<string>> englishSlots,
-        AddonParameterTemplate? parameterTemplate)
-    {
-        EnglishSlots = englishSlots;
-        ParameterTemplate = parameterTemplate;
-    }
-
-    public IReadOnlyList<IReadOnlyList<string>> EnglishSlots { get; }
-
-    public AddonParameterTemplate? ParameterTemplate { get; }
-}
-
-/// <summary>
-/// The English half of the index, read from the live sheets. Collection can be
-/// spread over several frames with <see cref="Extract"/>; the finished data holds
-/// only strings, so the index build can run on a worker task.
-/// </summary>
-internal sealed class SheetExtraction
-{
-    private readonly ParsedArtifacts _parsed;
-    private readonly IReadOnlyList<ISheetDescriptor> _descriptors;
-    private readonly Dictionary<(string Sheet, string Field, uint RowId), ExtractedRow> _rows = new();
-
-    /// <summary>Row ids of the sheet being read. Built one sheet at a time.</summary>
-    private readonly List<uint> _rowsForDescriptor = new();
-    private int _descriptorIndex;
-    private int _next;
-
-    public SheetExtraction(ParsedArtifacts parsed, IReadOnlyList<ISheetDescriptor> descriptors)
-    {
-        _parsed = parsed;
-        _descriptors = descriptors;
-    }
-
-    public bool IsComplete
-        => _descriptorIndex >= _descriptors.Count && _next >= _rowsForDescriptor.Count;
-
-    public int RowCount => _rows.Count;
-
-    /// <summary>
-    /// Reads live sheet rows until the budget is spent. The caller runs this on the
-    /// game thread between frames, so a large artifact never stalls one frame.
-    /// </summary>
-    public void Extract(TimeSpan budget)
-    {
-        var stopwatch = Stopwatch.StartNew();
-
-        while (true)
-        {
-            if (_next < _rowsForDescriptor.Count)
-            {
-                ExtractRow(_descriptors[_descriptorIndex - 1], _rowsForDescriptor[_next]);
-                _next++;
-            }
-            else if (_descriptorIndex < _descriptors.Count)
-            {
-                // Build one sheet's row list at a time, so the planning work is
-                // spread out with the reads.
-                CollectRows(_descriptors[_descriptorIndex], _rowsForDescriptor);
-                _descriptorIndex++;
-                _next = 0;
-                continue;
-            }
-            else
-            {
-                return;
-            }
-
-            // Check every row. A row can take longer than the whole budget, so a
-            // batch check would let one frame read far past it.
-            if (stopwatch.Elapsed >= budget)
-                return;
-        }
-    }
-
-    private void ExtractRow(ISheetDescriptor descriptor, uint rowId)
-    {
-        if (!descriptor.TryExtract(rowId, out var englishSlots))
-            return;
-
-        AddonParameterTemplate? parameterTemplate = null;
-        if (descriptor is IParameterizedTemplateDescriptor parameterized
-            && parameterized.TryBuildTemplate(rowId, out var built))
-        {
-            parameterTemplate = built;
-        }
-
-        _rows[(descriptor.Name, descriptor.FieldName, rowId)] =
-            new ExtractedRow(englishSlots, parameterTemplate);
-    }
-
-    public bool TryGet(string sheet, string field, uint rowId, out ExtractedRow row)
-    {
-        if (_rows.TryGetValue((sheet, field, rowId), out var extracted))
-        {
-            row = extracted;
-            return true;
-        }
-
-        row = null!;
-        return false;
-    }
-
-    private void CollectRows(ISheetDescriptor descriptor, List<uint> rows)
-    {
-        rows.Clear();
-        var seen = new HashSet<uint>();
-        AddRows(_parsed.Primary, descriptor, rows, seen);
-        AddRows(_parsed.Fallback, descriptor, rows, seen);
-    }
-
-    private static void AddRows(
-        TranslationArtifact? artifact,
-        ISheetDescriptor descriptor,
-        List<uint> rows,
-        HashSet<uint> seen)
-    {
-        if (artifact is null || !artifact.Sheets.TryGetValue(descriptor.Name, out var sheetRows))
-            return;
-
-        foreach (var (rowKey, fields) in sheetRows)
-        {
-            if (!uint.TryParse(rowKey, out var rowId))
-                continue;
-
-            if (!fields.TryGetValue(descriptor.FieldName, out var chinese) || chinese.Length == 0)
-                continue;
-
-            if (seen.Add(rowId))
-                rows.Add(rowId);
-        }
-    }
-}
-
-/// <summary>
-/// Artifacts that have been read and deserialized but not indexed yet. Holds no
-/// game objects, so it is safe to hand between a worker task and the game thread.
-/// </summary>
-public sealed class ParsedArtifacts
-{
-    internal ParsedArtifacts(
-        ChineseVariant variant,
-        TranslationArtifact? primary,
-        TranslationArtifact? fallback)
-    {
-        Variant = variant;
-        Primary = primary;
-        Fallback = fallback;
-    }
-
-    public ChineseVariant Variant { get; }
-
-    internal TranslationArtifact? Primary { get; }
-
-    internal TranslationArtifact? Fallback { get; }
 }

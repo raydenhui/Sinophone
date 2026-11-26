@@ -142,7 +142,7 @@ flowchart TD
     IdCheck -- No --> Norm
 
     Norm -- Empty --> Fail["Return false"]
-    Norm --> AmbigCheck{"2. In _ambiguousScriptKeys?"}
+    Norm --> AmbigCheck{"2. In ScriptIndex candidates?"}
     AmbigCheck -- Yes --> NarrowSpeaker["Narrow by speaker tokens (SpeakerWords)"]
     NarrowSpeaker -- "1 left" --> Ret
     NarrowSpeaker -- ">1 left" --> NarrowCutscene["Narrow by context.CutsceneId (VOICEMAN)"]
@@ -153,11 +153,11 @@ flowchart TD
     NarrowTaxi -- "1 match" --> Ret
     NarrowTaxi -- "Still ambiguous" --> Fail
 
-    AmbigCheck -- No --> ExactText["3. _textLookup[key]"]
+    AmbigCheck -- No --> ExactText["3. DialogueTextIndex exact text"]
     ExactText -- Hit --> Ret
     ExactText -- Miss --> PlayerSub["4. TryLookupPlayerNamePlaceholder (full name -> first name, 'Player Player' -> 'Player')"]
-    PlayerSub -- "Hit in _textLookup or _branchNeutralLookup" --> Ret
-    PlayerSub -- Miss --> ScriptTpl["5. TryLookupScriptTemplate (_scriptTemplates blank-gap match)"]
+    PlayerSub -- "Hit in the text or branch-collapsed index" --> Ret
+    PlayerSub -- Miss --> ScriptTpl["5. TryLookupScriptTemplate (ScriptIndex blank-gap match)"]
     ScriptTpl -- Hit --> Ret
     ScriptTpl -- Miss --> Branch["6. TryLookupBranchNeutral (collapse pronouns, nouns of address, time-of-day)"]
     Branch -- "Hit (not in _ambiguousBranchKeys)" --> Ret
@@ -171,8 +171,8 @@ flowchart TD
    - **Script sheet rows**: A cutscene subtitle is matched against the live `VoiceMan` sheet, whose path is `PlayCutSceneTask.CutscenePath`. The sheet name and row id are language-independent, so `_scriptRowTextLookup` returns the Chinese line for the same row on any client. A text two rows share is not used.
    - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live variants via `SheetCatalog` and picks the slot whose normalized text matches the live text. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
 2. **Ambiguous script disambiguation (`TryLookupAmbiguousScript`)**:
-   - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `_textLookup` and stored in `_ambiguousScriptKeys`.
-   - A sheet row can also share an English line with script lines, such as `NpcYell` and a cutscene line. The sheet text stays in `_textLookup` as the fallback, and the script candidates are added to `_ambiguousScriptKeys`, so the speaker, scene, or script hint picks the script line when it can.
+   - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `DialogueTextIndex` and stored as `ScriptIndex` candidates.
+   - A sheet row can also share an English line with script lines, such as `NpcYell` and a cutscene line. The sheet text stays in `DialogueTextIndex` as the fallback, and the script candidates are added to `ScriptIndex`, so the speaker, scene, or script hint picks the script line when it can.
    - Narrowing runs in five steps:
      1. **Speaker tokens**: Matches normalized speaker words (and full punctuation-free name, e.g. `G'raha Tia` -> `GRAHATIA`) against key tokens (`KeySpeakerTokens`).
      2. **Cutscene ID**: Matches `context.CutsceneId` against `TEXT_VOICEMAN_<id>_...`.
@@ -182,12 +182,12 @@ flowchart TD
    - If more than one candidate remains, lookup returns `false` rather than showing another scene's translation. One exception: when every remaining candidate is in the one cutscene that is playing, the store uses the first (default) branch. The game can hold two versions of one line for different player progress, and the addon exposes no flag for that choice.
 3. **Player name placeholder fallback (`TryLookupPlayerNamePlaceholder`)**:
    - Script dumps store `"Player Player"` or `"Player"`, whereas the live game inserts the character's name.
-   - Replaces the live `CharacterName` (and, if multi-word, the first name alone) back with `"Player Player"` and then `"Player"`, checking both `_textLookup` and `_branchNeutralLookup`.
+   - Replaces the live `CharacterName` (and, if multi-word, the first name alone) back with `"Player Player"` and then `"Player"`, checking both the exact and branch-collapsed maps in `DialogueTextIndex`.
 4. **Script blank-gap templates (`TryLookupScriptTemplate`)**:
-   - Matches `_scriptTemplates`, built from script lines containing runs of 2+ spaces (`ScriptTextTemplate.BuildBlankGapTemplate`) where dynamic values (like item names) are injected at runtime.
+   - Matches the `ScriptIndex` templates, built from script lines containing runs of 2+ spaces (`ScriptTextTemplate.BuildBlankGapTemplate`) where dynamic values (like item names) are injected at runtime.
 5. **Branch-neutral fallback (`TryLookupBranchNeutral`)**:
    - English script dumps resolve conditionals to a single branch. If a player triggers the opposite branch, exact match misses.
-   - `CollapseBranchWords` replaces `GenderedPronouns` (`he/him/his/himself/she/her/hers/herself`), `GenderedNouns` (`lad/lass/sir/madam`), and `TimeOfDayWords` (`morning/mornin/afternoon/evening/evenin/noon/day/night`) with `\u001F` and searches `_branchNeutralLookup`. Any collapsed key shared by multiple lines with different Chinese is blacklisted in `_ambiguousBranchKeys`.
+   - `CollapseBranchWords` replaces `GenderedPronouns` (`he/him/his/himself/she/her/hers/herself`), `GenderedNouns` (`lad/lass/sir/madam`), and `TimeOfDayWords` (`morning/mornin/afternoon/evening/evenin/noon/day/night`) with `\u001F` and searches the branch-collapsed map in `DialogueTextIndex`. Any collapsed key shared by multiple lines with different Chinese is blacklisted there.
 
 ### Name lookup (`TranslationStore.TryGetName`)
 
@@ -199,7 +199,7 @@ flowchart TD
 ### Display cleanup (`ResolveDisplay` -> `MacroNormalizer.CleanForDisplay` -> `ChineseConverter`)
 
 When returning a translation for display:
-1. `ResolveSheetMacros` replaces `<Sheet(Sheet,RowId,Col)/>` tags using `_nameRowLookup`.
+1. `ResolveSheetMacros` replaces `<Sheet(Sheet,RowId,Col)/>` tags using the row table in `NameIndex`.
 2. `ConditionalText.Resolve` evaluates `<If(...)>` and `<Switch(...)>` tags:
    - `PlayerParameter(4)` -> `PlayerState.Sex == Sex.Female`
    - `PlayerParameter(52/53/54)` -> Grand Company row ID (1/2/3) and rank (`GreaterThan(...,0)` / `LessThan(...,127)`)
@@ -355,7 +355,7 @@ flowchart TD
     Res -- "Unresolved macro/parameter left" --> KeepEn
 ```
 
-- **Template ordering**: `_addonTemplates` are sorted by `LiteralLength` descending, then wildcard count ascending, so specific templates match before broad conditional templates.
+- **Template ordering**: `AddonIndex` templates are sorted by `LiteralLength` descending, then wildcard count ascending, so specific templates match before broad conditional templates.
 - **Parameter resolution (`ResolveAddonText`)**:
   - Resolves `<Sheet(Item,IntegerParameter(...),0)/>` and other `<Sheet(...)/>` captures via `TryGetName` / `TryGetAddonLabel`.
   - Strips `<Time(...)/>` and resolves `<Value|TwoDigitValue>TopLevelParameter(215..222)</...>` by parsing the date (`ReadDate`, handling MM/DD vs DD/MM when first > 12 and inferring next year if date already passed) and clock (`ReadClock`) from the live English string.

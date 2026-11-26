@@ -9,7 +9,17 @@ src/Sinophone/
   Data/
     TranslationArtifact.cs  Artifact shape: Sheets[sheet][rowId][field] = string[]
     DialogueContext.cs      Optional runtime ids: sheet row + slot, or script text key.
-    TranslationStore.cs     Loads artifacts. Resolves by id first, then the client's text.
+    TranslationStore.cs     The lookup facade. Resolves by id first, then the client's text.
+    TranslationStore.Loading.cs   Load, Parse, Build, and artifact reading.
+    TranslationStore.Indexing.cs  Turns parsed artifacts and live sheet text into the indexes.
+    TranslationStoreCache.cs      Reads and writes Sinophone.index.bin.
+    DialogueTextIndex.cs    Exact dialogue text, sheet keys, speaker aliases, branch-collapsed keys.
+    ScriptIndex.cs          Script keys, sheet rows, cutscene scenes, and shared-key candidates.
+    AddonIndex.cs           Addon labels and prompt templates with runtime values.
+    NameIndex.cs            Names by text and by sheet row, matched without case.
+    KanaText.cs             Prefers a localised row over one the dumps left in Japanese.
+    IndexCacheFormat.cs     The primitives each index writes into the cache.
+    SheetExtraction.cs      English sheet text read in slices; parsed artifacts awaiting indexing.
     TranslationDataUpdater.cs Downloads published artifacts into the plugin config directory.
     SheetCatalog.cs         Which game sheets to index and how to read each one.
     MacroNormalizer.cs      Text cleanup for matching and for display.
@@ -63,6 +73,26 @@ converted Chinese --(OverlayWindow)--> screen
 ```
 
 See [translation-workflow.md](translation-workflow.md) for sequence and flow diagrams of data loading, lookup fallbacks, and each surface handler.
+
+### The indexes
+
+`TranslationStore` is a facade over four indexes. Each one owns its collections, its lookup
+methods, and the part of the cache that holds them, so a change to one kind of text has one file
+to edit:
+
+- `DialogueTextIndex` holds exact dialogue text. It also keeps the keys a sheet row added, the
+  speaker alias each script line carries, and the keys with gender or time-of-day words collapsed.
+- `ScriptIndex` holds everything keyed by a dump script key: the Chinese text, the paired English
+  line, the sheet row a cutscene subtitle uses, the cutscene scene a `VOICEMAN` key names, the
+  blank-gap templates, and the candidates for an English key several script lines share.
+- `AddonIndex` holds the short Addon labels and the prompt templates that match runtime values.
+- `NameIndex` holds names by text and by sheet row, and matches without case.
+
+`TranslationStore` keeps the id-first sheet row table (`_rowLookup`), UI text styles, the sheet
+descriptors, and the display resolver. A new lookup collection belongs to one of the four indexes;
+do not add another dictionary to the facade. `SheetExtraction`, `ExtractedRow`, and
+`ParsedArtifacts` live in `SheetExtraction.cs`, because they are loading inputs rather than
+lookup state.
 
 Some dialogue has no Lumina row at all. It lives in the game's script dumps, which the dumps
 repositories store under `custom/`, `cut_scene/`, `quest/`, and a few smaller folders. `ScriptDump`
@@ -125,8 +155,8 @@ Several script lines can share one English line. The dumps pair by text key, and
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
 different NPC. A sheet row can share the same English line with script lines; the sheet text stays
 as the fallback while the script candidates are kept for the identity steps. The text index never
-answers a script key directly: `TranslationStore` keeps the candidates in `_ambiguousScriptKeys`
-and narrows them by the speaker name, the cutscene number, and the event
+answers a script key directly: `ScriptIndex` keeps the candidates in `_ambiguous` and narrows them
+by the speaker name, the cutscene number, and the event
 script hints. The hints come from a Lua handler key, the tracked quest ids in
 `UIState.QuestTodoList`, a sibling option, or a fallback scan of every Lua handler when the active
 filter finds no key. The speaker name is matched against the speaker token in the dump key, such as
@@ -618,7 +648,10 @@ runs in the background; the store already in memory keeps serving until the new 
 - The finished index is cached in `Sinophone.index.bin` in the config directory, including the script
   lines that share one English key, so the speaker and cutscene steps still work on a cache hit. The
   next load reads
-  that file instead of parsing the artifact, reading the live sheets, and indexing. A cache is used
+  that file instead of parsing the artifact, reading the live sheets, and indexing. Each index
+  writes its own part of the cache next to the collections it describes; `TranslationStoreCache`
+  writes only the facade's own tables, styles, and sheet slots. The private cache format version
+  is bumped when a part's shape changes. A cache is used
   only when its key matches: variant, fallback setting, conversion, game data version, the identity
   of each artifact (file size and write time, or a SHA-256 of the embedded copy's bytes), and
   `TranslationStore.IndexFormatVersion`. The format version is bumped by hand when the index
