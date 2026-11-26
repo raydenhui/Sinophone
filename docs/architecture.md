@@ -390,9 +390,10 @@ things that feed the `_MiniTalk` addon:
   Sizing is `BubbleLayout.GrowTo`, and it never touches the text node. The node's width and flags
   are what the game wraps at; changing either makes the game write the line back with hard breaks,
   and the next lookup then sees fragments instead of the line. Instead the background grows: the
-  nine-grid is the visible bubble, and it grows by the **change in text size**: the game drew the
+  nine-grid is the visible bubble, and it changes by the **change in text size**: the game drew the
   English line plus whatever margin the balloon keeps, so `bubble + (chinese - english)` keeps that
-  margin without measuring it. A shorter translation leaves the game's size alone. Measuring the
+  margin without measuring it. A shorter translation shrinks the background instead of leaving the
+  English line's empty width. Measuring the
   margin on its own fails both ways: the background can still hold the previous line's size, and a
   margin that comes out as zero leaves the text spilling
   out of both sides of the bubble. The English size comes from the text node before the write, so a

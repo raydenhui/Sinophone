@@ -569,9 +569,10 @@ public sealed class ChatBubbleHandler : IDisposable
             => englishTextSize <= 0 ? bubbleSize : bubbleSize + chineseTextSize - englishTextSize;
 
         /// <summary>
-        /// The size to grow to: the change carried over from the English layout. A background
-        /// that was not laid out for the English line gets the caps as a floor, so its text is
-        /// never clipped. A background that already holds the English line keeps its margin.
+        /// The size the background should have after the text changes. A background that already
+        /// held the English line follows the change both ways, so a shorter translation does not
+        /// leave the empty width of the English line. A background that was not laid out for the
+        /// English line gets the caps as a floor, so its text is never clipped.
         /// </summary>
         internal static int GrownSize(int bubbleSize, int englishTextSize, int chineseTextSize, int caps)
         {
@@ -580,13 +581,9 @@ public sealed class ChatBubbleHandler : IDisposable
 
             var target = TargetSize(bubbleSize, englishTextSize, chineseTextSize);
 
-            // The background already held the English line. Its margin is real, so do not grow
-            // it to the full nine-grid caps: a shorter translation must leave the bubble alone.
             if (bubbleSize >= englishTextSize)
-                return Math.Max(bubbleSize, Math.Max(target, chineseTextSize));
+                return Math.Max(target, chineseTextSize);
 
-            // The background is smaller than the English text, so it was not laid out for this
-            // line. The caps are the floor that keeps the text inside the bubble.
             return Math.Max(bubbleSize, Math.Max(target, chineseTextSize + caps));
         }
 
@@ -605,21 +602,21 @@ public sealed class ChatBubbleHandler : IDisposable
             var nineGrid = NineGrid == 0 ? null : (AtkNineGridNode*)NineGrid;
             if (nineGrid is not null)
             {
-                // Extra width goes to both sides, so the text stays in the middle and the tail the
-                // game placed under it stays centred.
-                if (nineGrid->AtkResNode.Width < width)
+                // Width changes go to both sides, so the text stays in the middle and the tail
+                // the game placed under it stays centred. A shrink removes half from each side.
+                if (nineGrid->AtkResNode.Width != width)
                 {
-                    var grown = width - nineGrid->AtkResNode.Width;
-                    nineGrid->AtkResNode.X -= grown / 2f;
+                    var change = (int)width - nineGrid->AtkResNode.Width;
+                    nineGrid->AtkResNode.X -= change / 2f;
                     nineGrid->AtkResNode.Width = width;
                 }
 
-                // Extra height goes upward. The tail hangs under the bottom edge where the game put
-                // it, so growing downward leaves the tail inside the bubble.
-                if (nineGrid->AtkResNode.Height < height)
+                // Height changes keep the bottom edge where the game put it, because the tail
+                // hangs under that edge. A grow moves the top up; a shrink moves it down.
+                if (nineGrid->AtkResNode.Height != height)
                 {
-                    var grown = height - nineGrid->AtkResNode.Height;
-                    nineGrid->AtkResNode.Y -= grown;
+                    var change = (int)height - nineGrid->AtkResNode.Height;
+                    nineGrid->AtkResNode.Y -= change;
                     nineGrid->AtkResNode.Height = height;
                 }
             }

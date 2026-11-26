@@ -458,7 +458,7 @@ premature interface.
   and only looks up a text it has not seen; a line with no translation is remembered so it is not
   retried every frame. Sizing is `BubbleLayout.GrowTo`, which never touches the text node: the node's
   width and flags are what the game wraps at, and changing them makes the game rewrite the line with
-  hard breaks so later lookups see fragments. The background grows by the change in text size, not by a
+  hard breaks so later lookups see fragments. The background changes by the change in text size, not by a
   padding worked out on its own: the game drew the English text plus whatever margin the balloon
   keeps, so `bubble + (chinese - english)` keeps that margin without knowing it. Measuring the
   margin directly does not work, because the background can still hold the previous line's size,
