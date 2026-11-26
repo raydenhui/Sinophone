@@ -32,6 +32,14 @@ src/Sinophone/
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window or the game tooltip.
     HookGuard.cs          Runs a hook callback so a throw does not reach the game's frame.
+  Localization/
+    InterfaceLanguageResolver.cs Maps Dalamud's UI language code to the four settings languages.
+    InterfaceText.cs      Resolves the settings language on each read.
+    InterfaceStrings.cs   The settings-window string type. Every member is required.
+    EnglishStrings.cs     English table.
+    SimplifiedChineseStrings.cs   Simplified Chinese table.
+    TraditionalChineseStrings.cs  Traditional Chinese table.
+    JapaneseStrings.cs    Japanese table.
   UI/
     OverlayWindow.cs      The translation overlay.
     ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.
@@ -203,6 +211,29 @@ the measurement into findings. A new surface is one driver class.
   `HideWhenNoTranslation` is off, it falls back to the English line. It never shows both
   languages at once. Colors and opacity fall back to the global values unless the component's
   `...UseGlobalAppearance` switch is off; the Talk and subtitle windows share the Talk values.
+
+### Settings window language
+
+`Configuration.InterfaceLanguage` picks the settings-window language. `Auto`, the default, reads
+`PluginInterface.UiLanguage`: Dalamud reports `zh` for Simplified Chinese, `tw` for Traditional
+Chinese, `ja` for Japanese, and `en` for English. Any other code falls back to English. An explicit
+setting wins over Dalamud's language.
+
+Dalamud does not translate plugin UI, so the plugin carries four `InterfaceStrings` tables. Every
+member is `required`, so a language that misses a line fails the build. `InterfaceText` resolves the
+table on each read, so a change in Dalamud's settings or in the plugin's own takes effect on the
+next frame without a reload. The tab labels carry stable `###` ids so changing the language does
+not reset the selected tab.
+
+The settings language is separate from `Configuration.Variant`, which picks the translation data.
+Runtime text stays English: the data updater's progress, the font service's status, and command
+output. That text is also what the log and chat show, and the game draws chat with its own font,
+which has no CJK glyphs on the English client.
+
+The default ImGui font merges Noto Sans CJK only when Dalamud's own UI language is Chinese.
+`FontManager.EnsureUiFont` therefore builds a second handle at the default font size, from a system
+Chinese font chosen by the settings language, and `ConfigWindow.Draw` pushes it while drawing.
+English and Japanese use the default font, which already covers the game's own scripts.
 
 ### Native text mode
 

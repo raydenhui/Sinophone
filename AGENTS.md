@@ -275,6 +275,8 @@ handler goes in the per-component section, and a changed rule updates the senten
 - Run the build and the tests before opening a pull request.
 - Add a test when you add a function that can be tested.
 - Add a debug log at a new decision point.
+- Add every new settings-window string to all four `InterfaceStrings` tables. The members are
+  `required`, so a missing translation fails the build.
 - Change both sheet lists together.
 - Update `docs/architecture.md` and `docs/translation-workflow.md` when the change touches what they
   describe, in the same pull request.
