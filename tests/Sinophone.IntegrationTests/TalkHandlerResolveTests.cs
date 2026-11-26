@@ -32,6 +32,14 @@ public class TalkHandlerResolveTests
     }
 
     [Fact]
+    public void ChooseWrapWidth_UsesTheFullTextBackground_NotThePreviousLineWidth()
+    {
+        // The text node still held the previous short line; the background is the full area.
+        Assert.Equal(780, TalkHandler.ChooseWrapWidth(250, 800, 20));
+        Assert.Equal(0, TalkHandler.ChooseWrapWidth(80, 100, 20));
+    }
+
+    [Fact]
     public void Resolve_ReturnsNull_ForBlankText()
     {
         var store = FixtureStore.Load(ChineseVariant.Traditional);

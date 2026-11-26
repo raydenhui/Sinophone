@@ -257,7 +257,8 @@ The line is wrapped to the Talk text area's width before the game reads the valu
 glyphs are a little wider, so the game breaks the last character of a data line onto the next
 rendered line; a closing mark such as the full stop then starts a line, which Chinese typesetting
 does not do. The wrapper measures each candidate line with the Talk text node's own font, wraps to
-that width, never starts a line with a closing mark and never ends one with an opening mark, and
+the wider of the text node and the text background, because the node can still hold the previous
+line's width, never starts a line with a closing mark and never ends one with an opening mark, and
 keeps the data's own paragraph breaks. When the last line would hold less than a quarter of the
 width, it is rebalanced with the line before it, so one character and its mark never sit alone. A box
 that is not laid out yet leaves the line alone.

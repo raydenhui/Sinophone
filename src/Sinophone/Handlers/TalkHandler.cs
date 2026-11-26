@@ -419,11 +419,15 @@ public sealed class TalkHandler : IDisposable
         if (node is null)
             return chineseText;
 
-        var width = node->AtkResNode.Width;
-        if (width < 120)
-            width = node->Width;
+        var textWidth = node->AtkResNode.Width;
+        if (textWidth < 120)
+            textWidth = node->Width;
 
-        if (width < 120)
+        // The text node can still hold the previous line's width before the game lays this one
+        // out. The background is the full text area, so use the wider of the two.
+        var backgroundWidth = addon->AtkResNode230 is null ? 0 : addon->AtkResNode230->Width;
+        var wrapWidth = ChooseWrapWidth(textWidth, backgroundWidth, node->FontSize);
+        if (wrapWidth == 0)
             return chineseText;
 
         var address = (nint)node;
@@ -440,11 +444,6 @@ public sealed class TalkHandler : IDisposable
             return measuredWidth;
         }
 
-        // Leave one glyph of slack. Our measurement and the game's layout can differ by a pixel or
-        // two at the line end, and a line that measured to the exact width is the one the game
-        // breaks again, which moves a closing mark onto the next line.
-        var wrapWidth = Math.Max(120, width - node->FontSize);
-
         var wrapped = CjkLineWrapper.Wrap(chineseText, wrapWidth, Measure);
         if (!string.Equals(wrapped, chineseText, StringComparison.Ordinal))
         {
@@ -453,6 +452,17 @@ public sealed class TalkHandler : IDisposable
         }
 
         return wrapped;
+    }
+
+    /// <summary>
+    /// The width to wrap a Talk line to. The text node can hold the previous line's width, so the
+    /// wider background wins. One glyph is left as slack, because a line that measures to the
+    /// exact width is the one the game breaks again.
+    /// </summary>
+    internal static int ChooseWrapWidth(int textNodeWidth, int backgroundWidth, int fontSize)
+    {
+        var width = Math.Max(textNodeWidth, backgroundWidth);
+        return width < 120 ? 0 : Math.Max(120, width - fontSize);
     }
 
     /// <summary>
