@@ -40,4 +40,5 @@ global using Sinophone.Fonts;
 global using Sinophone.Diagnostics;
 #endif
 global using Sinophone.Handlers;
+global using Sinophone.Localization;
 global using Sinophone.UI;

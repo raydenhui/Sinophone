@@ -38,6 +38,7 @@ public sealed class FontManager : IDisposable
 
     private readonly IFontAtlas _atlas;
     private readonly Configuration _configuration;
+    private readonly InterfaceText _text;
     private readonly PluginLog _log;
 
     private IFontHandle? _handle;
@@ -46,9 +47,14 @@ public sealed class FontManager : IDisposable
     private bool _buildFailed;
     private bool _disposed;
 
-    public FontManager(IUiBuilder uiBuilder, Configuration configuration, PluginLog log)
+    private IFontHandle? _uiHandle;
+    private InterfaceLanguage? _uiLanguage;
+    private bool _uiResolved;
+
+    public FontManager(IUiBuilder uiBuilder, Configuration configuration, InterfaceText text, PluginLog log)
     {
         _configuration = configuration;
+        _text = text;
         _log = log;
 
         // A private atlas in async mode builds on a worker task. The plugin-private
@@ -60,6 +66,12 @@ public sealed class FontManager : IDisposable
 
     /// <summary>Font handle to push while drawing Chinese text. Null when no usable font was found.</summary>
     public IFontHandle? Handle => _handle;
+
+    /// <summary>
+    /// Font for the settings window when its language is Chinese. Null for English and
+    /// Japanese, which the default Dalamud font already draws.
+    /// </summary>
+    public IFontHandle? UiHandle => _uiHandle;
 
     /// <summary>
     /// True when the handle can draw. A failed build counts as ready, so a broken
@@ -83,7 +95,13 @@ public sealed class FontManager : IDisposable
         if (_disposed)
             return;
 
-        var path = ResolveFontPath(_configuration, out var isSystemFont);
+        // The settings-window font uses the same custom path, so it may need rebuilding too.
+        _uiResolved = false;
+
+        var path = ResolveFontPath(
+            _configuration,
+            _configuration.Variant == ChineseVariant.Traditional,
+            out var isSystemFont);
         var size = _configuration.FontSize;
 
         if (_handle is not null && _activePath == path && Math.Abs(_activeSize - size) < 0.01f)
@@ -122,6 +140,50 @@ public sealed class FontManager : IDisposable
         _ = BuildAsync(_handle);
     }
 
+    /// <summary>
+    /// Keeps the settings-window font in step with its language. Call it while drawing the
+    /// window: the language can change in Dalamud's settings without any event reaching us.
+    /// </summary>
+    public void EnsureUiFont()
+    {
+        if (_disposed)
+            return;
+
+        var language = _text.Language;
+        if (_uiResolved && _uiLanguage == language)
+            return;
+
+        _uiResolved = true;
+        _uiLanguage = language;
+
+        var path = InterfaceLanguageResolver.NeedsCjkFont(language)
+            ? ResolveFontPath(_configuration, language == InterfaceLanguage.TraditionalChinese, out _)
+            : null;
+
+        _uiHandle?.Dispose();
+        _uiHandle = null;
+
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            return;
+
+        _uiHandle = _atlas.NewDelegateFontHandle(e => e.OnPreBuild(toolkit =>
+        {
+            var ranges = default(FluentGlyphRangeBuilder)
+                .With(GlyphRanges)
+                .Build();
+
+            var fontConfig = new SafeFontConfig
+            {
+                SizePx = UiBuilder.DefaultFontSizePx,
+                GlyphRanges = ranges,
+            };
+
+            toolkit.Font = toolkit.AddFontFromFile(path, fontConfig);
+        }));
+
+        _ = BuildAsync(_uiHandle);
+    }
+
     private async Task BuildAsync(IFontHandle handle)
     {
         try
@@ -141,7 +203,7 @@ public sealed class FontManager : IDisposable
         }
     }
 
-    private static string? ResolveFontPath(Configuration configuration, out bool isSystemFont)
+    private static string? ResolveFontPath(Configuration configuration, bool traditional, out bool isSystemFont)
     {
         isSystemFont = false;
 
@@ -149,37 +211,33 @@ public sealed class FontManager : IDisposable
         if (!string.IsNullOrWhiteSpace(custom) && File.Exists(custom))
             return custom;
 
-        var candidates = configuration.Variant == ChineseVariant.Traditional
-            ? TraditionalFontCandidates
-            : SimplifiedFontCandidates;
-
         var fontsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
         if (string.IsNullOrEmpty(fontsDirectory))
             fontsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
 
-        foreach (var candidate in candidates)
+        if (FindFont(fontsDirectory, traditional ? TraditionalFontCandidates : SimplifiedFontCandidates) is { } path)
         {
-            var path = Path.Combine(fontsDirectory, candidate);
-            if (File.Exists(path))
-            {
-                isSystemFont = true;
-                return path;
-            }
+            isSystemFont = true;
+            return path;
         }
 
-        // Last resort: use the other variant's font rather than rendering tofu.
-        var otherCandidates = configuration.Variant == ChineseVariant.Traditional
-            ? SimplifiedFontCandidates
-            : TraditionalFontCandidates;
-
-        foreach (var candidate in otherCandidates)
+        // Last resort: use the other script's font rather than rendering tofu.
+        if (FindFont(fontsDirectory, traditional ? SimplifiedFontCandidates : TraditionalFontCandidates) is { } other)
         {
-            var path = Path.Combine(fontsDirectory, candidate);
+            isSystemFont = true;
+            return other;
+        }
+
+        return null;
+    }
+
+    private static string? FindFont(string directory, string[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            var path = Path.Combine(directory, candidate);
             if (File.Exists(path))
-            {
-                isSystemFont = true;
                 return path;
-            }
         }
 
         return null;
@@ -193,6 +251,8 @@ public sealed class FontManager : IDisposable
         _disposed = true;
         _handle?.Dispose();
         _handle = null;
+        _uiHandle?.Dispose();
+        _uiHandle = null;
         _atlas.Dispose();
     }
 }

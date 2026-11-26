@@ -29,6 +29,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
+    private readonly InterfaceText _interfaceText;
     private readonly PluginLog _log;
     private readonly WindowSystem _windowSystem = new("Sinophone");
     private readonly FontManager _fontManager;
@@ -112,6 +113,7 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        _interfaceText = new InterfaceText(_configuration, () => PluginInterface.UiLanguage);
         _configuration.CustomFontPath ??= string.Empty;
         _configuration.BuiltInFontPackPath ??= string.Empty;
         _log = new PluginLog(Log, _configuration, LogCategory.Plugin);
@@ -177,7 +179,7 @@ public sealed class Plugin : IDalamudPlugin
             SigScanner,
             Log);
 
-        _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _log);
+        _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _interfaceText, _log);
         _overlay = new OverlayWindow(_configuration, _fontManager);
         _nativeTextWriter = new NativeTextWriter(GameGui, DataManager, _configuration, Log);
         _chatLogRestorer = new ChatLogRestorer(ChatGui, _configuration, Log);
@@ -203,6 +205,8 @@ public sealed class Plugin : IDalamudPlugin
 
         _configWindow = new ConfigWindow(
             _configuration,
+            _interfaceText,
+            _fontManager,
             ApplySettings,
             ShowPreview,
             BuildStatusText,
@@ -217,6 +221,8 @@ public sealed class Plugin : IDalamudPlugin
 #else
         _configWindow = new ConfigWindow(
             _configuration,
+            _interfaceText,
+            _fontManager,
             ApplySettings,
             ShowPreview,
             BuildStatusText,
@@ -461,44 +467,60 @@ public sealed class Plugin : IDalamudPlugin
         var version = assemblyVersion.ToString(assemblyVersion.Build >= 0 ? 3 : 2);
         var author = string.IsNullOrWhiteSpace(manifest.Author) ? "raydenhui" : manifest.Author;
 
-        return $"Sinophone {version} by {author}";
+        return string.Format(_interfaceText.Strings.AboutText, version, author);
     }
 
     private string BuildStatusText()
     {
+        var text = _interfaceText.Strings;
+
         var store = _store;
         if (store is null)
-            return "No translation data loaded. Use \"Download / update data\" in the settings.";
+            return text.StatusNoData;
 
         var font = _fontManager.ActiveFontPath;
         var fontText = font is null
-            ? "Font: not found (Chinese text may render as boxes)."
-            : $"Font: {font}{(_fontManager.UsingSystemFont ? " (system font)" : string.Empty)}";
+            ? text.StatusFontMissing
+            : string.Format(text.StatusFont, font) +
+              (_fontManager.UsingSystemFont ? text.StatusSystemFontSuffix : string.Empty);
 
-        return $"{store.PrimaryVariant}{(store.UsedFallback ? " + fallback" : string.Empty)}: " +
-               $"{store.TextEntryCount:N0} dialogue entries, {store.NameEntryCount:N0} name entries.\n{fontText}";
+        var variant = store.PrimaryVariant == ChineseVariant.Traditional
+            ? text.StatusVariantTraditional
+            : text.StatusVariantSimplified;
+
+        if (store.UsedFallback)
+            variant += text.StatusFallbackSuffix;
+
+        return string.Format(
+            text.StatusSummary,
+            variant,
+            store.TextEntryCount,
+            store.NameEntryCount,
+            fontText);
     }
 
     private string BuildDataSourceText()
     {
+        var text = _interfaceText.Strings;
+
         var hasCn = File.Exists(_dataUpdater.DataFilePath(ChineseVariant.Simplified));
         var hasTc = File.Exists(_dataUpdater.DataFilePath(ChineseVariant.Traditional));
 
         if (!hasCn && !hasTc)
-            return "Using the translation data built into the plugin.";
+            return text.DataSourceBuiltIn;
 
         var version = string.IsNullOrEmpty(_configuration.LastDataVersion)
-            ? "unknown version"
-            : $"version {_configuration.LastDataVersion}";
+            ? text.DataSourceUnknownVersion
+            : string.Format(text.DataSourceVersion, _configuration.LastDataVersion);
 
         if (!hasCn || !hasTc)
         {
             return _configuration.DownloadBothVariants
-                ? "Using downloaded data. One variant is missing and uses the built-in copy."
-                : $"Using downloaded data ({version}) for the selected variant only.";
+                ? text.DataSourceMissingVariant
+                : string.Format(text.DataSourceSelectedOnly, version);
         }
 
-        return $"Using downloaded data ({version}).";
+        return string.Format(text.DataSourceBoth, version);
     }
 
     /// <summary>True when this build carries a translation artifact inside the assembly.</summary>
