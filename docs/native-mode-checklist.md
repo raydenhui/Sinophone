@@ -9,9 +9,10 @@ Run this list for every change that touches native mode, and put the result in t
 
 Two runs are needed:
 
-- **Without the font mod.** Every line shows the missing-glyph character. The plugin cannot detect
-  the mod, so this is the only warning the user gets.
-- **With the font mod installed.** Chinese should be readable. See the README font setup section.
+- **Without a Chinese font.** No font pack and no font mod: every line shows the missing-glyph
+  character. The plugin cannot detect the font, so this is the only warning the user gets.
+- **With a Chinese font installed.** The in-game Chinese is readable. See the README font setup
+  section.
 
 ## Before a bubble run
 
@@ -24,6 +25,13 @@ and write down which build was running when a row failed.
 
 | Check | Expected |
 | --- | --- |
+| Font pack on, no font mod installed | Chinese in the dialogue box, nameplates, chat bubbles, and battle talk |
+| Change the font pack path, then click **Reload the game font** | The new font appears without restarting the game |
+| A pack missing one file | The pack is refused; the status names the missing file; the stock font does not change |
+| A plugin config folder whose path is too long for the game | The pack is refused with the path-length message |
+| Penumbra with a font mod active, font pack on | The status says Penumbra owns the font; the font does not change |
+| Turn the font pack off while a line is open | The stock font comes back after the reload |
+| Unload the plugin with the font pack on | The stock font comes back |
 | Talk to an NPC with a short line | Chinese in the dialogue box, no overlay above it |
 | Talk to an NPC with a long line | Text wraps inside the box, nothing clipped |
 | A long native Talk line that takes more than one line | The lines are spaced apart, not drawn on top of each other |
@@ -58,7 +66,7 @@ and write down which build was running when a row failed.
 | A long battle talk line | Wraps inside the box; nothing runs off the screen edge |
 | A battle talk line with no translation | English stays; no Chinese from the previous line |
 | Turn battle talk off during a fight | The line on screen stays Chinese until it hides; the next line is English |
-| Battle talk without the font mod | Missing-glyph characters; the settings text warns about the mod |
+| Battle talk without a Chinese font | Missing-glyph characters; the settings text warns about the font |
 | A line the plugin cannot fit, such as one wider than the screen | The English line stays; no Chinese is drawn outside the box |
 | Line with oblique words | Note whether the English fragments stay on screen. If they do, open an issue |
 | Yes/No dialog | Prompt and button labels are Chinese; no overlay |
@@ -92,7 +100,7 @@ and write down which build was running when a row failed.
 A dev plugin build has a **Testing** tab in the settings window. The **Talk** sub-tab can write a
 case's English line into an open Talk window and check it every frame; the **Chat bubbles** sub-tab
 starts a bubble above a picked object. Both write a JSON report, and a PNG per case when screenshots
-are on. Use a run as the first pass over the rows above. A run cannot see whether the font mod is
+are on. Use a run as the first pass over the rows above. A run cannot see whether a Chinese font is
 installed or judge whether the text reads well, so the eye check still decides.
 
 A run writes into the live addon and does not put the player's own line back. Talk to an NPC again

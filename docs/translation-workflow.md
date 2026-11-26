@@ -422,7 +422,7 @@ sequenceDiagram
 ### 5. Battle talk (`BattleTalkHandler`)
 
 Translates the large line a boss, dungeon narration, or a duty NPC shows near the top of the screen.
-Native only; off by default and needs the font mod.
+Native only; off by default and needs a Chinese font.
 
 ```mermaid
 flowchart TD
@@ -492,3 +492,30 @@ flowchart TD
 - **Tooltip fitting (`FitTooltipName`)**: Clears `TextFlags.WordWrap | TextFlags.Ellipsis`, grows `node->Width` to `GetTextDrawSize` if wider than original, and restores `node->Height` to original (in two-line mode, text aligns to the bottom of the node so the Chinese line stacks upward into the header without overlapping the item description).
 - **Per-frame reapply**: `ItemDetail` overwrites its own name while open, so `PreDraw` calls `ReapplyAt` + `FitTooltipName` (zero-allocation byte compare when unchanged).
 - **Restore safety**: `RestoreTooltip` checks `CurrentNameNode() == _tooltipNode` before writing back; `PostHide` and `PreFinalize` call `ForgetTooltip` without writing to avoid touching recycled addon nodes.
+
+### 8. Game font (`FontReplacementService`)
+
+The native surfaces write Chinese into the game's own windows, which draw with the game's font.
+`FontReplacementService` lets the user supply a Chinese font as a `.ttmp2` mod or a folder, with no
+Penumbra or TexTools. The overlay is unaffected.
+
+1. **Read the pack.** `FontPackExtractor` reads the TexTools manifest (`TTMPL.mpl`, a JSON object
+   with a `SimpleModsList` array of byte ranges into `TTMPD.mpd`), or walks a folder for the same
+   file names. It copies the 25 font files the global client loads into `<plugin config>/fonts`
+   and refuses a pack that lacks any of them.
+2. **Ask Penumbra first.** Over IPC, `Penumbra.ResolvePlayerPath` and then
+   `Penumbra.ResolveDefaultPath`. If any font path resolves to another file, Penumbra owns the font
+   and the built-in path stays off.
+3. **Redirect.** Hook `ReadSqPack` (signature) and read the game's `ReadFile` (signature). For a
+   replaced path, set `FileMode = LoadUnpackedResource`, write the UTF-16 path into the descriptor
+   at `0x70`, put a file interface with the path at offset `0x21` on the stack, point the
+   descriptor's interface field at `0x30` to it, then call the game's `ReadFile`. Other paths, and
+   any descriptor another plugin already changed, go to the original.
+4. **Reload.** Call `AtkModule` virtual slot 43 with `(atkModule, false, true)` after installing
+   and after removing the hooks, so the game rebuilds its fonts from the new files, or from the
+   SqPack again.
+5. **Toggle off / unload.** Dispose the hooks, clear the map, and reload, so the stock font comes
+   back.
+
+The plugin ships no font data: the pack stays the user's file. The redirection follows the MIT
+VFXEditor code at commit `8be61a5`; see `THIRD-PARTY-NOTICES.md`.

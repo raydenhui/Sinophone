@@ -182,11 +182,11 @@ The overlay only covers the Talk window. More sheets alone will not show more te
 | Surface | Route | Status |
 | --- | --- | --- |
 | Talk, subtitles | Overlay | Works |
-| NPC chat bubbles | `ChatBubbleHandler` changes the game's own bubble (yells before layout, default balloons in place) | Works, needs a font mod, off by default |
-| Battle talk | `BattleTalkHandler` swaps the name and text before the game measures its box; rows come from `NpcYell` (`ShowBattleTalk`), `InstanceContentTextData`, and `ContentTalk` | Works, needs a font mod, off by default |
-| Nameplates | `NamePlateNameWriter` replaces each name in the game's own nameplate above every visible NPC or object | Works, needs a font mod |
+| NPC chat bubbles | `ChatBubbleHandler` changes the game's own bubble (yells before layout, default balloons in place) | Works, needs a Chinese font, off by default |
+| Battle talk | `BattleTalkHandler` swaps the name and text before the game measures its box; rows come from `NpcYell` (`ShowBattleTalk`), `InstanceContentTextData`, and `ContentTalk` | Works, needs a Chinese font, off by default |
+| Nameplates | `NamePlateNameWriter` replaces each name in the game's own nameplate above every visible NPC or object | Works, needs a Chinese font |
 | Item tooltip | `ItemNameHandler` reads the hovered item, draws above the cursor | Works |
-| Inventory, shops, menus, chat | Native text replacement, then the CJK font mod | Planned as separate items |
+| Inventory, shops, menus, chat | Native text replacement, then a Chinese font (pack or mod) | Planned as separate items |
 
 Full parity with FFXIVChnTextPatch-GP is not reachable with an overlay. That patch rewrites the game
 files, so it also changes text inside lists and strings assembled at runtime ("You obtained 3 ×
@@ -241,7 +241,7 @@ sheet set gets there.
 1. ~~Unnamed-column dialogue sheets.~~ Indexed in #19. Check each in game.
 2. The remaining name sheets. The target-info and item-tooltip overlays are done.
 3. Category filtering.
-4. Native UI replacement and the font mod.
+4. Native UI replacement and a Chinese font.
 
 ## Adding a sheet
 

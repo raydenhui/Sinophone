@@ -391,11 +391,17 @@ premature interface.
 - **Event items.** The item name surface reads the `Item` sheet. Event and key items live in
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
-- **Native text mode needs a font mod.** Alpha and off by default. The game only draws Chinese
-  once its font files are replaced. TexTools and Penumbra both install the same modpack; the font
-  comes from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts). Without the mod, native
-  mode shows the missing-glyph character and the plugin cannot tell. See
-  [README](README.en.md#font-setup). The Chinese goes into the addon's `AtkValue` strings before
+- **Native text mode needs a Chinese game font.** Alpha and off by default. The game draws Chinese
+  once its font files are replaced. The font can come from a mod (TexTools, Penumbra, or the same
+  `.ttmp2` from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts)), or the plugin can
+  replace the files itself: `FontReplacementService` reads a `.ttmp2` or a folder the user picks,
+  copies the 25 font files into the plugin config folder, redirects the game's file reader, and
+  calls the game's font reload. It ships no font data. A pack missing any of the 25 files is
+  refused, because a left-out `.fdt` would point into a re-laid-out atlas. When Penumbra already
+  resolves a font path, the plugin leaves the font to Penumbra. Without a font, native mode
+  shows the missing-glyph character and the plugin cannot tell. See
+  [README](README.en.md#font-setup). The redirection follows the MIT VFXEditor code at commit
+  `8be61a5`; see `THIRD-PARTY-NOTICES.md`. The Chinese goes into the addon's `AtkValue` strings before
   the game lays the box out, so the game sizes the box for the translation, and the caller's own
   values are put back right after the refresh returns, so other readers of those values see English.
   The chat log can still get a line the game builds from the addon's copy, so `ChatLogRestorer`

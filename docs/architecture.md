@@ -20,6 +20,10 @@ src/Sinophone/
     TimeOfDayWords.cs       Collapses time-of-day words so a line matches the dump's other branch.
     ChineseConverter.cs     Optional simplified/traditional conversion, built from OpenCC.
                             Skips text that is already mostly in the target script.
+  Fonts/
+    FontPackFiles.cs      The 25 game font files a pack has to replace.
+    FontPackExtractor.cs  Copies those files out of a .ttmp2 pack or a folder.
+    FontReplacementService.cs Points the game's file reader at the copied files.
   Handlers/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
     TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
@@ -200,7 +204,7 @@ the measurement into findings. A new surface is one driver class.
 
 Alpha and off by default. `Configuration.NativeTextMode` switches the Talk dialog from the overlay
 to the game's own dialogue box. The Talk component labels this **Native (game dialogue box)** and
-warns that a font mod is required.
+warns that a Chinese font is required.
 
 The Chinese goes in before the game lays the window out. `TalkHandler` hooks the `Talk` addon's own
 `OnSetup` and `OnRefresh` (from `AddonTalk.VirtualTable`) and replaces the English strings in the
@@ -313,8 +317,9 @@ know leaves the English line in place.
   live addon log. These are the fallback write targets, used when the `AtkValue` hook could not be
   placed. Re-confirm with the `Native text` sub-tab of the Testing tab (testing builds only)
   before changing either constant.
-- The game's font has no CJK glyphs. Without a font mod the line shows the missing-glyph character,
-  so the settings section warns and links the README font setup. The plugin cannot detect the mod.
+- The game's font has no complete Chinese glyph set. Without a font pack or a mod the line shows
+  the missing-glyph character, so the settings section warns and links the README font setup. The
+  plugin cannot tell whether the font it writes with can draw the characters.
 - A write saves the game's text, colors, flags, and node size for that node first. `RestoreAll`
   puts them back when the setting is turned off and on plugin unload. A second write must not save
   Chinese as the original, so the writer only saves when the node does not already hold text this
@@ -330,10 +335,33 @@ know leaves the English line in place.
 - Only `Talk` is covered. `TalkSubtitle` and the chat bubbles keep the overlay until their nodes
   are checked in game. A failed write falls back to the overlay.
 
+#### The game font
+
+`FontReplacementService` lets the plugin supply the Chinese font itself, so native mode does not
+need Penumbra or TexTools. Off by default.
+
+- The user points the setting at a `.ttmp2` font mod or a folder. `FontPackExtractor` copies the
+  font files into `<plugin config>/fonts`; the pack itself is only read. The plugin ships no font
+  data.
+- A pack must replace all 25 font files the global client loads. An `.fdt` left at its original
+  would point into an atlas that was re-laid out, so a partial pack is refused and the missing
+  names are listed.
+- `FontReplacementService` hooks `ReadSqPack` and reads the game's `ReadFile` by signature. When a
+  resource handle asks for a replaced path, it switches the file descriptor to
+  `LoadUnpackedResource`, writes the wide path, and lets the game read the file. Every other path
+  goes to the original. The approach comes from the MIT VFXEditor code; see
+  `THIRD-PARTY-NOTICES.md`.
+- Installing and removing the replacement asks the game to unload and rebuild its fonts through
+  `AtkModule` virtual slot 43, the same call Penumbra's "Reload Fonts" button makes. ClientStructs
+  does not name the slot, so it has to be re-checked after a game patch.
+- At apply time the service asks Penumbra over IPC (`ResolvePlayerPath`, then
+  `ResolveDefaultPath`) whether a font mod already resolves any of the paths. If it does, the
+  built-in font stays off. A descriptor another plugin already redirected is left alone.
+
 ### Chat bubbles
 
 `Configuration.ShowInChatBubbles` turns on chat bubble translation. Alpha and off by default, because
-the Chinese goes into the game's own bubble and needs the font mod. `ChatBubbleHandler` covers the two
+the Chinese goes into the game's own bubble and needs a Chinese font. `ChatBubbleHandler` covers the two
 things that feed the `_MiniTalk` addon:
 
 - **Yells.** An `NpcYell` row whose output type has the balloon flag. The game starts the bubble
@@ -385,7 +413,7 @@ English text; there is no overlay for this surface.
 ### Battle talk
 
 `Configuration.ShowInBattleTalk` turns on battle talk: the large line a boss, dungeon narration, or a
-duty NPC shows near the top of the screen. Alpha and off by default, because it needs the font mod.
+duty NPC shows near the top of the screen. Alpha and off by default, because it needs a Chinese font.
 The surface is named **Battle talk** in the components tab, next to the font setup link.
 
 The game shows the line through three virtual functions on `UIModule`: `ShowBattleTalk`,
