@@ -38,6 +38,7 @@ src/Sinophone/
     TalkHandler.cs        Watches the Talk and TalkSubtitle addons. Reads text. Feeds the overlay.
     TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
+    AtkTextMeasure.cs     Measures a text node with a null-terminated UTF-8 string.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
     ItemNameHandler.cs    Watches the hovered item. Feeds the item name window or the game tooltip.

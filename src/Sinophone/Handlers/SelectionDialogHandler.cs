@@ -878,22 +878,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private static unsafe string FitPromptLines(AtkTextNode* node, string source, string chinese)
         => FitPromptLines(source, chinese, node->Width, node->Height,
-            text => MeasureText(node, text));
-
-    private static unsafe (ushort Width, ushort Height) MeasureText(AtkTextNode* node, string text)
-    {
-        var bytes = Encoding.UTF8.GetBytes(text);
-        var buffer = new byte[bytes.Length + 1];
-        bytes.CopyTo(buffer, 0);
-
-        fixed (byte* pointer = buffer)
-        {
-            ushort width = 0;
-            ushort height = 0;
-            node->GetTextDrawSize(&width, &height, pointer);
-            return (width, height);
-        }
-    }
+            text => AtkTextMeasure.Measure(node, text));
 
     private static int CountLines(string text)
     {
