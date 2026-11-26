@@ -55,7 +55,9 @@ src/Sinophone/
   UI/
     OverlayWindow.cs      The translation overlay.
     ItemNameWindow.cs     Small window above the cursor with the hovered item's Chinese name.
-    ConfigWindow.cs       Settings window.
+    ConfigWindow.cs       Settings window: tabs that are not a surface, and small widgets.
+    ConfigWindow.Components.cs  The component tabs, one per surface.
+    ConfigWindow.Testing.cs     The dev-only testing tab and its run controls.
     FontManager.cs        CJK font loading and font atlas rebuilds.
 tools/Sinophone.DataPrep/
   Program.cs              CSV -> gzipped JSON converter.
