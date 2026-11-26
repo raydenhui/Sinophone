@@ -15,7 +15,11 @@
     folder, which is where the running plugin keeps them.
 
 .PARAMETER EnCsv
-    Folder for the English dump CSVs. Defaults to <Data>/en-csv.
+    Folder for the dump CSVs of the measured client language. Defaults to <Data>/<language>-csv.
+
+.PARAMETER Language
+    Client language to measure: en, ja, de, or fr. Script lines are still keyed on the English
+    dump, so a run in another language measures only the sheet surfaces by that language's text.
 
 .PARAMETER Out
     Report folder. Defaults to <Data>/coverage.
@@ -35,6 +39,9 @@
 
 .EXAMPLE
     pwsh -File scripts/Test-Coverage.ps1 -Variant cn -Out C:\tmp\coverage-cn
+
+.EXAMPLE
+    pwsh -File scripts/Test-Coverage.ps1 -Language ja
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -46,6 +53,9 @@ param(
 
     [ValidateSet('tc', 'cn')]
     [string]$Variant = 'tc',
+
+    [ValidateSet('en', 'ja', 'de', 'fr')]
+    [string]$Language = 'en',
 
     [string]$Gate = '',
 
@@ -75,7 +85,10 @@ if (-not $ListSheets) {
     }
 }
 
-$arguments = @('run', '--project', $toolProject, '--', '--data', $Data, '--variant', $Variant)
+$arguments = @(
+    'run', '--project', $toolProject, '--',
+    '--data', $Data, '--variant', $Variant, '--language', $Language
+)
 
 if ($EnCsv -ne '') { $arguments += @('--en', $EnCsv) }
 if ($Out -ne '') { $arguments += @('--out', $Out) }

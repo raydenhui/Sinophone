@@ -60,19 +60,27 @@ internal static class ScriptDump
 
         foreach (var directory in Directories)
         {
-            var localized = LoadDirectory(Path.Combine(localizedRoot, directory));
-            var english = LoadDirectory(Path.Combine(englishRoot, directory));
+            var localized = LoadDirectory(localizedRoot, directory);
+            var english = LoadDirectory(englishRoot, directory);
 
             var paired = 0;
-            foreach (var (key, text) in localized)
+            foreach (var (key, line) in localized)
             {
-                if (!english.TryGetValue(key, out var englishText) || string.IsNullOrWhiteSpace(englishText))
+                if (!english.TryGetValue(key, out var englishLine) || string.IsNullOrWhiteSpace(englishLine.Text))
                     continue;
 
-                if (string.IsNullOrWhiteSpace(text))
+                if (string.IsNullOrWhiteSpace(line.Text))
                     continue;
 
-                if (result.TryAdd(key, new ScriptEntry { English = englishText, Text = text }))
+                var entry = new ScriptEntry
+                {
+                    Sheet = line.Sheet,
+                    RowId = line.RowId,
+                    English = englishLine.Text,
+                    Text = line.Text,
+                };
+
+                if (result.TryAdd(key, entry))
                     paired++;
             }
 
@@ -111,8 +119,9 @@ internal static class ScriptDump
             if (!File.Exists(englishPath))
                 continue;
 
-            var localized = LoadFile(path, dialogueOnly);
+            var localized = LoadFileEntries(path, dialogueOnly);
             var english = LoadFile(englishPath);
+            var sheet = SheetName(localizedRoot, path);
 
             foreach (var key in localized.Keys.OrderBy(k => k, StringComparer.Ordinal))
             {
@@ -122,32 +131,39 @@ internal static class ScriptDump
                 if (!english.TryGetValue(key, out var englishText) || string.IsNullOrWhiteSpace(englishText))
                     continue;
 
-                if (string.IsNullOrWhiteSpace(localized[key]))
+                var line = localized[key];
+                if (string.IsNullOrWhiteSpace(line.Text))
                     continue;
 
-                result.Add(new PairedScript(key, englishText, localized[key]));
+                result.Add(new PairedScript(key, englishText, line.Text, sheet, line.RowId));
             }
         }
 
         return result;
     }
 
-    internal static Dictionary<string, string> LoadDirectory(string directory)
+    /// <summary>
+    /// Reads one script folder. <paramref name="root"/> is the dump root, so the
+    /// sheet name can be rebuilt as <c>&lt;folder&gt;/&lt;subfolder&gt;/&lt;file&gt;</c>.
+    /// </summary>
+    internal static Dictionary<string, DumpLine> LoadDirectory(string root, string directory)
     {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var result = new Dictionary<string, DumpLine>(StringComparer.Ordinal);
+        var folder = Path.Combine(root, directory);
 
-        if (!Directory.Exists(directory))
+        if (!Directory.Exists(folder))
         {
-            Console.Error.WriteLine($"  ! script folder not found: {directory}");
+            Console.Error.WriteLine($"  ! script folder not found: {folder}");
             return result;
         }
 
-        var dialogueOnly = IsQuestDirectory(directory);
+        var dialogueOnly = IsQuestDirectory(folder);
 
-        foreach (var path in SortedCsvFiles(directory))
+        foreach (var path in SortedCsvFiles(folder))
         {
-            foreach (var (key, text) in LoadFile(path, dialogueOnly))
-                result.TryAdd(key, text);
+            var sheet = SheetName(root, path);
+            foreach (var (key, line) in LoadFileEntries(path, dialogueOnly))
+                result.TryAdd(key, line with { Sheet = sheet });
         }
 
         return result;
@@ -161,6 +177,17 @@ internal static class ScriptDump
     internal static Dictionary<string, string> LoadFile(string path, bool dialogueOnly = false)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, line) in LoadFileEntries(path, dialogueOnly))
+            result.TryAdd(key, line.Text);
+
+        return result;
+    }
+
+    /// <summary>Reads one dump file, keeping the row id the game's Lua text map uses.</summary>
+    internal static Dictionary<string, DumpLine> LoadFileEntries(string path, bool dialogueOnly = false)
+    {
+        var result = new Dictionary<string, DumpLine>(StringComparer.Ordinal);
 
         var text = File.ReadAllText(path, Encoding.UTF8);
         if (text.Length > 0 && text[0] == '﻿')
@@ -182,11 +209,18 @@ internal static class ScriptDump
             if (dialogueOnly && IsQuestJournalKey(key))
                 continue;
 
-            result.TryAdd(key, record[2]);
+            _ = uint.TryParse(record[0].Trim(), out var rowId);
+            result.TryAdd(key, new DumpLine(record[2], rowId));
         }
 
         return result;
     }
+
+    /// <summary>The sheet path the game uses for a dump file, with forward slashes.</summary>
+    private static string SheetName(string root, string path)
+        => Path
+            .ChangeExtension(Path.GetRelativePath(root, path), null)!
+            .Replace('\\', '/');
 
     private static bool IsQuestDirectory(string directory)
         => string.Equals(
@@ -231,12 +265,23 @@ internal static class ScriptDump
         return records.Count;
     }
 
-    internal sealed record PairedScript(string Key, string English, string Text);
+    internal sealed record PairedScript(
+        string Key,
+        string English,
+        string Text,
+        string Sheet = "",
+        uint RowId = 0);
+
+    internal readonly record struct DumpLine(string Text, uint RowId, string Sheet = "");
 }
 
 /// <summary>One script line in the artifact. Mirrors the plugin's shape.</summary>
 internal sealed class ScriptEntry
 {
+    public string Sheet { get; set; } = string.Empty;
+
+    public uint RowId { get; set; }
+
     public string English { get; set; } = string.Empty;
 
     public string Text { get; set; } = string.Empty;

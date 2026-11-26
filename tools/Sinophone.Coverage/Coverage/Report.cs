@@ -10,6 +10,7 @@ internal static class Report
         string outputDirectory,
         string variant,
         string gameVersion,
+        string language,
         Dictionary<string, Tally> results,
         IReadOnlyList<Runner.RuntimeOutcome> runtimeOutcomes)
     {
@@ -22,9 +23,11 @@ internal static class Report
         var markdown = new StringBuilder();
         markdown.AppendLine("# Translation coverage");
         markdown.AppendLine();
-        markdown.AppendLine($"Variant **{variant}**, artifact game version **{gameVersion}**, generated {DateTime.Now:yyyy-MM-dd HH:mm}.");
+        markdown.AppendLine(
+            $"Variant **{variant}**, client language **{language}**, artifact game version **{gameVersion}**, " +
+            $"generated {DateTime.Now:yyyy-MM-dd HH:mm}.");
         markdown.AppendLine();
-        markdown.AppendLine("Each case is one English string a component can show, resolved through that component's own");
+        markdown.AppendLine("Each case is one string a component can show, resolved through that component's own");
         markdown.AppendLine("`Resolve`. Rows with a value the game fills at runtime are counted as cases with game values");
         markdown.AppendLine("substituted. The display half (nodes, overlay, fonts) is not measured.");
         markdown.AppendLine();

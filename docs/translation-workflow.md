@@ -4,7 +4,7 @@ This document explains how Sinophone builds translation data, loads and caches i
 
 ## End-to-end architecture
 
-Sinophone translates English client text using pre-built CN/TC lookup tables. No external translation API is called at runtime.
+Sinophone translates the client's text (English, Japanese, German, or French) using pre-built CN/TC lookup tables. No external translation API is called at runtime. Sheet rows and script lines are matched by the game's ids where it exposes one, so the same data serves every client language.
 
 ```mermaid
 flowchart LR
@@ -50,8 +50,8 @@ flowchart LR
 
 | Component | In-game target | Hook mechanism | Search method | Display output | Fallback behavior |
 | --- | --- | --- | --- | --- | --- |
-| `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + `AddonTalk.VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` / `EventFramework` row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default, and all `TalkSubtitle`) or native `AtkValue` / nodes (`NativeTextMode`) | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
-| `SelectionDialogHandler` | `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, `CutSceneSelectString` | `IAddonLifecycle` (`PostSetup`, `PostRefresh`, `PreDraw`, `PostHide`, `PostClose`, `PreFinalize`) | `Addon` label -> dialogue lookup with the live or sibling cutscene scene and event script hints -> `Addon` template -> punctuation trim -> short label `+ "."` | In-place `AtkTextNode` (`NativeTextWriter.WriteAt`) | Unresolved templates or misses leave original English; `FitPromptLines` keeps multi-line layout if single-line exceeds node bounds |
+| `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + `AddonTalk.VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` key + row id / `EventFramework` row / cutscene sheet row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default, and all `TalkSubtitle`) or native `AtkValue` / nodes (`NativeTextMode`) | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
+| `SelectionDialogHandler` | `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, `CutSceneSelectString` | `IAddonLifecycle` (`PostSetup`, `PostRefresh`, `PreDraw`, `PostHide`, `PostClose`, `PreFinalize`) | `Addon` label -> dialogue lookup with the live or sibling cutscene scene and event script hints -> `Addon` template (evaluated, or filled from the live line) -> punctuation trim -> short label `+ "."` | In-place `AtkTextNode` (`NativeTextWriter.WriteAt`) | Unresolved templates or misses leave original English; `FitPromptLines` keeps multi-line layout if single-line exceeds node bounds |
 | `ChatBubbleHandler` | `_MiniTalk` (yells & default balloons) | `NpcYellBalloon.OpenBalloon` detour + `IAddonLifecycle` on `_MiniTalk` | Yells: `NpcYell.YellInfo` row ID -> dialogue lookup; Default balloons: plain text -> dialogue lookup | Yells: pre-layout text replacement; Balloons: in-place `BubbleTextNode` + `BubbleLayout.GrowTo` | Misses keep English and are hashed so they are not re-queried every frame; no overlay |
 | `BattleTalkHandler` | `UIModule` battle talk (`ShowBattleTalk`, `ShowBattleTalkImage`, `ShowBattleTalkSound`) | Virtual table hook at indices 198, 199, 201 | `NpcYell` row id -> dialogue lookup (id first), otherwise the normalized text; name via the line's dump alias, then `TryGetName` | UTF-8 name and text swapped before the game measures the box | A miss, a disabled setting, or a failed lookup passes the game's own pointers through; no overlay |
 | `NamePlateNameWriter` | Visible NPC / object nameplates | `INamePlateGui.OnNamePlateUpdate` | Case-insensitive `TryGetName` (with punctuation trim) | `NamePlateUpdateHandler.NameParts.Text` before game bakes plate | Skips players; misses keep English; no overlay |
@@ -64,10 +64,10 @@ flowchart LR
 
 ### 1. Offline build (`Sinophone.DataPrep`)
 
-`tools/Sinophone.DataPrep` reads datamining CSV dumps and produces gzipped JSON (`TranslationArtifact`, format version 1):
+`tools/Sinophone.DataPrep` reads datamining CSV dumps and produces gzipped JSON (`TranslationArtifact`, format version 2):
 
 - **Sheets (`Program.cs`)**: Reads named columns (or fixed positional columns for unnamed sheets such as `NpcYell`, `SnipeTalk`, `GimmickTalk`, `Addon`, etc.) into `Sheets[sheetName][rowId][fieldName] = string[]`. Empty slots are kept as empty strings so indices stay aligned with live Lumina sheets.
-- **Scripts (`ScriptDump.cs`)**: Reads 14 script folders (`content`, `custom`, `cut_scene`, `dungeon`, `guild_order`, `leve`, `opening`, `quest`, `raid`, `shop`, `story`, `system`, `transport`, `warp`). It pairs localized CN/TC lines with English lines by `TEXT_...` key. In `quest/`, it drops `_SEQ_`, `_TODO_`, and `_QIB_` keys (journal/objectives/unused) while keeping `_SYSTEM_` keys used in dialogue.
+- **Scripts (`ScriptDump.cs`)**: Reads 14 script folders (`content`, `custom`, `cut_scene`, `dungeon`, `guild_order`, `leve`, `opening`, `quest`, `raid`, `shop`, `story`, `system`, `transport`, `warp`). It pairs localized CN/TC lines with English lines by `TEXT_...` key and keeps each row's sheet name and row id. In `quest/`, it drops `_SEQ_`, `_TODO_`, and `_QIB_` keys (journal/objectives/unused) while keeping `_SYSTEM_` keys used in dialogue.
 
 ### 2. Runtime updates (`TranslationDataUpdater`)
 
@@ -110,8 +110,9 @@ sequenceDiagram
     P->>P: SwapStore() -> refresh Overlay, NamePlates, ItemNameHandler
 ```
 
-- **Cache key (`BuildStoreCacheKey`)**: Combines `Variant`, `UseFallbackVariant`, `Conversion`, `TranslationStore.IndexFormatVersion`, `GetGameDataVersion()`, and `SourceIdentity` (size + UTC ticks for downloaded files, or SHA-256 for embedded resources) for both CN and TC.
+- **Cache key (`StoreCacheKey.Build`)**: Combines `Variant`, `UseFallbackVariant`, `Conversion`, `TranslationStore.IndexFormatVersion`, `GetGameDataVersion()`, the client language (`DataManager.Language`), and `SourceIdentity` (size + UTC ticks for downloaded files, or SHA-256 for embedded resources) for both CN and TC. The language is part of the key because the index is keyed on the live client's text.
 - **Variant fallback**: If `UseFallbackVariant` is enabled, `TranslationStore.Build` indexes the primary artifact first and the other variant second (`TryAdd` ensures the primary variant always wins). If a downloaded file fails to parse, `TranslationStore` falls back to `OpenEmbeddedResource`.
+- **Client language**: `SheetCatalog` reads `dataManager.GetExcelSheet<T>()` with no language argument, so every descriptor reads the language the client is running. The store pairs that text with the artifact's Chinese by row id. A launcher language change makes the cache key stale and rebuilds the index.
 - **Eager vs. late display resolution**: During indexing, lines without conditionals or `ObjectParameter` macros are resolved once (`ResolveSheetMacros`, `CleanForDisplay`, `ChineseConverter.Convert`) and stored ready to display. Lines containing `<If(`, `<Switch(`, or `ObjectParameter(` remain raw and are resolved per lookup because their output depends on the active player's gender, Grand Company rank, or character name.
 
 ---
@@ -166,8 +167,9 @@ flowchart TD
 #### Details of each fallback layer
 
 1. **ID-first lookup (`TryGetDialogueById`)**:
-   - **Script keys**: Exact case-insensitive match in `_scriptKeyLookup` using `TEXT_...` keys read from `LuaEventHandler.LuaTexts`. The key is used only when the dump paired it with the same English line; the live Lua map can reuse a key for another menu line. A long shared prefix or suffix is accepted, because the dump can resolve a race or other player word to one value while the live line uses another.
-   - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live English variants via `SheetCatalog` and picks the slot whose normalized text matches `englishText`. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
+   - **Script keys**: Exact case-insensitive match in `_scriptKeyLookup` using `TEXT_...` keys read from `LuaEventHandler.LuaTexts`. When the live map also gives a row id and the artifact has the same id for that key, the pair proves the line and no text comparison runs, so a Japanese line resolves. Without a live row id, the key is used only when the dump paired it with the same English line; the live Lua map can reuse a key for another menu line. A long shared prefix or suffix is accepted, because the dump can resolve a race or other player word to one value while the live line uses another.
+   - **Script sheet rows**: A cutscene subtitle is matched against the live `VoiceMan` sheet, whose path is `PlayCutSceneTask.CutscenePath`. The sheet name and row id are language-independent, so `_scriptRowTextLookup` returns the Chinese line for the same row on any client. A text two rows share is not used.
+   - **Sheet rows**: Looks up `(Sheet, RowId, Field)` in `_rowLookup`. If `Slot >= 0`, returns that slot. Otherwise `TrySelectRowSlot` extracts the row's live variants via `SheetCatalog` and picks the slot whose normalized text matches the live text. If the row's English was readable and no slot matched, it **fails open** to text lookup instead of guessing. Only when the live row could not be compared and exactly one translated slot exists does it return that single slot.
 2. **Ambiguous script disambiguation (`TryLookupAmbiguousScript`)**:
    - Script lines that share identical English text with different Chinese translations (e.g. `"You bastard!"`) are removed from `_textLookup` and stored in `_ambiguousScriptKeys`.
    - A sheet row can also share an English line with script lines, such as `NpcYell` and a cutscene line. The sheet text stays in `_textLookup` as the fallback, and the script candidates are added to `_ambiguousScriptKeys`, so the speaker, scene, or script hint picks the script line when it can.

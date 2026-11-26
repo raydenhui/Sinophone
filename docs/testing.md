@@ -87,16 +87,20 @@ before a release:
 ```sh
 pwsh -File scripts/Test-Coverage.ps1                  # tc, using the plugin's own artifacts
 pwsh -File scripts/Test-Coverage.ps1 -Variant cn      # simplified data
+pwsh -File scripts/Test-Coverage.ps1 -Language ja     # measure the sheet text a JP client shows
 pwsh -File scripts/Test-Coverage.ps1 -Gate tools/Sinophone.Coverage/coverage-baseline.json
 pwsh -File scripts/Test-Coverage.ps1 -Baseline tools/Sinophone.Coverage/coverage-baseline.json
 ```
 
 It writes `coverage.md` and `coverage.json` next to the artifacts. What it does:
 
-- Loads the English side of each sheet from the xivapi/ffxiv-datamining CSVs, downloaded once and
+- Loads the text side of each sheet from the xivapi/ffxiv-datamining CSVs, downloaded once and
   cached, so the store can be built without the game. `tools/Sinophone.Coverage/Coverage/Sources.cs`
   says which sheet feeds which component; a sheet that gains a handler has to gain a line there or
   the report counts it under "shown by nobody".
+- Measures one client language at a time. `-Language` defaults to `en`; `ja`, `de`, and `fr` measure
+  the sheet text that client shows. Script lines stay keyed on the English dump, so a run in
+  another language covers the sheet surfaces only, and the report names the language it measured.
 - Enumerates every English string a component can show: every row, slot, and conditional branch,
   plus every script-dump key.
 - Runs each one through that component's own `Resolve`, not a copy of it. The display half is not

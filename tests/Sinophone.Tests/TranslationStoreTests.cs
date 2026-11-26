@@ -281,6 +281,32 @@ public class TranslationStoreTests
         return result;
     }
 
+    private static Dictionary<string, ScriptEntry> ScriptsWithRows(
+        params (string Key, string Sheet, uint RowId, string English, string Text)[] entries)
+    {
+        var result = new Dictionary<string, ScriptEntry>(StringComparer.Ordinal);
+
+        foreach (var (key, sheet, rowId, english, text) in entries)
+            result[key] = new ScriptEntry { Sheet = sheet, RowId = rowId, English = english, Text = text };
+
+        return result;
+    }
+
+    /// <summary>
+    /// The real line from <c>custom/000/CmnBhtEnterLv020St0003_00013.csv</c> row 28.
+    /// The key and row id are the same in the English, Japanese, and Chinese dumps.
+    /// </summary>
+    private const string GuildhestKey = "TEXT_CMNBHTENTERLV020ST0003_00013_BEHEST_TALK_00";
+    private const string GuildhestSheet = "custom/000/CmnBhtEnterLv020St0003_00013";
+    private const string GuildhestEnglish =
+        "Guildhests are similar to guildleves in that clients in need of assistance petition the Adventurers' Guild.";
+    private const string GuildhestJapanese =
+        "「ギルドオーダー」とは、冒険者ギルドが発行する\nパーティ向けの特殊任務のことです。";
+    private const string GuildhestChinese = "“行会令”指的是冒险者行会发行的\n面向小队的特殊任务。";
+
+    private static Dictionary<string, ScriptEntry> GuildhestScripts()
+        => ScriptsWithRows((GuildhestKey, GuildhestSheet, 28, GuildhestEnglish, GuildhestChinese));
+
     private static TranslationStore? Load(
         FakeSheetDescriptor descriptor,
         ChineseVariant variant,
@@ -1276,6 +1302,136 @@ public class TranslationStoreTests
         Assert.NotNull(store);
         Assert.True(store.TryGetDialogue("<squeal> You found him!", out var chinese));
         Assert.Equal("嗷嗷！你找到他了！", chinese);
+    }
+
+    [Fact]
+    public void ScriptLookup_UsesTheLiveRowId_WithoutComparingEnglish()
+    {
+        var artifacts = Artifacts(Artifact("CN", GuildhestScripts()), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var rows = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase) { [GuildhestKey] = 28 };
+        var context = new DialogueContext(ScriptKeys: [GuildhestKey], ScriptRowIds: rows);
+
+        Assert.True(store.TryGetDialogue(GuildhestJapanese, in context, out var chinese));
+        Assert.Equal(GuildhestChinese, chinese);
+    }
+
+    [Fact]
+    public void ScriptLookup_RejectsAKeyWhoseLiveRowIdDiffers()
+    {
+        var artifacts = Artifacts(Artifact("CN", GuildhestScripts()), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var rows = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase) { [GuildhestKey] = 29 };
+        var context = new DialogueContext(ScriptKeys: [GuildhestKey], ScriptRowIds: rows);
+
+        Assert.False(store.TryGetDialogue(GuildhestJapanese, in context, out _));
+    }
+
+    [Fact]
+    public void ScriptLookup_FallsBackToEnglish_WhenTheLiveRowIdIsMissing()
+    {
+        var artifacts = Artifacts(Artifact("CN", GuildhestScripts()), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(ScriptKeys: [GuildhestKey]);
+
+        Assert.True(store.TryGetDialogue(GuildhestEnglish, in context, out var chinese));
+        Assert.Equal(GuildhestChinese, chinese);
+        Assert.False(store.TryGetDialogue(GuildhestJapanese, in context, out _));
+    }
+
+    [Fact]
+    public void ScriptLookup_ResolvesBySheetRow()
+    {
+        var artifacts = Artifacts(Artifact("CN", GuildhestScripts()), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(
+            ScriptRow: new DialogueRowId(GuildhestSheet, 28, string.Empty));
+
+        Assert.True(store.TryGetDialogue(GuildhestJapanese, in context, out var chinese));
+        Assert.Equal(GuildhestChinese, chinese);
+    }
+
+    [Fact]
+    public void RowLookup_ResolvesDutyTextById()
+    {
+        var descriptor = new FakeSheetDescriptor(
+            "InstanceContentTextData", "Text", false,
+            new Dictionary<uint, string[]> { [100] = ["The enemy approaches."] });
+        var artifacts = Artifacts(
+            Artifact("CN", ("InstanceContentTextData", "Text", 100, "敌人正在接近。")),
+            null);
+
+        var store = TranslationStore.Load(
+            [descriptor], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        // The clip names the row and the sheet has one text slot, so the slot is known.
+        var context = new DialogueContext(
+            new DialogueRowId("InstanceContentTextData", 100, "Text", 0));
+
+        Assert.True(store.TryGetDialogue("敵が近づいている。", in context, out var chinese));
+        Assert.Equal("敌人正在接近。", chinese);
+    }
+
+    [Fact]
+    public void ScriptLookup_ResolvesARealCutsceneRow()
+    {
+        var scripts = ScriptsWithRows(
+            ("TEXT_VOICEMAN_02200_000010_THANCRED", "cut_scene/022/VoiceMan_02200", 0,
+                "Now then...", "接下来……"));
+        var artifacts = Artifacts(Artifact("CN", scripts), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(
+            ScriptRow: new DialogueRowId("cut_scene/022/VoiceMan_02200", 0, string.Empty));
+
+        Assert.True(store.TryGetDialogue("さてと……。", in context, out var chinese));
+        Assert.Equal("接下来……", chinese);
+    }
+
+    [Fact]
+    public void Cache_KeepsTheScriptRowIds()
+    {
+        var artifacts = Artifacts(Artifact("CN", GuildhestScripts()), null);
+        var store = TranslationStore.Load([], ChineseVariant.Simplified, false, artifacts, new FakePluginLog());
+        Assert.NotNull(store);
+
+        var path = Path.Combine(Path.GetTempPath(), $"sinophone-index-{Guid.NewGuid():N}.bin");
+        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Dialogue);
+
+        try
+        {
+            TranslationStore.SaveCache(path, "inputs", store, log);
+
+            Assert.True(TranslationStore.TryLoadCache(
+                path, "inputs", [], log, key => key, null, out var loaded));
+            Assert.NotNull(loaded);
+
+            var rows = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase) { [GuildhestKey] = 28 };
+            var context = new DialogueContext(ScriptKeys: [GuildhestKey], ScriptRowIds: rows);
+
+            Assert.True(loaded.TryGetDialogue(GuildhestJapanese, in context, out var chinese));
+            Assert.Equal(GuildhestChinese, chinese);
+
+            var wrong = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase) { [GuildhestKey] = 29 };
+            Assert.False(loaded.TryGetDialogue(
+                GuildhestJapanese,
+                new DialogueContext(ScriptKeys: [GuildhestKey], ScriptRowIds: wrong),
+                out _));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

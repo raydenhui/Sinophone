@@ -27,7 +27,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 9;
+    public const int IndexFormatVersion = 11;
 
     private readonly Dictionary<string, string> _textLookup = new(StringComparer.Ordinal);
 
@@ -68,7 +68,7 @@ public sealed partial class TranslationStore
     private readonly Dictionary<string, string> _addonLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiTextStyle> _styleLookup = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Sheet, uint RowId), string> _nameRowLookup = new();
-    private readonly List<(string Template, string Chinese, int[]? ParameterIndices)> _addonTemplates = [];
+    private readonly List<(string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate)> _addonTemplates = [];
     private readonly List<(string Template, string Chinese)> _scriptTemplates = [];
     private readonly HashSet<string> _addonTemplateKeys = new(StringComparer.Ordinal);
 
@@ -84,6 +84,18 @@ public sealed partial class TranslationStore
 
     /// <summary>The normalized English line each script key was paired with in the dump.</summary>
     private readonly Dictionary<string, string> _scriptKeyEnglishLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The row id each script key uses in the game's Lua text map. The live map can
+    /// reuse a key for another line; a matching row id is the line's identity.
+    /// </summary>
+    private readonly Dictionary<string, uint> _scriptRowLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The dump sheet a script key came from, such as <c>cut_scene/022/VoiceMan_02200</c>.</summary>
+    private readonly Dictionary<string, string> _scriptSheetLookup = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Script text keyed by the sheet row the game names, such as a cutscene subtitle.</summary>
+    private readonly Dictionary<(string Sheet, uint RowId), string> _scriptRowTextLookup = new();
 
     /// <summary>
     /// Script lines that share one English key but have different Chinese, such as the
@@ -1001,6 +1013,24 @@ public sealed partial class TranslationStore
     {
         chineseText = string.Empty;
 
+        // A cutscene subtitle or another script line the game names by sheet row.
+        if (context.ScriptRow is { } scriptRow)
+        {
+            if (_scriptRowTextLookup.TryGetValue((scriptRow.Sheet, scriptRow.RowId), out var rowText))
+            {
+                if (trace is not null)
+                    trace.Step("id.scriptRow", "hit", $"{scriptRow.Sheet} row {scriptRow.RowId}");
+                chineseText = ResolveDisplay(rowText);
+                _log.Debug(
+                    "Dialogue matched by {Sheet} row {RowId}.",
+                    scriptRow.Sheet, scriptRow.RowId);
+                return true;
+            }
+
+            if (trace is not null)
+                trace.Step("id.scriptRow", "miss", $"{scriptRow.Sheet} row {scriptRow.RowId}");
+        }
+
         if (context.ScriptKeys is not null)
         {
             var liveKey = MacroNormalizer.NormalizeKey(englishText);
@@ -1016,9 +1046,41 @@ public sealed partial class TranslationStore
                     continue;
                 }
 
-                // The live Lua text map can reuse a key for another line. Trust the key only
-                // when the dump paired it with the same English line. Put the player name back
-                // and collapse gender/time wording first, because those differences are expected.
+                // The live Lua text map can reuse a key for another line. The live row
+                // id is the same id the dump wrote for the line, so a match needs no
+                // text comparison and works in any client language.
+                if (context.ScriptRowIds is not null
+                    && context.ScriptRowIds.TryGetValue(trimmed, out var liveRowId)
+                    && _scriptRowLookup.TryGetValue(trimmed, out var artifactRowId))
+                {
+                    if (artifactRowId != liveRowId)
+                    {
+                        _log.Debug(
+                            "Dialogue ignored script key {ScriptKey}: the live row {LiveRow} is not {DumpRow}.",
+                            trimmed, liveRowId, artifactRowId);
+                        if (trace is not null)
+                        {
+                            trace.Step(
+                                "id.scriptKey",
+                                "row-mismatch",
+                                $"{trimmed}: live row {liveRowId} vs dump row {artifactRowId}");
+                        }
+
+                        continue;
+                    }
+
+                    if (trace is not null)
+                        trace.Step("id.scriptKey", "hit", $"{trimmed} row {liveRowId}");
+                    chineseText = ResolveDisplay(script);
+                    _log.Debug(
+                        "Dialogue matched by script key {ScriptKey} and row {RowId}.",
+                        scriptKey, liveRowId);
+                    return true;
+                }
+
+                // Without a live row id, trust the key only when the dump paired it with
+                // the same English line. Put the player name back and collapse gender/time
+                // wording first, because those differences are expected.
                 if (_scriptKeyEnglishLookup.TryGetValue(trimmed, out var pairedKey))
                 {
                     var liveForCompare = PlayerNamePlaceholderKey(liveKey);
@@ -1295,7 +1357,7 @@ public sealed partial class TranslationStore
 
         var prefix = key[..prefixLength];
 
-        foreach (var (template, _, _) in _addonTemplates)
+        foreach (var (template, _, _, _) in _addonTemplates)
         {
             if (template.Length == 0 || template[0] == ScriptTextTemplate.Wildcard)
                 continue;
@@ -1311,12 +1373,25 @@ public sealed partial class TranslationStore
         string? englishText,
         out string chineseText,
         out string[] captures,
+        out int[]? parameterIndices)
+        => TryGetAddonText(englishText, out chineseText, out captures, out parameterIndices, out _);
+
+    /// <summary>
+    /// Resolves an Addon-sheet prompt and returns the converted Chinese macro string,
+    /// when the artifact carried one for that row.
+    /// </summary>
+    public bool TryGetAddonText(
+        string? englishText,
+        out string chineseText,
+        out string[] captures,
         out int[]? parameterIndices,
+        out string? macroTemplate,
         FailureTrace? trace = null)
     {
         chineseText = string.Empty;
         captures = [];
         parameterIndices = null;
+        macroTemplate = null;
 
         var key = MacroNormalizer.NormalizeKey(englishText);
         if (key.Length == 0)
@@ -1331,7 +1406,7 @@ public sealed partial class TranslationStore
             return false;
         }
 
-        foreach (var (template, chinese, indices) in _addonTemplates)
+        foreach (var (template, chinese, indices, macro) in _addonTemplates)
         {
             if (!ScriptTextTemplate.TryMatch(template, key, out captures))
                 continue;
@@ -1339,6 +1414,7 @@ public sealed partial class TranslationStore
             trace?.Step("addon.template", "hit", template);
             chineseText = chinese;
             parameterIndices = indices;
+            macroTemplate = macro;
             return true;
         }
 
@@ -1357,6 +1433,31 @@ public sealed partial class TranslationStore
     {
         if (UiTextStyle.TryParse(rawText, out var style))
             _styleLookup.TryAdd(display, style);
+    }
+
+    /// <summary>
+    /// Resolves a name by the sheet row the game names, without reading the live
+    /// text. The item tooltip knows its row id, so this works on every client
+    /// language and cannot pick another row that shares the same name.
+    /// </summary>
+    public bool TryGetNameById(
+        string sheet,
+        uint rowId,
+        out string chineseName,
+        FailureTrace? trace = null)
+    {
+        chineseName = string.Empty;
+
+        if (!_nameRowLookup.TryGetValue((sheet, rowId), out var stored))
+        {
+            if (trace is not null)
+                trace.Step("name.id", "miss", $"{sheet} row {rowId}");
+            return false;
+        }
+
+        trace?.Step("name.id", "hit", $"{sheet} row {rowId}");
+        chineseName = ResolveDisplay(stored);
+        return chineseName.Length > 0;
     }
 
     public bool TryGetName(string? englishName, out string chineseName, FailureTrace? trace = null)
@@ -1630,8 +1731,8 @@ public sealed partial class TranslationStore
     /// with fewer wildcards wins a tie, because it allows less text to vary.
     /// </summary>
     private static int CompareAddonTemplates(
-        (string Template, string Chinese, int[]? ParameterIndices) left,
-        (string Template, string Chinese, int[]? ParameterIndices) right)
+        (string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate) left,
+        (string Template, string Chinese, int[]? ParameterIndices, string? MacroTemplate) right)
     {
         var literal = ScriptTextTemplate.LiteralLength(right.Template)
             .CompareTo(ScriptTextTemplate.LiteralLength(left.Template));
@@ -1813,7 +1914,8 @@ public sealed partial class TranslationStore
                                 _addonTemplates.Add((
                                     parameterTemplate.Template,
                                     chineseSlots[i],
-                                    parameterTemplate.ParameterIndices));
+                                    parameterTemplate.ParameterIndices,
+                                    MacroTemplateFor(artifact, rowId)));
                             }
                         }
 
@@ -1824,7 +1926,7 @@ public sealed partial class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(template) >= 4
                                 && _addonTemplateKeys.Add(template))
                             {
-                                _addonTemplates.Add((template, chineseSlots[i], null));
+                                _addonTemplates.Add((template, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
                             }
 
                             var loose = ScriptTextTemplate.BuildLooseFromPlainText(variants[v]);
@@ -1832,7 +1934,7 @@ public sealed partial class TranslationStore
                                 && !string.Equals(loose, template, StringComparison.Ordinal)
                                 && _addonTemplateKeys.Add(loose))
                             {
-                                _addonTemplates.Add((loose, chineseSlots[i], null));
+                                _addonTemplates.Add((loose, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
                             }
 
                             // A prompt with several lines can change which detail
@@ -1847,7 +1949,7 @@ public sealed partial class TranslationStore
                                 if (ScriptTextTemplate.LiteralLength(prefix) >= 4
                                     && _addonTemplateKeys.Add(prefix))
                                 {
-                                    _addonTemplates.Add((prefix, chineseSlots[i], null));
+                                    _addonTemplates.Add((prefix, chineseSlots[i], null, MacroTemplateFor(artifact, rowId)));
                                 }
                             }
                         }
@@ -1861,7 +1963,11 @@ public sealed partial class TranslationStore
                             if (ScriptTextTemplate.LiteralLength(wordTemplate) >= 4
                                 && _addonTemplateKeys.Add(wordTemplate))
                             {
-                                _addonTemplates.Add((wordTemplate, chineseSlots[i], null));
+                                _addonTemplates.Add((
+                                    wordTemplate,
+                                    chineseSlots[i],
+                                    null,
+                                    MacroTemplateFor(artifact, rowId)));
                             }
                         }
                     }
@@ -1954,6 +2060,13 @@ public sealed partial class TranslationStore
             {
                 _scriptKeyLookup.TryAdd(scriptKey, display);
                 _scriptKeyEnglishLookup.TryAdd(scriptKey, key);
+
+                if (!string.IsNullOrEmpty(entry.Sheet))
+                {
+                    _scriptRowLookup.TryAdd(scriptKey, entry.RowId);
+                    _scriptSheetLookup.TryAdd(scriptKey, entry.Sheet);
+                    _scriptRowTextLookup.TryAdd((entry.Sheet, entry.RowId), display);
+                }
             }
 
             if (_ambiguousScriptKeys.TryGetValue(key, out var known))
@@ -2101,6 +2214,10 @@ public sealed partial class TranslationStore
     /// </summary>
     private string PrepareDisplay(string rawText)
         => NeedsLateResolution(rawText) ? rawText : ResolveWith(_indexResolver, rawText);
+
+    /// <summary>The converted macro string the artifact stored for one Addon row.</summary>
+    private static string? MacroTemplateFor(TranslationArtifact artifact, uint rowId)
+        => artifact.AddonTemplates.TryGetValue(rowId.ToString(), out var macro) ? macro : null;
 
     private string ResolveDisplay(string stored)
         => NeedsLateResolution(stored) ? ResolveWith(_displayResolver, stored) : stored;

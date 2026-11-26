@@ -19,6 +19,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
     [PluginService] public static INamePlateGui NamePlateGui { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState { get; private set; } = null!;
+    [PluginService] public static ISeStringEvaluator SeStringEvaluator { get; private set; } = null!;
 
     [PluginService] public static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
@@ -235,6 +236,7 @@ public sealed class Plugin : IDalamudPlugin
             GameInteropProvider,
             GameGui,
             TargetManager,
+            DataManager,
             _configuration,
             () => _store,
             _overlay,
@@ -248,6 +250,7 @@ public sealed class Plugin : IDalamudPlugin
             _configuration,
             () => _store,
             _nativeTextWriter,
+            SeStringEvaluator,
             _failures);
         _chatBubbleHandler = new ChatBubbleHandler(
             AddonLifecycle,
@@ -621,24 +624,21 @@ public sealed class Plugin : IDalamudPlugin
 
     /// <summary>
     /// Ties a cached index to the inputs it was built from. A game patch changes the
-    /// English text the index is keyed on, and a new download changes the artifact,
-    /// so either one makes the cache stale. The plugin build is part of the key
-    /// because an index change, such as a new match rule, only ships in a new build.
+    /// text the index is keyed on, a new download changes the artifact, and a launcher
+    /// language change changes the text on every sheet, so any of them makes the cache
+    /// stale. The plugin build is part of the key because an index change, such as a
+    /// new match rule, only ships in a new build.
     /// </summary>
     private string BuildStoreCacheKey()
-    {
-        var configuration = _configuration;
-
-        return string.Join(
-            "|",
-            configuration.Variant.ToString(),
-            configuration.UseFallbackVariant.ToString(),
-            configuration.Conversion.ToString(),
-            TranslationStore.IndexFormatVersion.ToString(),
+        => StoreCacheKey.Build(
+            _configuration.Variant,
+            _configuration.UseFallbackVariant,
+            _configuration.Conversion,
+            TranslationStore.IndexFormatVersion,
             GetGameDataVersion(),
+            DataManager.Language,
             _dataUpdater.SourceIdentity(ChineseVariant.Simplified),
             _dataUpdater.SourceIdentity(ChineseVariant.Traditional));
-    }
 
     /// <summary>
     /// Turns the failure recorder on for a dev plugin. Every other build gets null,

@@ -1,3 +1,5 @@
+using Dalamud.Game.Text.Evaluator;
+
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 using Sinophone.Data;
@@ -34,9 +36,17 @@ public sealed class SelectionDialogHandler : IDisposable
     /// </summary>
     private const int MaxLateAttempts = 12;
 
-    private static readonly Regex QuotedText = new(@"[“""]([^”""]+)[”""]", RegexOptions.CultureInvariant);
-    private static readonly Regex EnglishLevel = new(@"\bLevel:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-    private static readonly Regex EnglishItemLevel = new(@"\bItem level:\s*(\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex QuotedText = new(
+        @"[“""「『]([^”""」』]+)[”""」』]",
+        RegexOptions.CultureInvariant);
+
+    private static readonly Regex EnglishLevel = new(
+        @"\b(?:Level|レベル)\s*[:：]?\s*(\d+)",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    private static readonly Regex EnglishItemLevel = new(
+        @"(?:Item level|アイテムレベル)\s*[:：]?\s*(\d+)",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex QuestBattleLevel = new(@"<Sheet\(QuestBattle,IntegerParameter\(2\),3\)\s*/>", RegexOptions.CultureInvariant);
 
     /// <summary>
@@ -78,14 +88,21 @@ public sealed class SelectionDialogHandler : IDisposable
         @"<(Value|TwoDigitValue)>TopLevelParameter\((\d+)\)</\1>",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    /// <summary>A numeric date such as 8/27, 27/8, 8/27/2026 or 2026/8/27.</summary>
+    /// <summary>A numeric date such as 8/27, 27/8, 8/27/2026, 2026-08-27 or 27.8.</summary>
     private static readonly Regex NumericDate = new(
-        @"(?<![\d/])(\d{1,4})/(\d{1,2})(?:/(\d{1,4}))?(?![\d/])",
+        @"(?<![\d/.-])(\d{1,4})[/.-](\d{1,2})(?:[/.-](\d{1,4}))?(?![\d/.-])",
         RegexOptions.CultureInvariant);
 
-    /// <summary>A clock value such as 8:00, 8:00:00 or 8:00 p.m.</summary>
+    /// <summary>A Japanese date such as 2013年8月27日 or 8月27日.</summary>
+    private static readonly Regex JapaneseDate = new(
+        @"(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日",
+        RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// A clock value such as 8:00, 8:00:00, 8:00 p.m., 8時, 8時00分, 午前8時 or 午後8時.
+    /// </summary>
     private static readonly Regex ClockValue = new(
-        @"(?<![\d:])(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([aApP])\.?\s*[mM]\.?)?",
+        @"(?<![\d:])(?:(午前|午後)\s*)?(\d{1,2})(?::(\d{2})(?::(\d{2}))?|時(\d{1,2})?分?)(?:\s*([aApP])\.?\s*[mM]\.?)?",
         RegexOptions.CultureInvariant);
 
     /// <summary>UI icon placeholders from the Chinese client; they are not text.</summary>
@@ -97,6 +114,7 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
     private readonly NativeTextWriter _nativeWriter;
+    private readonly ISeStringEvaluator _evaluator;
     private readonly TalkEventReader _eventReader;
     private readonly FailureRecorder? _failures;
     private readonly IAddonLifecycle.AddonEventDelegate _onAddonEvent;
@@ -123,6 +141,13 @@ public sealed class SelectionDialogHandler : IDisposable
     private readonly HashSet<string> _waitingForStore = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Addons whose AtkValues were already logged. The values are what a future
+    /// change needs to fill the template locals exactly, but they are only read
+    /// for the log once per dialog.
+    /// </summary>
+    private readonly HashSet<string> _loggedAtkValues = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// The last text each node failed on, so a dialog retried twelve times logs one line per node
     /// instead of twelve.
     /// </summary>
@@ -144,6 +169,7 @@ public sealed class SelectionDialogHandler : IDisposable
         Configuration configuration,
         Func<TranslationStore?> getStore,
         NativeTextWriter nativeWriter,
+        ISeStringEvaluator evaluator,
         FailureRecorder? failures = null)
     {
         _addonLifecycle = addonLifecycle;
@@ -152,6 +178,7 @@ public sealed class SelectionDialogHandler : IDisposable
         _configuration = configuration;
         _getStore = getStore;
         _nativeWriter = nativeWriter;
+        _evaluator = evaluator;
         _failures = failures;
         _eventReader = new TalkEventReader(log, configuration, LogCategory.SelectionDialogs);
         _onAddonEvent = OnAddonEvent;
@@ -199,6 +226,7 @@ public sealed class SelectionDialogHandler : IDisposable
         {
             _dialogScriptHints.Remove(addonName);
             _dialogContexts.Remove(addonName);
+            _loggedAtkValues.Remove(addonName);
 
             // A delayed hide from an old dialog must not clear text that a newer
             // dialog has already written into a reused node.
@@ -211,6 +239,7 @@ public sealed class SelectionDialogHandler : IDisposable
         {
             _dialogScriptHints.Remove(addonName);
             _dialogContexts.Remove(addonName);
+            _loggedAtkValues.Remove(addonName);
         }
         else if (eventType == AddonEvent.PostRefresh)
         {
@@ -238,6 +267,8 @@ public sealed class SelectionDialogHandler : IDisposable
         var addon = GetAddon(addonName);
         if (addon is null)
             return;
+
+        LogAtkValues(addonName, addon);
 
         _nodes.Clear();
 
@@ -288,11 +319,6 @@ public sealed class SelectionDialogHandler : IDisposable
                 continue;
             }
 
-            // The client is English. A node with no Latin letter holds either our own translation
-            // or a label the client builds in its own language, and neither is a line to look up.
-            if (!HasLatinLetter(source))
-                continue;
-
             if (traceNodes)
                 _log.Debug("CutSceneSelectString node {NodeId}: {Text}", nodeId, source);
 
@@ -326,7 +352,7 @@ public sealed class SelectionDialogHandler : IDisposable
                     trace.Input("scriptKeys", string.Join(", ", keys));
             }
 
-            if (!TryTranslate(store, source, context, out var chinese, trace))
+            if (!TryTranslate(store, source, context, _evaluator, out var chinese, trace))
             {
                 trace?.Finish(FailureOutcome.Miss, "no-translation");
 
@@ -419,7 +445,7 @@ public sealed class SelectionDialogHandler : IDisposable
         foreach (var nodeAddress in _nodes)
         {
             var source = TalkHandler.ExtractPlainText(((AtkTextNode*)nodeAddress)->NodeText.AsSpan());
-            if (!string.IsNullOrWhiteSpace(source) && HasLatinLetter(source))
+            if (!string.IsNullOrWhiteSpace(source))
                 sources.Add(source);
         }
 
@@ -450,6 +476,37 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private unsafe AtkUnitBase* GetAddon(string addonName)
         => _gameGui.GetAddonByName<AtkUnitBase>(addonName, 1);
+
+    /// <summary>
+    /// Logs the values the game passed to the dialog, once per dialog. The prompt's
+    /// IntegerParameter and StringParameter values are in here; the exact index
+    /// mapping has to be confirmed in game before it can replace the text parse.
+    /// </summary>
+    private unsafe void LogAtkValues(string addonName, AtkUnitBase* addon)
+    {
+        if (!_loggedAtkValues.Add(addonName))
+            return;
+
+        if (addon->AtkValues is null || addon->AtkValuesCount == 0)
+        {
+            _log.Debug("Selection dialog {Addon}: no AtkValues.", addonName);
+            return;
+        }
+
+        var count = Math.Min((int)addon->AtkValuesCount, 16);
+        var values = new StringBuilder(count * 12);
+        for (var i = 0; i < count; i++)
+        {
+            if (i > 0)
+                values.Append(", ");
+
+            values.Append('[').Append(i).Append("] ").Append(addon->AtkValues[i].GetValueAsString());
+        }
+
+        _log.Debug(
+            "Selection dialog {Addon}: {Count} AtkValues: {Values}",
+            addonName, addon->AtkValuesCount, values);
+    }
 
     /// <summary>
     /// Some dialogs keep their prompt and options in typed component fields, not
@@ -592,18 +649,6 @@ public sealed class SelectionDialogHandler : IDisposable
         Translate(addonName);
     }
 
-    /// <summary>True for text with a Latin letter, which is the only text this plugin looks up.</summary>
-    private static bool HasLatinLetter(string text)
-    {
-        foreach (var character in text)
-        {
-            if (character is >= 'a' and <= 'z' or >= 'A' and <= 'Z')
-                return true;
-        }
-
-        return false;
-    }
-
     /// <summary>
     /// Which lookup step failed, for a prompt that stayed English. Each step is re-run on its own
     /// so the log says whether the label, the dialogue text, the template, or the resolve after the
@@ -694,12 +739,20 @@ public sealed class SelectionDialogHandler : IDisposable
     /// show "Yes".
     /// </summary>
     internal static bool TryTranslate(TranslationStore store, string? text, out string chinese)
-        => TryTranslate(store, text, default, out chinese);
+        => TryTranslate(store, text, default, null, out chinese);
 
     internal static bool TryTranslate(
         TranslationStore store,
         string? text,
         DialogueContext context,
+        out string chinese)
+        => TryTranslate(store, text, context, null, out chinese);
+
+    internal static bool TryTranslate(
+        TranslationStore store,
+        string? text,
+        DialogueContext context,
+        ISeStringEvaluator? evaluator,
         out string chinese,
         FailureTrace? trace = null)
     {
@@ -742,12 +795,32 @@ public sealed class SelectionDialogHandler : IDisposable
             trace?.Step("dialog.dialogue", "unresolved");
         }
 
-        if (store.TryGetAddonText(plainText, out var addonText, out var captures, out var parameterIndices, trace))
+        if (store.TryGetAddonText(
+                plainText,
+                out var addonText,
+                out var captures,
+                out var parameterIndices,
+                out var macroTemplate,
+                trace))
         {
+            var evaluated = EvaluateAddonTemplate(evaluator, macroTemplate, captures, parameterIndices);
+            if (evaluated is not null)
+            {
+                chinese = MacroNormalizer.CleanForDisplay(evaluated);
+                if (chinese.Length > 0)
+                {
+                    trace?.Step("dialog.path", "evaluator");
+                    return true;
+                }
+
+                trace?.Step("dialog.evaluator", "empty");
+                return false;
+            }
+
             chinese = ResolveAddonText(addonText, plainText, captures, store, parameterIndices);
             if (chinese.Length > 0)
             {
-                trace?.Step("dialog.path", "template");
+                trace?.Step("dialog.path", "template", approximate: true);
                 return true;
             }
 
@@ -842,6 +915,81 @@ public sealed class SelectionDialogHandler : IDisposable
             builder.Append(line.Trim());
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Evaluates the converted Chinese template with the values captured from the
+    /// live prompt. Returns null when the template cannot be evaluated here and the
+    /// caller should use the replacement path.
+    /// </summary>
+    /// <remarks>
+    /// A <c>settime</c> template needs the unix timestamp the game passed, which the
+    /// rendered date does not hold. A <c>sheet</c> template would read the client's
+    /// own sheet, which is the wrong language. Both keep the old path.
+    /// </remarks>
+    internal static string? EvaluateAddonTemplate(
+        ISeStringEvaluator? evaluator,
+        string? macroTemplate,
+        IReadOnlyList<string>? values,
+        IReadOnlyList<int>? indices)
+    {
+        if (evaluator is null || string.IsNullOrEmpty(macroTemplate))
+            return null;
+
+        if (macroTemplate.Contains("settime(", StringComparison.Ordinal)
+            || macroTemplate.Contains("<sheet(", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var locals = BuildAddonLocals(values, indices);
+
+        try
+        {
+            var text = evaluator.EvaluateMacroString(macroTemplate, locals).ExtractText();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Places each captured value at the parameter index the Chinese row uses.
+    /// A value that is a whole number becomes a number, so <c>lnum</c> can read it;
+    /// anything else stays a string for <c>lstr</c>.
+    /// </summary>
+    internal static SeStringParameter[] BuildAddonLocals(
+        IReadOnlyList<string>? values,
+        IReadOnlyList<int>? indices)
+    {
+        var highest = 0;
+        if (indices is not null)
+        {
+            foreach (var index in indices)
+                highest = Math.Max(highest, index);
+        }
+
+        var locals = new SeStringParameter[highest];
+        if (indices is null || values is null)
+            return locals;
+
+        var count = Math.Min(indices.Count, values.Count);
+        for (var i = 0; i < count; i++)
+        {
+            var index = indices[i];
+            if (index <= 0 || index > locals.Length)
+                continue;
+
+            var value = values[i].Trim();
+            var numeric = value.Replace(",", string.Empty, StringComparison.Ordinal);
+            locals[index - 1] = uint.TryParse(numeric, out var number)
+                ? new SeStringParameter(number)
+                : new SeStringParameter(value);
+        }
+
+        return locals;
     }
 
     /// <summary>
@@ -1036,36 +1184,49 @@ public sealed class SelectionDialogHandler : IDisposable
     }
 
     /// <summary>
-    /// Reads the date the game drew in the English line. The year is often left
-    /// out. The prompt names a time close to now, so a month and day that have
-    /// already passed belong to next year.
+    /// Reads the date the game drew in the live line. The year is often left out.
+    /// The prompt names a time close to now, so a month and day that have already
+    /// passed belong to next year.
     /// </summary>
     private static DateTime? ReadDate(string text, DateTime now)
     {
+        var japanese = JapaneseDate.Match(text);
+        if (japanese.Success)
+        {
+            var hasYear = japanese.Groups[1].Success;
+            var year = hasYear ? int.Parse(japanese.Groups[1].Value) : now.Year;
+            return BuildDate(
+                year,
+                int.Parse(japanese.Groups[2].Value),
+                int.Parse(japanese.Groups[3].Value),
+                hasYear,
+                now);
+        }
+
         var match = NumericDate.Match(text);
         if (!match.Success)
             return null;
 
         var first = int.Parse(match.Groups[1].Value);
         var second = int.Parse(match.Groups[2].Value);
-        var year = now.Year;
-        var hasYear = match.Groups[3].Success;
+        var numericYear = now.Year;
+        var numericHasYear = match.Groups[3].Success;
 
         if (match.Groups[1].Value.Length >= 4)
         {
             // Year first, as in 2026/8/27.
-            if (!hasYear)
+            if (!numericHasYear)
                 return null;
 
-            year = first;
+            numericYear = first;
             first = second;
             second = int.Parse(match.Groups[3].Value);
         }
-        else if (hasYear)
+        else if (numericHasYear)
         {
-            year = int.Parse(match.Groups[3].Value);
-            if (year < 100)
-                year += 2000;
+            numericYear = int.Parse(match.Groups[3].Value);
+            if (numericYear < 100)
+                numericYear += 2000;
         }
 
         // The English client writes the month first. A number above 12 can only
@@ -1078,6 +1239,11 @@ public sealed class SelectionDialogHandler : IDisposable
             day = first;
         }
 
+        return BuildDate(numericYear, month, day, numericHasYear, now);
+    }
+
+    private static DateTime? BuildDate(int year, int month, int day, bool hasYear, DateTime now)
+    {
         if (month is < 1 or > 12 || day is < 1 or > 31)
             return null;
 
@@ -1091,22 +1257,28 @@ public sealed class SelectionDialogHandler : IDisposable
         return date;
     }
 
-    /// <summary>Reads the clock time the game drew in the English line.</summary>
+    /// <summary>Reads the clock time the game drew in the live line.</summary>
     private static (int Hour, int Minute, int Second)? ReadClock(string text)
     {
         var match = ClockValue.Match(text);
         if (!match.Success)
             return null;
 
-        var hour = int.Parse(match.Groups[1].Value);
-        var minute = int.Parse(match.Groups[2].Value);
-        var second = match.Groups[3].Success ? int.Parse(match.Groups[3].Value) : 0;
+        var hour = int.Parse(match.Groups[2].Value);
+        var minute = match.Groups[3].Success
+            ? int.Parse(match.Groups[3].Value)
+            : match.Groups[5].Success ? int.Parse(match.Groups[5].Value) : 0;
+        var second = match.Groups[4].Success ? int.Parse(match.Groups[4].Value) : 0;
 
-        if (match.Groups[4].Success)
-        {
-            var afternoon = char.ToLowerInvariant(match.Groups[4].Value[0]) == 'p';
-            hour = (hour % 12) + (afternoon ? 12 : 0);
-        }
+        var morning = string.Equals(match.Groups[1].Value, "午前", StringComparison.Ordinal);
+        var afternoon = string.Equals(match.Groups[1].Value, "午後", StringComparison.Ordinal)
+                        || (match.Groups[6].Success
+                            && char.ToLowerInvariant(match.Groups[6].Value[0]) == 'p');
+
+        if (morning)
+            hour %= 12;
+        else if (afternoon)
+            hour = (hour % 12) + 12;
 
         if (hour > 23 || minute > 59 || second > 59)
             return null;

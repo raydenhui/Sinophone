@@ -14,7 +14,7 @@ namespace Sinophone.Data;
 /// </remarks>
 public sealed class TranslationArtifact
 {
-    public int FormatVersion { get; set; } = 1;
+    public int FormatVersion { get; set; } = 2;
 
     /// <summary>Human readable language tag, e.g. <c>CN</c> or <c>TC</c>.</summary>
     public string Language { get; set; } = string.Empty;
@@ -30,11 +30,27 @@ public sealed class TranslationArtifact
     /// <c>TEXT_REGSEAAETHEGUID_00051_SUNDHIMAL_000_1</c>.
     /// </summary>
     public Dictionary<string, ScriptEntry> Scripts { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Chinese <c>Addon</c> rows converted to macro strings, keyed by row id. The
+    /// plugin evaluates one with the values the game passed instead of filling
+    /// <c>IntegerParameter</c> by string replacement.
+    /// </summary>
+    public Dictionary<string, string> AddonTemplates { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>One line from a script dump, in both the game's language and the translated one.</summary>
 public sealed class ScriptEntry
 {
+    /// <summary>The sheet the dump line came from, such as <c>custom/000/Test_00001</c>.</summary>
+    public string Sheet { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The row id the game's Lua text map uses for this line. Zero in an artifact
+    /// built before the dumps carried it.
+    /// </summary>
+    public uint RowId { get; set; }
+
     /// <summary>The English text the game shows. This is the lookup key.</summary>
     public string English { get; set; } = string.Empty;
 

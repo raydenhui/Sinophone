@@ -21,7 +21,7 @@ public sealed partial class TranslationStore
     /// Bumped when the shape or meaning of the index changes, so an old cache is
     /// rebuilt instead of read.
     /// </summary>
-    private const int CacheFormatVersion = 5;
+    private const int CacheFormatVersion = 7;
 
     private static ReadOnlySpan<byte> CacheMagic => "SNPHIDX1"u8;
 
@@ -168,10 +168,13 @@ public sealed partial class TranslationStore
         }
 
         writer.Write(_addonTemplates.Count);
-        foreach (var (template, chinese, indices) in _addonTemplates)
+        foreach (var (template, chinese, indices, macro) in _addonTemplates)
         {
             writer.Write(template);
             writer.Write(chinese);
+            writer.Write(macro is not null);
+            if (macro is not null)
+                writer.Write(macro);
 
             if (indices is null)
             {
@@ -211,6 +214,7 @@ public sealed partial class TranslationStore
 
         WriteStrings(writer, _scriptKeyLookup);
         WriteStrings(writer, _scriptKeyEnglishLookup);
+        WriteScriptRows(writer);
         WriteScriptScenes(writer);
         WriteLineSpeakerAliases(writer);
         WriteAmbiguousCandidates(writer);
@@ -336,6 +340,7 @@ public sealed partial class TranslationStore
         {
             var template = reader.ReadString();
             var chinese = reader.ReadString();
+            var macro = reader.ReadBoolean() ? reader.ReadString() : null;
             var length = reader.ReadInt32();
 
             int[]? indices = null;
@@ -346,7 +351,7 @@ public sealed partial class TranslationStore
                     indices[j] = reader.ReadInt32();
             }
 
-            _addonTemplates.Add((template, chinese, indices));
+            _addonTemplates.Add((template, chinese, indices, macro));
         }
 
         count = reader.ReadInt32();
@@ -371,6 +376,7 @@ public sealed partial class TranslationStore
 
         ReadStrings(reader, _scriptKeyLookup);
         ReadStrings(reader, _scriptKeyEnglishLookup);
+        ReadScriptRows(reader);
         ReadScriptScenes(reader);
         ReadLineSpeakerAliases(reader);
         ReadAmbiguousCandidates(reader);
@@ -401,6 +407,50 @@ public sealed partial class TranslationStore
         var count = reader.ReadInt32();
         for (var i = 0; i < count; i++)
             map.Add(reader.ReadString(), reader.ReadString());
+    }
+
+    /// <summary>
+    /// The script key to row id pairs, the sheet each key came from, and the text keyed
+    /// by sheet row. Without them a cache hit would lose the id-first script lookup.
+    /// </summary>
+    private void WriteScriptRows(BinaryWriter writer)
+    {
+        writer.Write(_scriptRowLookup.Count);
+        foreach (var (key, rowId) in _scriptRowLookup)
+        {
+            writer.Write(key);
+            writer.Write(rowId);
+        }
+
+        writer.Write(_scriptSheetLookup.Count);
+        foreach (var (key, sheet) in _scriptSheetLookup)
+        {
+            writer.Write(key);
+            writer.Write(sheet);
+        }
+
+        writer.Write(_scriptRowTextLookup.Count);
+        foreach (var ((sheet, rowId), text) in _scriptRowTextLookup)
+        {
+            writer.Write(sheet);
+            writer.Write(rowId);
+            writer.Write(text);
+        }
+    }
+
+    private void ReadScriptRows(BinaryReader reader)
+    {
+        var rowIds = reader.ReadInt32();
+        for (var i = 0; i < rowIds; i++)
+            _scriptRowLookup.Add(reader.ReadString(), reader.ReadUInt32());
+
+        var sheets = reader.ReadInt32();
+        for (var i = 0; i < sheets; i++)
+            _scriptSheetLookup.Add(reader.ReadString(), reader.ReadString());
+
+        var texts = reader.ReadInt32();
+        for (var i = 0; i < texts; i++)
+            _scriptRowTextLookup.Add((reader.ReadString(), reader.ReadUInt32()), reader.ReadString());
     }
 
     private static void WriteStringSet(BinaryWriter writer, HashSet<string> set)

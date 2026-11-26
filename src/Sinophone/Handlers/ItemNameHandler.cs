@@ -402,6 +402,11 @@ public sealed unsafe class ItemNameHandler : IDisposable
     /// tests can call it without a game sheet. Returns null when nothing should
     /// be shown.
     /// </summary>
+    /// <remarks>
+    /// The row id is the primary key. The live name is only a fallback for a store
+    /// built from an artifact that does not carry this row, and it supplies the
+    /// English name for the bracket.
+    /// </remarks>
     internal static ItemNameContent? Resolve(
         TranslationStore? store,
         uint itemId,
@@ -414,20 +419,30 @@ public sealed unsafe class ItemNameHandler : IDisposable
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(englishName))
+        var shownEnglish = string.IsNullOrWhiteSpace(englishName) ? string.Empty : englishName;
+
+        if (store.TryGetNameById("Item", itemId, out var chineseName, trace))
+        {
+            trace?.Step("item.id", "hit");
+            return new ItemNameContent(chineseName, shownEnglish);
+        }
+
+        trace?.Step("item.id", "miss");
+
+        if (shownEnglish.Length == 0)
         {
             trace?.Step("item", "no-name");
             return null;
         }
 
-        if (!store.TryGetName(englishName, out var chineseName, trace))
+        if (!store.TryGetName(shownEnglish, out chineseName, trace))
         {
             trace?.Step("item.name", "miss");
             return null;
         }
 
         trace?.Step("item.name", "hit");
-        return new ItemNameContent(chineseName, englishName);
+        return new ItemNameContent(chineseName, shownEnglish);
     }
 
     internal readonly record struct ItemNameContent(string ChineseName, string EnglishName);

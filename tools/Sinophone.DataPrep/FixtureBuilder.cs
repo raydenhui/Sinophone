@@ -122,9 +122,22 @@ internal static class FixtureBuilder
                 if (!tc.TryGetValue(entry.Key, out var translated))
                     continue;
 
-                cnScripts[entry.Key] = new ScriptEntry { English = entry.English, Text = entry.Text };
-                tcScripts[entry.Key] = new ScriptEntry { English = entry.English, Text = translated.Text };
-                pairedScripts.Add(new PairedScript(entry.Key, entry.English, entry.Text, translated.Text));
+                cnScripts[entry.Key] = new ScriptEntry
+                {
+                    Sheet = entry.Sheet,
+                    RowId = entry.RowId,
+                    English = entry.English,
+                    Text = entry.Text,
+                };
+                tcScripts[entry.Key] = new ScriptEntry
+                {
+                    Sheet = entry.Sheet,
+                    RowId = entry.RowId,
+                    English = entry.English,
+                    Text = translated.Text,
+                };
+                pairedScripts.Add(new PairedScript(
+                    entry.Key, entry.English, entry.Text, translated.Text, entry.Sheet, entry.RowId));
                 kept++;
             }
 
@@ -255,14 +268,29 @@ internal static class FixtureBuilder
         Dictionary<string, Dictionary<string, Dictionary<string, string[]>>> sheets,
         Dictionary<string, ScriptEntry> scripts)
     {
+        var templates = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (sheets.TryGetValue("Addon", out var addonRows))
+        {
+            foreach (var (rowId, fields) in addonRows)
+            {
+                if (fields.TryGetValue("Text", out var texts)
+                    && texts.Length > 0
+                    && AddonMacroConverter.TryConvert(texts[0], out var macro))
+                {
+                    templates[rowId] = macro;
+                }
+            }
+        }
+
         var artifact = new Program.Artifact
         {
-            FormatVersion = 1,
+            FormatVersion = 2,
             Language = language,
             GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
             GameVersion = "fixture",
             Sheets = sheets,
             Scripts = scripts,
+            AddonTemplates = templates,
         };
 
         using var file = File.Create(path);
@@ -314,5 +342,11 @@ internal static class FixtureBuilder
 
     private sealed record PairedRow(string Sheet, uint RowId, string English, string Cn, string Tc);
 
-    private sealed record PairedScript(string Key, string English, string Cn, string Tc);
+    private sealed record PairedScript(
+        string Key,
+        string English,
+        string Cn,
+        string Tc,
+        string Sheet,
+        uint RowId);
 }

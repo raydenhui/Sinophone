@@ -21,7 +21,7 @@ if (options.ListSheets)
 }
 
 var dataDirectory = options.DataDirectory;
-var enDirectory = options.EnDirectory ?? Path.Combine(dataDirectory, "en-csv");
+var enDirectory = options.EnDirectory ?? Path.Combine(dataDirectory, $"{options.Language}-csv");
 var outputDirectory = options.OutputDirectory ?? Path.Combine(dataDirectory, "coverage");
 var artifactPath = Path.Combine(dataDirectory, options.Variant == "cn" ? "Sinophone.cn.json.gz" : "Sinophone.tc.json.gz");
 
@@ -53,7 +53,7 @@ if (missing.Count > 0)
     foreach (var path in missing)
     {
         var name = Path.GetFileName(path);
-        var url = $"{options.DumpBaseUrl}/csv/en/{Uri.EscapeDataString(name)}";
+        var url = $"{options.DumpBaseUrl}/csv/{options.Language}/{Uri.EscapeDataString(name)}";
         Console.WriteLine($"downloading {name} …");
 
         try
@@ -78,7 +78,7 @@ foreach (var (sheet, field, enColumn, isName) in Sources.Descriptors())
     var path = Path.Combine(enDirectory, sheet + ".csv");
     if (!File.Exists(path))
     {
-        Console.Error.WriteLine($"!! no English dump for {sheet}");
+        Console.Error.WriteLine($"!! no {options.Language} dump for {sheet}");
         continue;
     }
 
@@ -109,13 +109,19 @@ if (store is null)
 }
 
 var probes = new Probes(store, Probes.Configuration);
-var runner = new Runner(artifact, probes, enDirectory);
+var runner = new Runner(artifact, probes, enDirectory, options.Language);
 
 Console.WriteLine($"artifact {Path.GetFileName(artifactPath)}, game version {artifact.GameVersion}, {store.TextEntryCount:N0} text entries");
 Console.WriteLine();
 
 var results = runner.Run();
-Report.Write(outputDirectory, options.Variant.ToUpperInvariant(), artifact.GameVersion, results, runner.Runtime);
+Report.Write(
+    outputDirectory,
+    options.Variant.ToUpperInvariant(),
+    artifact.GameVersion,
+    options.Language,
+    results,
+    runner.Runtime);
 
 Console.WriteLine($"{"component",-16} {"cases",10} {"text",10} {"text %",8} {"id",10} {"id %",8}");
 foreach (var (name, tally) in results.OrderBy(entry => entry.Key, StringComparer.Ordinal))
@@ -149,6 +155,9 @@ internal sealed class Options
     public string? OutputDirectory { get; private set; }
 
     public string Variant { get; private set; } = "tc";
+
+    /// <summary>The client language whose text is measured. Script coverage stays English-only.</summary>
+    public string Language { get; private set; } = "en";
 
     public string? GatePath { get; private set; }
 
@@ -189,6 +198,9 @@ internal sealed class Options
                 case "--variant":
                     options.Variant = Next(args, ref i).ToLowerInvariant();
                     break;
+                case "--language":
+                    options.Language = Next(args, ref i).ToLowerInvariant();
+                    break;
                 case "--gate":
                     options.GatePath = Next(args, ref i);
                     break;
@@ -213,6 +225,9 @@ internal sealed class Options
             }
         }
 
+        if (options.Language is not ("en" or "ja" or "de" or "fr"))
+            throw new ArgumentException($"--language must be en, ja, de, or fr, not {options.Language}.");
+
         return options;
     }
 
@@ -229,17 +244,20 @@ internal sealed class Options
         Console.WriteLine("""
             Sinophone translation coverage.
 
-            Enumerates every English string each component can show, runs it through that component's
-            own resolve, and reports how many come back Chinese.
+            Enumerates every string each component can show in one client language, runs it through
+            that component's own resolve, and reports how many come back Chinese.
+
+            Script lines and runtime labels are measured with the English dump only.
 
             --data <dir>       folder with Sinophone.cn.json.gz / Sinophone.tc.json.gz
                                (default: %APPDATA%/XIVLauncher/pluginConfigs/Sinophone)
-            --en <dir>         folder with the English dump CSVs (default: <data>/en-csv)
+            --language <code>  client language: en, ja, de, or fr (default: en)
+            --en <dir>         folder with the dump CSVs (default: <data>/<language>-csv)
             --out <dir>        report folder (default: <data>/coverage)
             --variant <tc|cn>  artifact to measure (default: tc)
             --gate <file>      compare against a baseline and exit 1 on a drop
             --baseline <file>  write per-component totals only, for a later --gate
-            --dump <url>       base URL of the English dump (default: xivapi master)
+            --dump <url>       base URL of the datamining dump (default: xivapi master)
             --list-sheets      print the sheets the map uses, one per line
             --dry-run          print the downloads that are missing, then stop
             --help             this text
