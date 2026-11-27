@@ -200,6 +200,14 @@ public sealed partial class TranslationStore
     }
 
     /// <summary>
+    /// Whether the line has a chocobo stand greeting variant. Only such a line needs the stand's
+    /// unlock state, so the event reader skips the game-state read for every other line.
+    /// </summary>
+    public bool HasChocoboTaxiStandVariant(string? englishText)
+        => !string.IsNullOrWhiteSpace(englishText)
+           && _scripts.HasChocoboTaxiStandVariant(MacroNormalizer.NormalizeKey(englishText));
+
+    /// <summary>
     /// Answers a key that several script lines share. The script index picks a candidate by the
     /// speaker, the cutscene, the chocobo stand state, or the script family; the store resolves
     /// the chosen line for display.

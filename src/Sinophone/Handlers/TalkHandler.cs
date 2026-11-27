@@ -335,11 +335,7 @@ public sealed class TalkHandler : IDisposable
 
         // A cutscene subtitle is a VOICEMAN script line, and the live cutscene task names the
         // scene while it plays, so a subtitle reads the same context a Talk line does.
-        var context = WithRememberedScene(
-            store,
-            addonName,
-            englishText,
-            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
+        var context = ReadTalkContext(store, addonName, englishText);
 
         var trace = BeginTrace(addonName, englishText, englishName);
         trace?.Input("path", "native");
@@ -733,11 +729,7 @@ public sealed class TalkHandler : IDisposable
             return;
         }
 
-        var context = WithRememberedScene(
-            store,
-            addonName,
-            englishText,
-            _eventReader.ReadContext(englishText, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
+        var context = ReadTalkContext(store, addonName, englishText);
 
         var trace = BeginTrace(addonName, englishText, englishName);
         trace?.Input("path", "overlay");
@@ -747,18 +739,20 @@ public sealed class TalkHandler : IDisposable
 
         if (content is null && IsTalk(addonName))
         {
-            foreach (var candidate in GetTextNodeCandidates(args, englishName))
+            var candidates = GetTextNodeCandidates(args, englishName);
+            if (candidates.Count > 0)
+                _log.Debug("{Addon} AtkValue text missed; retrying {Count} addon text node(s).",
+                    addonName, candidates.Count);
+
+            foreach (var candidate in candidates)
             {
-                _log.Debug("{Addon} AtkValue text missed; retrying with addon text nodes: {Text}",
-                    addonName, candidate);
+                // The event scene was read for the first text already. Reading it again here costs
+                // another walk of the handler map for a line that usually misses both ways.
                 var retryContext = WithRememberedScene(
                     store,
                     addonName,
                     candidate,
-                    _eventReader.ReadContext(candidate, _targetManager.Target?.Address ?? 0, scanAllLuaTexts: true));
-
-                if (context.CutsceneId != 0 && retryContext.CutsceneId == 0)
-                    retryContext = retryContext with { CutsceneId = context.CutsceneId };
+                    _eventReader.ReadRetryContext(candidate, context));
 
                 content = Resolve(
                     store,
@@ -930,6 +924,21 @@ public sealed class TalkHandler : IDisposable
         _nativeWriter.RestoreAll();
         _laidOutLines.Clear();
     }
+
+    /// <summary>
+    /// Reads the context for one Talk line. The stand's unlock state is read only when the line
+    /// has a stand greeting variant, because no other line can use it.
+    /// </summary>
+    private DialogueContext ReadTalkContext(TranslationStore store, string addonName, string? englishText)
+        => WithRememberedScene(
+            store,
+            addonName,
+            englishText,
+            _eventReader.ReadContext(
+                englishText,
+                _targetManager.Target?.Address ?? 0,
+                scanAllLuaTexts: true,
+                readChocoboTaxiStandState: store.HasChocoboTaxiStandVariant(englishText)));
 
     /// <summary>
     /// Qualifies a line with the cutscene scene. The live task wins when it is readable. Otherwise

@@ -199,10 +199,12 @@ internal static class SelectionPromptText
             trace?.Step("dialog.template", "unresolved");
         }
 
+        // The retries keep the scene. A cutscene option that needs one of them would otherwise
+        // miss even though the scene was available.
         var trimmed = text.TrimEnd('.', '。', '!', '！', '?', '？');
         if (trimmed.Length > 0
             && trimmed != text
-            && store.TryGetDialogue(trimmed, default, null, out chinese, trace))
+            && store.TryGetDialogue(trimmed, in context, null, out chinese, trace))
         {
             trace?.Step("dialog.path", "trimmed", approximate: true);
             return true;
@@ -213,7 +215,7 @@ internal static class SelectionPromptText
         if (text.Length <= 16
             && text.Length > 0
             && !text.EndsWith('.')
-            && store.TryGetDialogue(string.Concat(text, "."), default, null, out chinese, trace))
+            && store.TryGetDialogue(string.Concat(text, "."), in context, null, out chinese, trace))
         {
             trace?.Step("dialog.path", "period", approximate: true);
             return true;

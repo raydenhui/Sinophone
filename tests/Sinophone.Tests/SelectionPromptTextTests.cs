@@ -71,6 +71,29 @@ public class SelectionPromptTextTests
     }
 
     [Fact]
+    public void TryTranslate_TrimRetryKeepsTheCutscene()
+    {
+        // Two scenes share "Meteion". The live option carries a trailing period, so only the trim
+        // retry can answer it, and that retry must still see the scene.
+        var json = """
+            {"FormatVersion":1,"Language":"TC","GeneratedAt":"test","GameVersion":"test",
+             "Sheets":{},"Scripts":{
+               "TEXT_VOICEMAN_06006_A6_000_001_NONE_VOICE":{"English":"Meteion","Text":"梅蒂恩！"},
+               "TEXT_VOICEMAN_06004_006510_HERMES":{"English":"Meteion","Text":"梅蒂恩……我……"}}}
+            """;
+
+        var store = TranslationStore.Load(
+            [], ChineseVariant.Traditional, false, _ => ToGzipStream(json), new FakePluginLog());
+        Assert.NotNull(store);
+
+        Assert.True(SelectionPromptText.TryTranslate(
+            store, "Meteion...", new DialogueContext(CutsceneId: 6006), out var chinese));
+        Assert.Equal("梅蒂恩！", chinese);
+
+        Assert.False(SelectionPromptText.TryTranslate(store, "Meteion...", out _));
+    }
+
+    [Fact]
     public void ResolveAddonText_FillsItemNameAndAmountForTheMultipleItemPrompt()
     {
         // Addon row 11194. The English client draws the amount and the item name
