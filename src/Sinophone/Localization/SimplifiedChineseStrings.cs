@@ -69,9 +69,9 @@ internal static class SimplifiedChineseStrings
         GameFontInGeneral = "游戏字体设置位于“常规”标签页。",
         SectionGameFont = "游戏字体（原生模式）",
         GameFontHint =
-            "原生模式用游戏自己的字体显示中文，所以替换字体会影响整个游戏。" +
-            "替换只在 Sinophone 启用时生效，关闭后即恢复原字体。" +
-            "通过 Penumbra 或 TexTools 安装的字体不受此处控制。",
+            "原生模式用游戏自己的字体显示中文，而游戏字体没有中文字形。" +
+            "请用 Penumbra 或 TexTools 安装含中文字形的字体。" +
+            "游戏字体由所有原生界面与游戏其他部分共用。",
         BuiltInFont = "用字体包替换游戏字体",
         BuiltInFontHint =
             ".ttmp2 字体包，或包含游戏字体文件的文件夹。" +

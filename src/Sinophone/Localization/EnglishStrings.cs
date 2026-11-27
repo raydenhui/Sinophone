@@ -77,9 +77,9 @@ internal static class EnglishStrings
         GameFontInGeneral = "The game font setting is on the General tab.",
         SectionGameFont = "Game font (native modes)",
         GameFontHint =
-            "Native modes draw Chinese with the game's own font, so replacing it changes the " +
-            "whole game. The replacement runs while Sinophone is on. Turn it off to go back to " +
-            "the original font. A font installed with Penumbra or TexTools is separate.",
+            "Native modes draw Chinese with the game's own font, which has no Chinese glyphs. " +
+            "Install a font that has them with Penumbra or TexTools. The game font is shared by " +
+            "every native surface and by the rest of the game.",
         BuiltInFont = "Replace the game font with a font pack",
         BuiltInFontHint =
             "A .ttmp2 font pack or a folder that holds the game's font files. On the global " +

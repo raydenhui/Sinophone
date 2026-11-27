@@ -176,7 +176,8 @@ public sealed class Plugin : IDalamudPlugin
             _nativeProbe,
             _talkContextProbe,
             _harnessHost,
-            ObjectTable);
+            ObjectTable,
+            PluginInterface.IsDev);
 #else
         _configWindow = new ConfigWindow(
             _configuration,
@@ -188,7 +189,8 @@ public sealed class Plugin : IDalamudPlugin
             _dataUpdater,
             BuildDataSourceText,
             BuildAboutText,
-            _fontReplacement);
+            _fontReplacement,
+            PluginInterface.IsDev);
 #endif
 
         _windowSystem.AddWindow(_overlay);
@@ -244,11 +246,16 @@ public sealed class Plugin : IDalamudPlugin
             Log,
             _failures);
 
-        // The font pack is game-wide, so it is applied as soon as the setting is on. Disabling
-        // the plugin takes it off with the other game changes.
-        _fontReplacement.Apply(
-            _configuration.Enabled && _configuration.BuiltInFontEnabled,
-            _configuration.BuiltInFontPackPath);
+        // The built-in font replacement is a development tool. A release build leaves the game
+        // font to Penumbra or TexTools, so the file hooks never load and the setting does nothing.
+        if (PluginInterface.IsDev)
+        {
+            // The font pack is game-wide, so it is applied as soon as the setting is on.
+            // Disabling the plugin takes it off with the other game changes.
+            _fontReplacement.Apply(
+                _configuration.Enabled && _configuration.BuiltInFontEnabled,
+                _configuration.BuiltInFontPackPath);
+        }
 
         // Parsing the artifacts is the slow half and touches no game state, so it
         // runs on a worker task. OnTick finishes the load on the game thread.
@@ -943,7 +950,7 @@ public sealed class Plugin : IDalamudPlugin
             _log.Debug("Selection dialog settings changed; restored the game's text.");
         }
 
-        if (changes.FontPackChanged || changes.PluginPowerChanged)
+        if ((changes.FontPackChanged || changes.PluginPowerChanged) && PluginInterface.IsDev)
         {
             // The game font is shared by every window, so it follows the plugin's own switch.
             _fontReplacement.Apply(

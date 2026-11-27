@@ -413,14 +413,16 @@ premature interface.
   `EventItem`, so their names stay untranslated.
 - **Windows only.** The plugin targets `win-x64` and looks for fonts in the Windows font folder.
 - **Native text mode needs a Chinese game font.** Alpha and off by default. The game draws Chinese
-  once its font files are replaced. The font can come from a mod (TexTools, Penumbra, or the same
-  `.ttmp2` from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts)), or the plugin can
-  replace the files itself. The setting is on the **General** tab, because the game font is shared
-  by every surface: `FontReplacementService` reads a `.ttmp2` or a folder the user picks, copies
-  the 25 font files into the plugin config folder, redirects the game's file reader, and calls the
-  game's font reload. It ships no font data. A pack missing any of the 25 files is refused,
-  because a left-out `.fdt` would point into a re-laid-out atlas. A pack for the Chinese client
-  replaces `chnaxis_*` and `font_chn_*` and is refused with a hint to use its `(Global)` version;
+  once its font files are replaced. The font comes from a mod (TexTools, Penumbra, or the same
+  `.ttmp2` from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts)). The plugin's own
+  replacement (`FontReplacementService`) is a dev-only tool that does not work yet: a release build
+  does not install its hooks or show its controls. When a dev build uses it, the setting is on the
+  **General** tab, because the game font is shared by every surface: it reads a `.ttmp2` or a
+  folder the user picks, copies the 25 font files into the plugin config folder, redirects the
+  game's file reader, and calls the game's font reload. It ships no font data. A pack missing any
+  of the 25 files is refused, because a left-out `.fdt` would point into a re-laid-out atlas. A
+  pack for the Chinese client replaces `chnaxis_*` and `font_chn_*` and is refused with a hint to
+  use its `(Global)` version;
   the global client loads none of those files. When Penumbra already resolves a font path, the
   plugin leaves the font to Penumbra. Without a font, native mode shows the missing-glyph
   character. A release build cannot tell, but a dev build's Testing tab reads the game's font

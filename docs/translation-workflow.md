@@ -502,12 +502,13 @@ flowchart TD
 - **Per-frame reapply**: `ItemDetail` overwrites its own name while open, so `PreDraw` calls `ReapplyAt` + `FitTooltipName` (zero-allocation byte compare when unchanged).
 - **Restore safety**: `RestoreTooltip` checks `CurrentNameNode() == _tooltipNode` before writing back; `PostHide` and `PreFinalize` call `ForgetTooltip` without writing to avoid touching recycled addon nodes.
 
-### 8. Game font (`FontReplacementService`)
+### 8. Game font (`FontReplacementService`, dev builds only)
 
 The native surfaces write Chinese into the game's own windows, which draw with the game's font.
-`FontReplacementService` lets the user supply a Chinese font as a `.ttmp2` mod or a folder, with no
-Penumbra or TexTools. The overlay is unaffected. The setting is on the **General** tab, because
-the replacement changes the font of the whole game.
+A release build leaves that font to Penumbra or TexTools: it does not install the file hooks and
+does not show the font-pack controls. A dev build can use `FontReplacementService` to supply a
+Chinese font as a `.ttmp2` mod or a folder, with no mod manager. The overlay is unaffected. The
+setting is on the **General** tab, because the replacement changes the font of the whole game.
 
 1. **Read the pack.** `FontPackExtractor` reads the TexTools manifest (`TTMPL.mpl`, a JSON object
    with a `SimpleModsList` array of byte ranges into `TTMPD.mpd`), or walks a folder for the same
