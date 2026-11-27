@@ -112,6 +112,11 @@ public sealed class NamePlateNameWriter
         if (!_enabled)
             return;
 
+        HookGuard.Run(_log, "Nameplate", () => UpdatePlates(handlers));
+    }
+
+    private void UpdatePlates(IReadOnlyList<INamePlateUpdateHandler> handlers)
+    {
         foreach (var handler in handlers)
         {
             // Player names are chosen by the player and are never translated.

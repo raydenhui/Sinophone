@@ -159,6 +159,26 @@ public class ScriptIndexTests
     }
 
     [Fact]
+    public void HasChocoboTaxiStandVariant_IsTrueOnlyForAStandGreeting()
+    {
+        var index = new ScriptIndex();
+        index.AddCandidate(
+            "Welcome to the chocobo stand.",
+            "TEXT_CHOCOBOTAXISTAND_00000_CHOCOBOTAXI_UNLOCK_01",
+            "解鎖");
+        index.AddCandidate(
+            "Welcome to the chocobo stand.",
+            "TEXT_CHOCOBOTAXISTAND_00001_CHOCOBOTAXI_01",
+            "普通");
+        index.AddCandidate("We must hurry.", "TEXT_A_00001_ALDIS_000_010", "走。");
+        index.AddCandidate("We must hurry.", "TEXT_B_00001_ALDIS_000_010", "快走。");
+
+        Assert.True(index.HasChocoboTaxiStandVariant("Welcome to the chocobo stand."));
+        Assert.False(index.HasChocoboTaxiStandVariant("We must hurry."));
+        Assert.False(index.HasChocoboTaxiStandVariant("Not in the data."));
+    }
+
+    [Fact]
     public void AmbiguousLookup_PicksTheEventScriptFamilyTheDialogNames()
     {
         var index = new ScriptIndex();

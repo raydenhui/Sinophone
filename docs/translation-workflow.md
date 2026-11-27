@@ -50,7 +50,7 @@ flowchart LR
 
 | Component | In-game target | Hook mechanism | Search method | Display output | Fallback behavior |
 | --- | --- | --- | --- | --- | --- |
-| `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + each addon's own `VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` key + row id / `EventFramework` row / cutscene sheet row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default) or native `AtkValue` / nodes (`NativeTextMode`): `Talk` writes nodes, `TalkSubtitle` is laid out from its values | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
+| `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + each addon's own `VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` key + row id / `EventFramework` row / cutscene sheet row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default) or native `AtkValue` / nodes (`NativeTextMode`): `Talk` writes nodes, `TalkSubtitle` is laid out from its values | Text-node segment retry with the same context; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
 | `SelectionDialogHandler` | `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, `CutSceneSelectString` | `IAddonLifecycle` (`PostSetup`, `PostRefresh`, `PreDraw`, `PostHide`, `PostClose`, `PreFinalize`) | `Addon` label -> dialogue lookup with the live or sibling cutscene scene and event script hints -> `Addon` template (evaluated, or filled from the live line) -> punctuation trim -> short label `+ "."` | In-place `AtkTextNode` (`NativeTextWriter.WriteAt`) | Unresolved templates or misses leave original English; `FitPromptLines` keeps multi-line layout if single-line exceeds node bounds |
 | `ChatBubbleHandler` | `_MiniTalk` (yells & default balloons) | `NpcYellBalloon.OpenBalloon` detour + `IAddonLifecycle` on `_MiniTalk` | Yells: `NpcYell.YellInfo` row ID -> dialogue lookup; Default balloons: plain text -> dialogue lookup | Yells: pre-layout text replacement; Balloons: in-place `BubbleTextNode` + `BubbleLayout.FitTo` | Misses keep English and are hashed so they are not re-queried every frame; no overlay |
 | `BattleTalkHandler` | `UIModule` battle talk (`ShowBattleTalk`, `ShowBattleTalkImage`, `ShowBattleTalkSound`) | Virtual table hook at indices 198, 199, 201 | `NpcYell` row id -> dialogue lookup (id first), otherwise the normalized text; name via the line's dump alias, then `TryGetName` | UTF-8 name and text swapped before the game measures the box | A miss, a disabled setting, or a failed lookup passes the game's own pointers through; no overlay |
@@ -212,9 +212,9 @@ When returning a translation for display:
 ## Per-component workflows
 
 Every handler callback below runs inside the game's frame, so a throw there can reach the game.
-Each handler catches it and leaves the English text. The item name and selection dialog handlers
-share `HookGuard.Run`, which logs a warning with the surface name; the others wrap their callbacks
-directly. A hook that fails costs one untranslated line, never a throw into the game.
+Each handler catches it and leaves the English text. The item name, selection dialog, and nameplate
+callbacks share `HookGuard.Run`, which logs a warning with the surface name; the others wrap their
+callbacks directly. A hook that fails costs one untranslated line, never a throw into the game.
 
 ### 1. Talk & TalkSubtitle (`TalkHandler` + `TalkEventReader`)
 
@@ -225,6 +225,7 @@ directly. A hook that fails costs one untranslated line, never a throw into the 
 - `PostUpdate` and `PreDraw` reapply the `Talk` native text nodes; on `TalkSubtitle` they only carry the once-per-line layout log.
 - Installs Detour hooks (`IGameInteropProvider.HookFromAddress`) on each addon's own `VirtualTable->OnSetup` and `OnRefresh` (`EnsureValueHook`). The two addons are separate vtable entries, so each needs its own hook pair. The hook puts the Chinese into `AtkValue[0]` (and, for `Talk`, `AtkValue[1]`) before the game lays the window out, then puts the caller's values back.
 - A `Talk` line can appear while `PlayCutSceneTask` is unreadable. The handler remembers the scene of a line that names exactly one (`TryGetCutsceneId`) and passes it to later lines that several scenes share. The remembered scene is cleared on `PostSetup`, `PostClose`, and `PreFinalize`.
+- When the `AtkValue` text misses, the handler retries with the addon's text nodes. The retry reuses the context read for the first text and only looks up the cutscene subtitle row for the new text, so one refresh walks the event handler map once.
 - A cutscene can reuse one English line and one speaker for two player-progress branches, such as `The significance of these details...` in scene 6006. The addon exposes no branch id, and both lines belong to that scene, so the store uses the first (default) branch instead of leaving the line English.
 
 ```mermaid
@@ -287,7 +288,7 @@ sequenceDiagram
    - Falls back to matching `handler->Scene == framework->Scene`.
 2. Maps `ContentId` to sheet rows via `TalkEventSurfaces` (`DefaultTalk` using packed `EventId.Id`; `GuildLeveAssignment`, `CraftLeveClient`, `GimmickAccessor`/`GimmickRect`, `GimmickBill`, and `GoldSaucerTalk` using `EntryId`). A row is only kept if exactly one handler maps to a row.
 3. For `Quest`, `CustomTalk`, and `GuildLeveAssignment` handlers, reads `LuaEventHandler->LuaTexts` and keeps keys whose `ScriptTextTemplate` matches the normalized live English line.
-4. Reads the scene number from `PlayCutSceneTask.CutscenePath` in `EventSceneModule.TaskManager.Tasks`. A path with no number leaves the scene at 0, because the cutscene row id is not a `VOICEMAN` scene number. Also reads `UIState.IsChocoboTaxiStandUnlocked(standId)` for `ChocoboTaxiStand` handlers.
+4. Reads the scene number from `PlayCutSceneTask.CutscenePath` in `EventSceneModule.TaskManager.Tasks`. A path with no number leaves the scene at 0, because the cutscene row id is not a `VOICEMAN` scene number. Also reads `UIState.IsChocoboTaxiStandUnlocked(standId)` for a stand handler, but only when the line has a stand greeting variant. An ordinary line never reads that game state.
 5. Adds the tracked quest script ids from `UIState.QuestTodoList.Todo.TrackedQuests` as `ScriptKeyHints`. The active handler filter can miss the quest that produced a menu prompt, but the tracked quest still names the family.
 6. When no active Lua handler has the line, scans every handler in `EventHandlerMap` for a `LuaTexts` value that matches and adds those keys as hints. This keeps quest variants separate even when the handler is not in the active set.
 
@@ -327,6 +328,7 @@ Covers `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, and `CutSc
 - A shared key whose remaining candidates say the same thing once punctuation and space are gone is answered with the first one, because the localisation of one line can differ only in a closing mark (`一定要凱旋。` / `一定要凱旋`). A shared key whose lines differ in words still stays English.
 - A cutscene with no number in its path leaves the scene at 0 rather than passing the cutscene row id, because a row id is not a `VOICEMAN` scene number and can only narrow to the wrong line.
 - `CutSceneSelectString` options are `VOICEMAN` script lines, and one English option can sit in several scenes. The handler reads the live cutscene scene through `TalkEventReader.ReadContext` and passes it with the lookup, so the scene number picks the right line; with no scene the store refuses the shared key and the option stays English.
+- Every lookup step keeps that context, including the punctuation trim, the short-label retry with a period, and the diagnostic that says which step missed. A retry that dropped the scene would miss an option the main lookup would have answered.
 - The live cutscene task can be gone when the choices appear. Every option in one dialog comes from the same cutscene, so the handler asks `TranslationStore.TryGetCutsceneId` for each option and uses the scene that one of them names. `TryGetCutsceneId` answers only when every script key holding that English text is a `VOICEMAN` key from the same scene; a line that also sits in a quest, or in two scenes, names none. If two options name different scenes, the handler does not narrow at all.
 - A dialog can also use the same English option in many event scripts, such as `What do you do here?`. The handler collects the active Lua handler's `LuaKey` and every script key an option exposes, and passes them as `DialogueContext.ScriptKeyHints`. The store keeps candidates whose key names the same script family. Hints are kept for the open dialog, so a prompt processed after an option still narrows it on the next retry. A hint that matches nothing leaves the line English.
 - `ReadContext` walks the event handler map, so its result is cached per dialog text for a refresh and reused by later nodes and the twelve retry frames. The candidate-row list is logged only when it changes, not for every node and retry.
@@ -344,10 +346,10 @@ flowchart TD
     S2 -- Hit --> Fit["FitPromptLines() & WriteAt()"]
     S2 -- Miss --> S3["3. TryGetAddonText(plainText) (templates sorted by literal length desc)"]
     S3 -- Hit --> Res
-    S3 -- Miss --> S4["4. Trim trailing punctuation (. 。 ! ！ ? ？) -> TryGetDialogue()"]
+    S3 -- Miss --> S4["4. Trim trailing punctuation (. 。 ! ！ ? ？) -> TryGetDialogue(context)"]
     S4 -- Hit --> Fit
     S4 -- Miss --> S5{"5. text.Length <= 16 and no trailing '.'?"}
-    S5 -- Yes --> S5Try["TryGetDialogue(text + '.')"]
+    S5 -- Yes --> S5Try["TryGetDialogue(text + '.', context)"]
     S5Try -- Hit --> Fit
     S5Try -- Miss --> KeepEn["ClearIfStillOursAt() -> keep English"]
     S5 -- No --> KeepEn

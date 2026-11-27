@@ -1,3 +1,5 @@
+using FFXIVClientStructs.FFXIV.Client.Game.Event;
+
 using Sinophone.Handlers;
 
 namespace Sinophone.Tests;
@@ -71,4 +73,48 @@ public class TalkEventReaderTests
     {
         Assert.False(TalkEventSurfaces.TryGetRow((uint)(contentId << 16) | 123u, contentId, 123, out _));
     }
+
+    [Fact]
+    public void SelectChocoboTaxiStandId_IgnoresALineWithNoStand()
+        => Assert.Null(TalkEventReader.SelectChocoboTaxiStandId(
+            [Handler(EventHandlerContent.DefaultTalk, 590415)]));
+
+    [Fact]
+    public void SelectChocoboTaxiStandId_ReturnsTheOneStandRow()
+    {
+        var handlers = new[]
+        {
+            Handler(EventHandlerContent.DefaultTalk, 590415),
+            Handler(EventHandlerContent.ChocoboTaxiStand, 0x120005),
+        };
+
+        Assert.Equal(0x120005u, TalkEventReader.SelectChocoboTaxiStandId(handlers));
+    }
+
+    [Theory]
+    [InlineData(0x120000u, true)]  // First row of the stand sheet.
+    [InlineData(0x12005Cu, true)]  // Last row of the stand sheet.
+    [InlineData(0x12005Du, false)] // One past the table.
+    [InlineData(590415u, false)]   // A DefaultTalk row, not a stand.
+    public void SelectChocoboTaxiStandId_KeepsOnlyRowsInsideTheUnlockTable(uint eventId, bool found)
+    {
+        var handlers = new[] { Handler(EventHandlerContent.ChocoboTaxiStand, eventId) };
+
+        Assert.Equal(found ? eventId : null, TalkEventReader.SelectChocoboTaxiStandId(handlers));
+    }
+
+    [Fact]
+    public void SelectChocoboTaxiStandId_IgnoresTwoStands()
+    {
+        var handlers = new[]
+        {
+            Handler(EventHandlerContent.ChocoboTaxiStand, 0x120005),
+            Handler(EventHandlerContent.ChocoboTaxiStand, 0x120006),
+        };
+
+        Assert.Null(TalkEventReader.SelectChocoboTaxiStandId(handlers));
+    }
+
+    private static TalkHandlerSnapshot Handler(EventHandlerContent content, uint eventId)
+        => new(eventId, (int)content, (ushort)(eventId & 0xFFFF), 0, string.Empty, null);
 }

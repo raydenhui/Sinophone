@@ -487,6 +487,14 @@ internal sealed class ScriptIndex
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Whether this key has a chocobo stand variant, so only the stand's unlock state can pick
+    /// one. Every other line must not read that game state.
+    /// </summary>
+    public bool HasChocoboTaxiStandVariant(string key)
+        => _ambiguous.TryGetValue(key, out var candidates)
+           && candidates.Exists(static candidate => HoldsUnlockLine(candidate));
+
     private static string Describe(ScriptCandidate candidate)
         => candidate.Keys.Length == 0 ? "(no key)" : string.Join(" / ", candidate.Keys);
 

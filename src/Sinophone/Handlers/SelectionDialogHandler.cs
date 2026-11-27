@@ -299,7 +299,7 @@ public sealed class SelectionDialogHandler : IDisposable
                     _log.Debug(
                         "Selection dialog {Addon} node {NodeId}: no translation for {Text} " +
                         "({Length} chars) — {Trace}",
-                        addonName, nodeId, Excerpt(source), source.Length, DescribeMiss(store, source));
+                        addonName, nodeId, Excerpt(source), source.Length, DescribeMiss(store, source, context));
                 }
 
                 continue;
@@ -560,12 +560,12 @@ public sealed class SelectionDialogHandler : IDisposable
     /// so the log says whether the label, the dialogue text, the template, or the resolve after the
     /// template is the one that gave up.
     /// </summary>
-    private static string DescribeMiss(TranslationStore store, string text)
+    private static string DescribeMiss(TranslationStore store, string text, DialogueContext context)
     {
         var plain = MacroNormalizer.CleanForDisplay(text);
 
         var label = store.TryGetAddonLabel(plain, out _);
-        var dialogue = store.TryGetDialogue(text, out _);
+        var dialogue = store.TryGetDialogue(text, in context, out _);
         var template = store.TryGetAddonText(plain, out var chinese, out var captures, out var indices);
 
         if (!template)

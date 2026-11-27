@@ -35,11 +35,16 @@ internal sealed partial class TalkEventReader
     /// text instead of guessing. Script keys are collected only when a Lua handler's
     /// value is the line on screen.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="readChocoboTaxiStandState"/> is false for a line the store has no stand
+    /// variant for, so an ordinary line does not read the game state.
+    /// </remarks>
     public unsafe DialogueContext ReadContext(
         string? englishText,
         nint targetAddress = 0,
         bool includeHandlerHints = false,
-        bool scanAllLuaTexts = false)
+        bool scanAllLuaTexts = false,
+        bool readChocoboTaxiStandState = true)
     {
         var framework = EventFramework.Instance();
         if (framework is null)
@@ -114,11 +119,24 @@ internal sealed partial class TalkEventReader
             selectedRow,
             scriptKeys.Count == 0 ? null : scriptKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             cutsceneId,
-            ReadChocoboTaxiStandUnlocked(handlers),
+            readChocoboTaxiStandState ? ReadChocoboTaxiStandUnlocked(handlers) : null,
             handlerHints,
             scriptRowIds,
             ReadCutsceneRow(framework, englishText),
             scriptTemplates);
+    }
+
+    /// <summary>
+    /// The context for a second text candidate in the same refresh, such as a Talk addon's text
+    /// node. The handlers, scene and quest hints were read for the first candidate, so only the
+    /// cutscene subtitle row follows the new text.
+    /// </summary>
+    public unsafe DialogueContext ReadRetryContext(string? englishText, in DialogueContext context)
+    {
+        var framework = EventFramework.Instance();
+        return framework is null
+            ? context
+            : context with { ScriptRow = ReadCutsceneRow(framework, englishText) };
     }
 
     /// <summary>
@@ -226,40 +244,10 @@ internal sealed partial class TalkEventReader
     /// is not unlocked yet greets the player with the "here you can use the service" line instead
     /// of the question, and the English text is the same for both.
     /// </summary>
-    /// <remarks>
-    /// The stand row id is the handler's <c>EventId.Id</c>: event ids pack as
-    /// <c>(content &lt;&lt; 16) | entry</c> and the content is <c>0x12</c>, which is the sheet base.
-    /// The bit array covers that whole sheet, so an id outside it is not read.
-    /// </remarks>
     private unsafe bool? ReadChocoboTaxiStandUnlocked(List<TalkHandlerSnapshot> handlers)
     {
-        uint standId = 0;
-        var stands = 0;
-
-        foreach (var handler in handlers)
-        {
-            if ((EventHandlerContent)handler.ContentId != EventHandlerContent.ChocoboTaxiStand)
-                continue;
-
-            stands++;
-            standId = handler.EventId;
-        }
-
-        if (stands != 1)
-        {
-            if (stands > 1)
-                _log.Debug("Talk event has {Count} chocobo taxi stands; keeping the line unqualified.", stands);
-
+        if (SelectChocoboTaxiStandId(handlers) is not { } standId)
             return null;
-        }
-
-        if (standId is < ChocoboTaxiStandFirstRow or > ChocoboTaxiStandLastRow)
-        {
-            _log.Debug(
-                "Talk event: taxi stand row {RowId} is outside the unlock table; keeping the line unqualified.",
-                standId);
-            return null;
-        }
 
         try
         {
@@ -276,6 +264,35 @@ internal sealed partial class TalkEventReader
             _log.Warning(ex, "Talk event reader: could not read the taxi stand state; keeping the line unqualified.");
             return null;
         }
+    }
+
+    /// <summary>
+    /// The one taxi stand row that drives the line, or null when the line has no stand state to
+    /// read. Only a single stand handler with an id inside the unlock table counts.
+    /// </summary>
+    /// <remarks>
+    /// The stand row id is the handler's <c>EventId.Id</c>: event ids pack as
+    /// <c>(content &lt;&lt; 16) | entry</c> and the content is <c>0x12</c>, which is the sheet base.
+    /// The bit array covers that whole sheet, so an id outside it is not read.
+    /// </remarks>
+    internal static uint? SelectChocoboTaxiStandId(IReadOnlyList<TalkHandlerSnapshot> handlers)
+    {
+        uint? standId = null;
+        foreach (var handler in handlers)
+        {
+            if ((EventHandlerContent)handler.ContentId != EventHandlerContent.ChocoboTaxiStand)
+                continue;
+
+            if (standId is not null)
+                return null;
+
+            standId = handler.EventId;
+        }
+
+        if (standId is not { } id || id is < ChocoboTaxiStandFirstRow or > ChocoboTaxiStandLastRow)
+            return null;
+
+        return id;
     }
 
     private string _lastCutscenePath = string.Empty;
