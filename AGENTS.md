@@ -44,6 +44,10 @@ a new lookup collection in the index that owns that kind of text, not in the fac
 Read [docs/architecture.md](docs/architecture.md) for the file map, data flow, id-first
 dialogue lookup, overlay behavior, native text mode, and runtime data updates.
 
+Before researching a new game surface, read [docs/clientstructs.md](docs/clientstructs.md). It
+records the hooks already in use, the addon fields and node ids, the Lua text map, the dead ends,
+and the protocol for probing an addon in the Testing tab.
+
 The rule to keep in mind when changing the matcher: try ids before text, and let every
 id layer fail open. `DefaultTalk` row ids are packed, so use `EventId.Id`, not `EntryId`.
 
@@ -534,6 +538,8 @@ premature interface.
   dumps under `csv/en`
 - [AGENTS.md format](https://agents.md/)
 - [docs/architecture.md](docs/architecture.md) — file map, data flow, id matching, native mode.
+- [docs/clientstructs.md](docs/clientstructs.md) — hooks, addon fields, Lua text keys, ATK rules,
+  font redirection, dev probes, and the methods that already failed.
 - [docs/translation-workflow.md](docs/translation-workflow.md) — data loading, lookup order, fallbacks, and per-surface hook workflows with diagrams.
 - [docs/release-1.0-checklist.md](docs/release-1.0-checklist.md) — the gates 1.0.0 has to pass.
 - [docs/testing.md](docs/testing.md) — unit, integration, fixture, and in-game testing.
