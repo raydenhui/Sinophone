@@ -11,9 +11,10 @@ namespace Sinophone.Data;
 /// lass" for a female player, and the game shows "Greetin's, lad" to a male one.
 /// Pronouns alone do not cover that, because the words around them are the same.
 /// <para>
-/// Only nouns used to address the player are listed. Roles such as father and
+/// Only nouns that name or address the player are listed. Roles such as father and
 /// mother are not, because a line about one is not a line about the other. The
-/// collapsed key is only tried after an exact miss.
+/// collapsed key is only tried after an exact miss, and a key two lines share with
+/// different Chinese is dropped.
 /// </para>
 /// </remarks>
 public static class GenderedNouns
@@ -86,6 +87,10 @@ public static class GenderedNouns
                || stem.Equals("master", StringComparison.OrdinalIgnoreCase)
                || stem.Equals("mistress", StringComparison.OrdinalIgnoreCase)
                || stem.Equals("milord", StringComparison.OrdinalIgnoreCase)
-               || stem.Equals("milady", StringComparison.OrdinalIgnoreCase);
+               || stem.Equals("milady", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("man", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("woman", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("men", StringComparison.OrdinalIgnoreCase)
+               || stem.Equals("women", StringComparison.OrdinalIgnoreCase);
     }
 }

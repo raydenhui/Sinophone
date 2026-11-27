@@ -63,6 +63,7 @@ internal sealed partial class TalkEventReader
 
         var scriptKeys = new List<string>();
         Dictionary<string, uint>? scriptRowIds = null;
+        Dictionary<string, string>? scriptTemplates = null;
         var rows = new List<DialogueRowId>();
         var cutsceneId = ReadCutsceneId(framework);
         List<string>? handlerHints = null;
@@ -76,6 +77,7 @@ internal sealed partial class TalkEventReader
             {
                 CollectScriptKeys(handler.LuaTexts, scriptKeys);
                 scriptRowIds = CollectScriptRowIds(handler.LuaTexts, scriptRowIds);
+                scriptTemplates = CollectScriptTemplates(handler.LuaTexts, scriptTemplates);
             }
 
             if (includeHandlerHints && handler.LuaKey.Length > 0)
@@ -115,7 +117,8 @@ internal sealed partial class TalkEventReader
             ReadChocoboTaxiStandUnlocked(handlers),
             handlerHints,
             scriptRowIds,
-            ReadCutsceneRow(framework, englishText));
+            ReadCutsceneRow(framework, englishText),
+            scriptTemplates);
     }
 
     /// <summary>
@@ -656,10 +659,31 @@ internal sealed partial class TalkEventReader
                     continue;
             }
 
-            result.Add(new LuaTextLine(key, value, rowId));
+            result.Add(new LuaTextLine(key, value, rowId, template));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The live template for each script key, so the store can tell whether the dump's
+    /// wording is a branch of the line the game could have drawn. The template comes from
+    /// the same raw value the key was read from.
+    /// </summary>
+    internal static Dictionary<string, string>? CollectScriptTemplates(
+        IReadOnlyList<LuaTextLine> lines,
+        Dictionary<string, string>? templates)
+    {
+        foreach (var line in lines)
+        {
+            if (line.Key.Length == 0 || line.Template.Length == 0)
+                continue;
+
+            templates ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            templates.TryAdd(line.Key, line.Template);
+        }
+
+        return templates;
     }
 
     private static void CollectScriptKeys(
@@ -679,7 +703,7 @@ internal sealed partial class TalkEventReader
 }
 
 /// <summary>One line from a Lua handler's text map.</summary>
-internal readonly record struct LuaTextLine(string Key, string Value, uint RowId);
+internal readonly record struct LuaTextLine(string Key, string Value, uint RowId, string Template);
 
 /// <summary>One active event handler captured by the debug probe.</summary>
 internal sealed record TalkHandlerSnapshot(
