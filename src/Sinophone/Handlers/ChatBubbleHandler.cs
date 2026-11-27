@@ -49,6 +49,9 @@ public sealed class ChatBubbleHandler : IDisposable
     /// </summary>
     private readonly Dictionary<nint, BubbleState> _nodes = [];
 
+    /// <summary>The Chinese lines a yell wrote, so the sync does not look them up as English.</summary>
+    private readonly RecentBubbleTexts _recentYells = new();
+
     private Hook<OpenBalloonDelegate>? _openBalloonHook;
     private bool _disposed;
 
@@ -198,7 +201,10 @@ public sealed class ChatBubbleHandler : IDisposable
 
         // A yell with the print-to-log flag makes the game log the text it was given.
         if (chinese is not null)
+        {
             _chatLogRestorer.Remember(chinese, english);
+            _recentYells.Remember(chinese);
+        }
 
         return chinese;
     }
@@ -343,7 +349,7 @@ public sealed class ChatBubbleHandler : IDisposable
                     // Our Chinese is still in the node; only the background can drift.
                     if (_nativeWriter.IsStillOursAt(AddonName, address))
                     {
-                        state.Layout.GrowTo(node);
+                        state.Layout.FitTo(node);
                         continue;
                     }
 
@@ -352,15 +358,17 @@ public sealed class ChatBubbleHandler : IDisposable
                     if (hash == state.EnglishHash && length == state.EnglishLength)
                     {
                         _nativeWriter.ReapplyAt(AddonName, address);
-                        state.Layout.GrowTo(node);
+                        state.Layout.FitTo(node);
                         continue;
                     }
 
-                    // A different line landed in this node. Drop the old translation and
-                    // its sizes, then treat the node as new.
+                    // A different line landed in this node. Drop the old translation, but keep the
+                    // layout the game gave the new line: restoring the previous line's sizes put
+                    // back a background that does not hold this text, which is where the tall
+                    // empty bubble came from.
                     _nativeWriter.ForgetAt(AddonName, address);
-                    state.Layout.Restore();
                     _nodes.Remove(address);
+                    _log.Debug("Chat bubbles: a new line replaced the translation; keeping the game's background.");
                 }
                 else if (hash == state.TextHash && length == state.TextLength)
                 {
@@ -368,6 +376,14 @@ public sealed class ChatBubbleHandler : IDisposable
                     // on every frame.
                     continue;
                 }
+            }
+
+            if (_recentYells.Contains(text))
+            {
+                // The game copied a yell's Chinese into this node before it was measured. It is
+                // not an English line to look up, and the game already sized the bubble for it.
+                _nodes[address] = new BubbleState { TextHash = hash, TextLength = length };
+                continue;
             }
 
             var english = length == 0 ? string.Empty : TalkHandler.ExtractPlainText(text).Trim();
@@ -414,16 +430,22 @@ public sealed class ChatBubbleHandler : IDisposable
                 Layout = layout,
             };
 
-            var grown = layout.GrowTo(node);
+            var fitted = layout.FitTo(node);
 
+            // Log the geometry once per bubble: the display rules can only be checked in game, and
+            // a wrong size or a bubble that walks sideways is traced from these numbers.
             _log.Debug(
                 "Chat bubbles: translated a balloon in place ({Length} chars, English {EnglishW}x" +
-                "{EnglishH}, Chinese {TextW}x{TextH}, background {NineW}x{NineH} to {FinalW}x{FinalH}, " +
-                "bubble {BubbleW}x{BubbleH}) in {Elapsed} ms.",
+                "{EnglishH} at {EnglishX},{EnglishY}, Chinese {TextW}x{TextH}, background {NineW}x" +
+                "{NineH} at {NineX},{NineY}, caps {CapsW}x{CapsH} to {FinalW}x{FinalH} at {FinalX}," +
+                "{FinalY}, bubble {BubbleW}x{BubbleH} to {FinalBubbleW}x{FinalBubbleH}) in {Elapsed} ms.",
                 chinese.Length,
-                layout.TextWidth, layout.TextHeight, node->Width, node->Height,
-                layout.NineGridWidth, layout.NineGridHeight, grown.Width, grown.Height,
-                layout.BubbleWidth, layout.BubbleHeight,
+                layout.TextWidth, layout.TextHeight, layout.TextX, layout.TextY,
+                node->Width, node->Height,
+                layout.BackgroundWidth, layout.BackgroundHeight, layout.BackgroundX, layout.BackgroundY,
+                layout.CapsWidth, layout.CapsHeight,
+                fitted.Width, fitted.Height, fitted.X, fitted.Y,
+                layout.BubbleWidth, layout.BubbleHeight, fitted.BubbleWidth, fitted.BubbleHeight,
                 (long)elapsed.TotalMilliseconds);
         }
     }
@@ -515,157 +537,5 @@ public sealed class ChatBubbleHandler : IDisposable
 
         /// <summary>The sizes to put back when the bubble ends.</summary>
         public BubbleLayout Layout;
-    }
-
-    /// <summary>
-    /// The sizes one bubble had before its text was replaced, and the padding around the text
-    /// that the background keeps when the text grows.
-    /// </summary>
-    /// <remarks>
-    /// The nine-grid is the visible bubble and it is larger than the text node by the padding the
-    /// game drew, so the difference between those two is the padding to keep. The bubble's res
-    /// node is the text-sized content box and gives no padding of its own.
-    /// </remarks>
-    internal readonly record struct BubbleLayout(
-        nint NineGrid,
-        nint Bubble,
-        ushort TextWidth,
-        ushort TextHeight,
-        ushort NineGridWidth,
-        ushort NineGridHeight,
-        float NineGridX,
-        float NineGridY,
-        ushort BubbleWidth,
-        ushort BubbleHeight)
-    {
-        public static unsafe BubbleLayout Capture(
-            AtkTextNode* node,
-            AtkNineGridNode* nineGrid,
-            AtkResNode* bubble)
-            => new(
-                (nint)nineGrid,
-                (nint)bubble,
-                node->Width,
-                node->Height,
-                nineGrid is null ? (ushort)0 : nineGrid->AtkResNode.Width,
-                nineGrid is null ? (ushort)0 : nineGrid->AtkResNode.Height,
-                nineGrid is null ? 0f : nineGrid->AtkResNode.X,
-                nineGrid is null ? 0f : nineGrid->AtkResNode.Y,
-                bubble is null ? (ushort)0 : bubble->Width,
-                bubble is null ? (ushort)0 : bubble->Height);
-
-        /// <summary>
-        /// The size the background needs for the text the node now has.
-        /// </summary>
-        /// <remarks>
-        /// The background the game laid out is the English text plus whatever margin the balloon
-        /// keeps, so carrying the change in text size over to it keeps that margin without knowing
-        /// it. Measuring the margin on its own does not work: the background can still hold the
-        /// previous line's size when the game has not laid it out for this line yet, and a margin of
-        /// zero leaves the text spilling out of both sides of the bubble. When the English size is
-        /// not readable, the background is left as the game drew it.
-        /// </remarks>
-        internal static int TargetSize(int bubbleSize, int englishTextSize, int chineseTextSize)
-            => englishTextSize <= 0 ? bubbleSize : bubbleSize + chineseTextSize - englishTextSize;
-
-        /// <summary>
-        /// The size to grow to: the change carried over from the English layout, but never less than
-        /// the text plus the balloon's borders.
-        /// </summary>
-        /// <remarks>
-        /// The carried-over size is right when the background was laid out for the English line. It
-        /// is not when that background came out smaller than the text (the game had not laid it out
-        /// yet): the difference is then too small and the text is clipped by the balloon's caps. The
-        /// caps are the floor, so a short measure can only leave the text touching the border, never
-        /// under it.
-        /// </remarks>
-        internal static int GrownSize(int bubbleSize, int englishTextSize, int chineseTextSize, int caps)
-            => Math.Max(TargetSize(bubbleSize, englishTextSize, chineseTextSize), chineseTextSize + caps);
-
-        /// <summary>
-        /// Grows the background and the bubble by the change in text size, so the margin the game
-        /// drew around the English line still holds the Chinese. The text node itself is left alone:
-        /// its width is what the game wraps at, and changing it makes the game write the line back
-        /// with hard breaks. Only ever grows, so a shorter line keeps the game's layout.
-        /// </summary>
-        /// <summary>The size the background has after this call, for the debug log.</summary>
-        public unsafe (int Width, int Height) GrowTo(AtkTextNode* node)
-        {
-            var width = Clamp(GrownSize(NineGridWidth, TextWidth, node->Width, Caps(horizontal: true)));
-            var height = Clamp(GrownSize(NineGridHeight, TextHeight, node->Height, Caps(horizontal: false)));
-
-            if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
-            {
-                // Extra width goes to both sides, so the text stays in the middle and the tail the
-                // game placed under it stays centred.
-                if (nineGrid->AtkResNode.Width < width)
-                {
-                    var grown = width - nineGrid->AtkResNode.Width;
-                    nineGrid->AtkResNode.X -= grown / 2f;
-                    nineGrid->AtkResNode.Width = width;
-                }
-
-                // Extra height goes upward. The tail hangs under the bottom edge where the game put
-                // it, so growing downward leaves the tail inside the bubble.
-                if (nineGrid->AtkResNode.Height < height)
-                {
-                    var grown = height - nineGrid->AtkResNode.Height;
-                    nineGrid->AtkResNode.Y -= grown;
-                    nineGrid->AtkResNode.Height = height;
-                }
-            }
-
-            if (Bubble != 0 && (AtkResNode*)Bubble is var bubble && bubble is not null)
-            {
-                if (bubble->Width < width)
-                    bubble->Width = width;
-
-                if (bubble->Height < height)
-                    bubble->Height = height;
-            }
-
-            return (width, height);
-        }
-
-        /// <summary>
-        /// The balloon texture's border on one axis, or zero when the asset does not say. The nine-grid
-        /// offsets are the slices the texture stretches between, which is the room the caps need.
-        /// </summary>
-        private unsafe int Caps(bool horizontal)
-        {
-            if (NineGrid == 0)
-                return 0;
-
-            var nineGrid = (AtkNineGridNode*)NineGrid;
-            if (nineGrid is null)
-                return 0;
-
-            var caps = horizontal
-                ? nineGrid->LeftOffset + nineGrid->RightOffset
-                : nineGrid->TopOffset + nineGrid->BottomOffset;
-
-            return caps is > 0 and < 256 ? caps : 0;
-        }
-
-        /// <summary>Puts the background and the bubble back to the sizes the game gave them.</summary>
-        public unsafe void Restore()
-        {
-            if (NineGrid != 0 && (AtkNineGridNode*)NineGrid is var nineGrid && nineGrid is not null)
-            {
-                nineGrid->AtkResNode.Width = NineGridWidth;
-                nineGrid->AtkResNode.Height = NineGridHeight;
-                nineGrid->AtkResNode.X = NineGridX;
-                nineGrid->AtkResNode.Y = NineGridY;
-            }
-
-            if (Bubble != 0 && (AtkResNode*)Bubble is var bubble && bubble is not null)
-            {
-                bubble->Width = BubbleWidth;
-                bubble->Height = BubbleHeight;
-            }
-        }
-
-        private static ushort Clamp(int value)
-            => (ushort)Math.Clamp(value, 0, ushort.MaxValue);
     }
 }

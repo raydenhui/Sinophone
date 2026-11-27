@@ -39,6 +39,10 @@ src/Sinophone/
     TalkEventReader.cs    Reads the active event row and Lua text keys for Talk.
     NativeTextWriter.cs   Writes Chinese into a game text node for the alpha native mode.
     AtkTextMeasure.cs     Measures a text node with a null-terminated UTF-8 string.
+    ChatBubbleHandler.cs  Watches _MiniTalk. Translates yells and default balloons in place.
+    BubbleGeometry.cs     The pure background-fit rule for a translated bubble.
+    BubbleLayout.cs       Reads the bubble nodes and writes the fitted geometry back.
+    RecentBubbleTexts.cs  The last Chinese yell lines, so the sync does not look them up.
     SelectionDialogHandler.cs Translates SelectYesno / SelectString / SelectOk in place.
     SelectionPromptText.cs  The dialog's lookup, template fill, date, and line fitting.
     NamePlateNameWriter.cs Translates the game's nameplates through Dalamud's nameplate API.
@@ -466,32 +470,39 @@ things that feed the `_MiniTalk` addon:
   which showed up as a hitch each time a bubble appeared or vanished. The next line's English text
   replaces the Chinese on its own, so nothing stale is shown.
 
-  Sizing is `BubbleLayout.GrowTo`, and it never touches the text node. The node's width and flags
+  Sizing is `BubbleLayout.FitTo`, and it never touches the text node. The node's width and flags
   are what the game wraps at; changing either makes the game write the line back with hard breaks,
-  and the next lookup then sees fragments instead of the line. Instead the background grows: the
-  nine-grid is the visible bubble, and it grows by the **change in text size**: the game drew the
-  English line plus whatever margin the balloon keeps, so `bubble + (chinese - english)` keeps that
-  margin without measuring it. Measuring the margin on its own fails both ways: the background can
-  still hold the previous line's size, and a margin that comes out as zero leaves the text spilling
-  out of both sides of the bubble. The English size comes from the text node before the write, so a
-  node the game has not laid out yet leaves the background alone.
+  and the next lookup then sees fragments instead of the line. Instead the background is fitted to
+  the text: the game drew the English line plus the margin the balloon keeps, so a background that
+  holds that line gives the margin to keep. The margin is trusted only when it is a real inset:
+  larger than zero and no wider than the nine-grid's fixed corners. A background outside that range
+  is holding another line or has not been laid out for this one, and then the corners are the
+  padding. The target is always `chinese + padding`, so a shorter translation shrinks and a longer
+  one grows. The corners are a fallback, not a floor: applying them to a line that already fits is
+  what made the bubble taller than its text (issue 223).
 
-  The target is never smaller than the text plus the nine-grid's slice offsets, because a background
-  that came out smaller than the English text makes the difference too small and the caps then clip
-  the Chinese. Only ever grows. Extra width is centred, so the tail the game placed under the text
-  stays in the middle, and extra height grows **upward**: the tail hangs under the bubble's bottom edge at the
-  position the game gave it, so growing downward leaves the tail inside the bubble. The node's size
-  and position come back with the game's text on the setting and on unload.
+  Width grows to both sides, so the tail the game placed under the text stays in the middle, and
+  shrinks from the right, so the left-aligned text keeps its left edge. Height keeps the bottom
+  edge, because the text is bottom-aligned and the tail hangs under it. The nine-grid and the
+  bubble's res node follow the same size, so they never disagree. The node's size and position come
+  back with the game's text on the setting and on unload.
+
+  The fit rule is pure (`BubbleGeometry`); `BubbleLayout` reads the nodes and writes the result.
+  `BubbleGeometryTests` covers the rule and `BubbleLayoutTests` runs the writes against allocated
+  ATK nodes, so both halves are tested without the game.
 
   The addon fills the text node itself, and it does that after `PostSetup`, so the node is empty
   when the bubble starts. The handler therefore looks at the nodes on each draw: a hash of the
   node's bytes is compared with the last text seen, and only a text it has not seen is looked up.
   A line with no translation is remembered, so it is not retried on every frame. The same English
   line coming back, which the game does while a balloon's text stream runs, is rewritten from the
-  saved Chinese; a different line landing in the same node drops the old translation and its sizes
-  first. A yell bubble is recognised by the bytes this handler passed to the balloon start, so its
-  node is never looked up as English and only has to be fitted. This is the same guarded per-frame
-  compare the Talk and item surfaces use, without the allocation a lookup would need.
+  saved Chinese. A different line landing in the same node drops the old translation but **keeps
+  the layout the game gave the new line**; restoring the previous line's sizes before capturing put
+  back a background that did not hold the new text, which is how a short line inherited a long
+  line's empty box. A yell bubble is recognised by the bytes this handler passed to the balloon
+  start: `RecentBubbleTexts` keeps the last eight Chinese yell lines, so the sync does not look a
+  yell's Chinese up as English and leaves the game's own size alone. This is the same guarded
+  per-frame compare the Talk and item surfaces use, without the allocation a lookup would need.
 
 Bubbles carry no speaker name, so the name lookup and the shared-script-line speaker pick are not
 used here. The bubble geometry is logged once per translated bubble, because the bubble layout is

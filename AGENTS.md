@@ -199,7 +199,9 @@ separate and out of "latest": it holds translation data, not plugin builds.
 
 Run `pwsh -File scripts/Test.ps1` before opening a pull request. Add a unit test for
 anything that can be tested without the game, and an integration test for wiring that
-uses the checked-in fixture.
+uses the checked-in fixture. The chat bubble background fit has no game dependency: its rule
+is in `BubbleGeometry` and the node writes run against allocated ATK nodes in `BubbleLayoutTests`,
+so the display is tested without a live addon.
 
 `scripts/Test-Coverage.ps1` is the evaluation run: it enumerates every English string each
 component can show against the real artifacts and reports coverage per component, with the misses
@@ -468,23 +470,24 @@ premature interface.
 - **Chat bubbles.** `ShowInChatBubbles` puts Chinese into the game's own bubbles above NPCs. It needs
   a font mod and is off by default while the bubble layout is checked in game. A yell bubble
   (`NpcYell` with the balloon flag) is translated before the game measures it, by hooking
-  `NpcYellBalloon.OpenBalloon`, so the game sizes the bubble. A default balloon
+  `NpcYellBalloon.OpenBalloon`, so the game sizes the bubble; `RecentBubbleTexts` lets the
+  per-frame sync recognise that Chinese and leave the size alone. A default balloon
   (`ENpcBase.Balloon`) has no such call, so its text node is changed in place. The addon fills that
   text after the bubble is set up, so the handler checks the nodes on each draw with a hash compare
   and only looks up a text it has not seen; a line with no translation is remembered so it is not
-  retried every frame. Sizing is `BubbleLayout.GrowTo`, which never touches the text node: the node's
-  width and flags are what the game wraps at, and changing them makes the game rewrite the line with
-  hard breaks so later lookups see fragments. The background grows by the change in text size, not by a
-  padding worked out on its own: the game drew the English text plus whatever margin the balloon
-  keeps, so `bubble + (chinese - english)` keeps that margin without knowing it. Measuring the
-  margin directly does not work, because the background can still hold the previous line's size,
-  and a margin that comes out as zero leaves the text spilling out of both sides of the bubble.
-  The English size is read before the write, so a node the game has not laid out leaves the
-  background alone. The result is never smaller than the text plus the nine-grid's slice offsets, so
-  a background that came out smaller than the English text cannot clip the Chinese. Extra width is
-  centred so the tail stays in the middle, and extra height grows
-  upward so the bottom edge the tail hangs under does not move. The sizes and the position come
-  back when the setting is turned off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
+  retried every frame. Sizing is `BubbleLayout.FitTo`, which never touches the text node: the
+  node's width and flags are what the game wraps at, and changing them makes the game rewrite the
+  line with hard breaks so later lookups see fragments. The background keeps the margin the game
+  drew around the English line, but only when that margin is a real inset: larger than zero and no
+  wider than the nine-grid's fixed corners. A background that does not hold such a margin is
+  holding another line or has not been laid out, so the corners are the padding. The target is
+  `chinese + padding`; the corners are a fallback, not a floor on every line, so a line that
+  already fits does not grow. A new line keeps the layout the game gave it; do not restore the
+  previous line's sizes before capturing, or the capture is the old line's background. Width grows
+  to both sides so the tail stays centred and shrinks from the right so the left-aligned text keeps
+  its left edge. Height keeps the bottom edge the text and the tail hang from. The nine-grid and
+  the bubble's own res node follow the same size, so they never disagree. The sizes and the
+  position come back when the setting is turned off and on unload. Do not restore on `PostHide`: the addon hides and shows between lines, and each
   restore plus the rewrite that follows rebuilds the node's font cache, which hitches every time a
   bubble appears or vanishes. Bubbles have no speaker name, so nothing here uses the name lookup. A yell with only the battle talk flag is left alone,
   so the bubble and battle talk surfaces never both write one line.

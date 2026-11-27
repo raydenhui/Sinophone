@@ -56,6 +56,10 @@ and write down which build was running when a row failed.
 | A yell bubble whose line has no translation | English stays; no Chinese from the previous bubble |
 | A long bubble line | Lines wrap inside the bubble; the background grows with the text, nothing clipped |
 | A bubble whose Chinese is wider than the English line, such as a 20+ character shout | The Chinese wraps inside the bubble; no text runs past the background on either side |
+| A bubble whose Chinese is much shorter than the English line | The background shrinks to the Chinese plus the game's margin; no wide empty box |
+| A bubble line followed by a shorter line in the same slot | The second background fits the second line; it does not keep the first line's size |
+| A bubble line followed by a longer line in the same slot | The second background follows the new Chinese; the bubble does not walk sideways |
+| The same bubble slot after several lines | The background matches the line on screen; no empty area grows across the conversation |
 | A yell bubble and a default balloon one after the other | Both are sized for the Chinese; neither keeps the English bubble size |
 | A bubble that says only a sound, such as `<squeal> <squeal>` | The Chinese sound shows; the bubble is sized for it |
 | Two or three bubbles at once, such as several NPCs shouting | Each bubble keeps its own text; no bubble overlaps another |

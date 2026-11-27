@@ -52,7 +52,7 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- |
 | `TalkHandler` | `Talk`, `TalkSubtitle` | `IAddonLifecycle` + each addon's own `VirtualTable` (`OnSetup`, `OnRefresh`) | ID-first (`LuaTexts` key + row id / `EventFramework` row / cutscene sheet row), ambiguous script disambiguation, exact text, player placeholder, script template, branch-neutral | `OverlayWindow` (default) or native `AtkValue` / nodes (`NativeTextMode`): `Talk` writes nodes, `TalkSubtitle` is laid out from its values | Text-node segment retry; `NativeTextWriter.WriteFitted` node fallback; `OverlayWindow`; optional English when `HideWhenNoTranslation` is off |
 | `SelectionDialogHandler` | `SelectYesno`, `SelectString`, `SelectIconString`, `SelectOk`, `CutSceneSelectString` | `IAddonLifecycle` (`PostSetup`, `PostRefresh`, `PreDraw`, `PostHide`, `PostClose`, `PreFinalize`) | `Addon` label -> dialogue lookup with the live or sibling cutscene scene and event script hints -> `Addon` template (evaluated, or filled from the live line) -> punctuation trim -> short label `+ "."` | In-place `AtkTextNode` (`NativeTextWriter.WriteAt`) | Unresolved templates or misses leave original English; `FitPromptLines` keeps multi-line layout if single-line exceeds node bounds |
-| `ChatBubbleHandler` | `_MiniTalk` (yells & default balloons) | `NpcYellBalloon.OpenBalloon` detour + `IAddonLifecycle` on `_MiniTalk` | Yells: `NpcYell.YellInfo` row ID -> dialogue lookup; Default balloons: plain text -> dialogue lookup | Yells: pre-layout text replacement; Balloons: in-place `BubbleTextNode` + `BubbleLayout.GrowTo` | Misses keep English and are hashed so they are not re-queried every frame; no overlay |
+| `ChatBubbleHandler` | `_MiniTalk` (yells & default balloons) | `NpcYellBalloon.OpenBalloon` detour + `IAddonLifecycle` on `_MiniTalk` | Yells: `NpcYell.YellInfo` row ID -> dialogue lookup; Default balloons: plain text -> dialogue lookup | Yells: pre-layout text replacement; Balloons: in-place `BubbleTextNode` + `BubbleLayout.FitTo` | Misses keep English and are hashed so they are not re-queried every frame; no overlay |
 | `BattleTalkHandler` | `UIModule` battle talk (`ShowBattleTalk`, `ShowBattleTalkImage`, `ShowBattleTalkSound`) | Virtual table hook at indices 198, 199, 201 | `NpcYell` row id -> dialogue lookup (id first), otherwise the normalized text; name via the line's dump alias, then `TryGetName` | UTF-8 name and text swapped before the game measures the box | A miss, a disabled setting, or a failed lookup passes the game's own pointers through; no overlay |
 | `NamePlateNameWriter` | Visible NPC / object nameplates | `INamePlateGui.OnNamePlateUpdate` | Case-insensitive `TryGetName` (with punctuation trim) | `NamePlateUpdateHandler.NameParts.Text` before game bakes plate | Skips players; misses keep English; no overlay |
 | `ItemNameHandler` | Hovered item (`ItemDetail`) | `IGameGui.HoveredItemChanged` + `IAddonLifecycle` on `ItemDetail` | Strips HQ/Collectible offsets -> `Item` sheet English name -> `TryGetName` | `ItemNameWindow` above cursor (default) or `ItemDetail.ItemNameText` (`ItemNameNativeMode`) | Skips `EventItem` (`>= 2,000,000`); missing `ItemNameText` node falls back to `ItemNameWindow` |
@@ -397,16 +397,18 @@ sequenceDiagram
         loop Each entry in AddonMiniTalk.TalkBubbles
             Sync->>Sync: Compute FNV-1a Hash + length of node->NodeText
             alt Node already translated & still ours
-                Sync->>Writer: layout.GrowTo(node)
+                Sync->>Writer: layout.FitTo(node)
             else Game rewrote same English line (streaming text)
-                Sync->>Writer: ReapplyAt() + layout.GrowTo(node)
+                Sync->>Writer: ReapplyAt() + layout.FitTo(node)
             else Previously missed same text
                 Note over Sync: Skip lookup (zero allocation)
-            else New or changed text
+            else Text is a yell's Chinese (RecentBubbleTexts)
+                Note over Sync: Skip; the game sized the bubble
+            else New or changed text (keep the layout the game gave it)
                 Sync->>Store: TryGetDialogue(ExtractPlainText(text))
                 alt Translated
                     Sync->>Writer: BubbleLayout.Capture(node, nineGrid, bubbleRes)
-                    Sync->>Writer: WriteAt() + layout.GrowTo(node)
+                    Sync->>Writer: WriteAt() + layout.FitTo(node)
                     Sync->>Log: Remember(chinese, english)
                 else Untranslated
                     Sync->>Sync: Record TextHash/TextLength to avoid retries
@@ -419,7 +421,7 @@ sequenceDiagram
 - **Yells**: `OpenBalloon` detour reads `NpcYell.Instance()->YellInfo` (filtering for `NpcYellOutputFlags.ShowBalloon`), resolves row ID + `MessageParams`, and passes UTF-8 Chinese before the game measures the bubble. Battle-talk-only yells are ignored.
 - **Default balloons**: Addon populates `BubbleTextNode` after `PostSetup`, so `SyncBubbles` runs on `PreDraw` using a zero-allocation FNV-1a byte hash + length check.
 - **Sound-only lines**: A balloon can hold nothing but a sound marker, such as `<squeal> <squeal>`. `NormalizeKey` keeps a lowercase tag, so the line gets a key at all, and `IsOnlySoundMarkers` answers the first candidate when several script lines share it. Before that rule the key came out empty, the line was skipped before lookup, and the bubble stayed English.
-- **Layout sizing (`BubbleLayout`)**: Leaves `BubbleTextNode` width and flags untouched (changing them causes the game to re-break lines into fragments). Instead it grows `BubbleNineGridNode` and `BubbleResNode` by the change in text size (`bubble + (chinese - english)`), which keeps the margin the game drew around the English line without measuring it; a measured margin is either stale or zero, and zero makes the text spill out of both sides. The target never goes below the text plus the nine-grid slice offsets, so a background that was not laid out for the line cannot clip the Chinese. Extra width is centred and extra height grows upward, so the tail under the bottom edge stays attached instead of ending up inside the bubble. The node's position is captured and restored with the size.
+- **Layout sizing (`BubbleLayout.FitTo`)**: Leaves `BubbleTextNode` width and flags untouched (changing them causes the game to re-break lines into fragments). The background keeps the margin the game drew around the English line, but only when that margin is a real inset: larger than zero and no wider than the nine-grid's slice offsets. Any other background is holding another line or was not laid out for this one, so the slice offsets are the padding. The target is `chinese + padding`, both ways, so a shorter line shrinks and a longer line grows; the offsets are a fallback, not a floor on every line. Width grows to both sides and shrinks from the right, so the tail stays centred and the left-aligned text keeps its left edge. Height keeps the bottom edge the text and the tail hang from. `BubbleNineGridNode` and `BubbleResNode` follow the same size. A new line keeps the layout the game gave it: the previous line's sizes are not restored before the capture, or the capture is the old line's background. The fit rule is pure (`BubbleGeometry`); the node writes are tested against allocated ATK nodes in `BubbleLayoutTests`.
 - **Lifecycle**: `PostHide` intentionally keeps cached translations to prevent font-cache rebuild hitches during multi-line balloon streams. `PreFinalize` calls `ForgetAll`; disabling or unloading calls `RestoreAll` to revert text and node sizes.
 
 ---
