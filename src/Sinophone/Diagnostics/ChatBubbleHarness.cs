@@ -1,6 +1,7 @@
 #if SINOPHONE_TESTING
 using Dalamud.Game.ClientState.Objects.Types;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 // Lumina also has a sheet called Character; the harness only wants the game structs.
 using GameCharacter = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
@@ -107,6 +108,50 @@ public static unsafe class ChatBubbleHarness
             return (string.Empty, NpcYellBalloonState.Inactive);
         }
     }
+
+    /// <summary>
+    /// Characters in <paramref name="text"/> that the bubble's own text node cannot draw.
+    /// Returns -1 when the addon or a matching node is not there, which is "not measured".
+    /// </summary>
+    public static int MissingGlyphs(IGameGui gameGui, string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return 0;
+
+        try
+        {
+            var addon = gameGui.GetAddonByName<AtkUnitBase>("_MiniTalk", 1);
+            if (addon is null)
+                return -1;
+
+            foreach (var entry in ((AddonMiniTalk*)addon)->TalkBubbles)
+            {
+                var node = entry.BubbleTextNode;
+                if (node is null)
+                    continue;
+
+                // The game can wrap the bubble text with hard breaks after layout.
+                if (!string.Equals(WithoutBreaks(node->NodeText.ToString()), WithoutBreaks(text),
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                return GlyphProbe.CountMissing(text, node->FontType);
+            }
+        }
+        catch
+        {
+            // A closed addon is a reason to skip the check, not to fail the case.
+        }
+
+        return -1;
+    }
+
+    private static string WithoutBreaks(string text)
+        => text.Contains('\n') || text.Contains('\r')
+            ? text.Replace("\r", string.Empty).Replace("\n", string.Empty)
+            : text;
 
     /// <summary>
     /// The objects in the zone a bubble can be shown above, nearest first. The player is

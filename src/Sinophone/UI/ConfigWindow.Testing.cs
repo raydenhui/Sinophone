@@ -25,6 +25,24 @@ public sealed partial class ConfigWindow
             _configuration.LogFailureFiles,
             value => _configuration.LogFailureFiles = value);
 
+        Section("Game font");
+        ImGui.TextWrapped(
+            "Reads the game's loaded font. Penumbra and the built-in replacement both work by " +
+            "replacing the game's font files, so reload the font after changing either one. If " +
+            "the Chinese characters are missing, check that the pack is the (Global) version.");
+        if (ImGui.Button("Check the Chinese font"))
+            _gameFontCheck = GlyphProbe.Describe(FontType.Axis);
+
+        ImGui.SameLine();
+        if (ImGui.Button("Check every font"))
+        {
+            _gameFontCheck = string.Join(
+                "\n",
+                Enum.GetValues<FontType>().Select(static font => GlyphProbe.Describe(font)));
+        }
+
+        ImGui.TextWrapped(_gameFontCheck);
+
         if (_harnessHost is null)
         {
             ImGui.Spacing();
@@ -348,6 +366,13 @@ public sealed partial class ConfigWindow
 
             ImGui.TableNextColumn();
             ImGui.TextWrapped(result.Detail ?? result.Drawn ?? string.Empty);
+            if (result.Findings.Count > 0 && ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(string.Join(
+                    "\n",
+                    result.Findings.Select(static finding =>
+                        $"{finding.Check}: {(finding.Passed ? "pass" : "FAIL")} - {finding.Detail}")));
+            }
         }
 
         ImGui.EndTable();

@@ -15,6 +15,12 @@ namespace Sinophone.Diagnostics;
 public static unsafe class GlyphProbe
 {
     /// <summary>
+    /// A short sample with characters the stock Axis font misses and characters it draws, so a
+    /// developer can see at once whether the loaded font carries Chinese.
+    /// </summary>
+    public const string Sample = "這是中文樣本。这是中文样本。歷閱臺灣龍鳳龜";
+
+    /// <summary>
     /// Characters in <paramref name="text"/> with no glyph in <paramref name="fontType"/>.
     /// Returns -1 when the font manager is not reachable, so a missing structure is reported as
     /// "not measured" rather than as a font problem.
@@ -49,6 +55,44 @@ public static unsafe class GlyphProbe
         }
 
         return missing;
+    }
+
+    /// <summary>
+    /// A readable result for the Testing tab. Unlike <see cref="CountMissing"/>, this one
+    /// allocates and names the characters, which is fine for a button press but not for a frame.
+    /// </summary>
+    public static string Describe(FontType fontType)
+    {
+        var manager = GetFontManager();
+        if (manager is null)
+            return $"{fontType}: the game font manager could not be read.";
+
+        var setIndex = (int)fontType;
+        if (setIndex < 0 || setIndex >= AtkFontManager.FontSetCount || manager->FontSets is null)
+            return $"{fontType}: the game font set could not be read.";
+
+        var fontSet = &manager->FontSets[setIndex];
+        var font = fontSet->PickFont(false);
+        if (font is null)
+            return $"{fontType}: the game font is not built.";
+
+        var missing = new List<string>();
+        var total = 0;
+        foreach (var rune in Sample.EnumerateRunes())
+        {
+            if (Rune.IsWhiteSpace(rune))
+                continue;
+
+            total++;
+            if (fontSet->GetGlyph((uint)rune.Value, font) is null)
+                missing.Add(rune.ToString());
+        }
+
+        if (missing.Count == 0)
+            return $"{fontType}: all {total} sample characters have a glyph.";
+
+        return $"{fontType}: {missing.Count} of {total} sample characters have no glyph: " +
+               string.Join(" ", missing);
     }
 
     private static AtkFontManager* GetFontManager()
