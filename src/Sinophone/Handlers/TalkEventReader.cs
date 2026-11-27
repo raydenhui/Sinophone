@@ -56,9 +56,11 @@ internal sealed partial class TalkEventReader
             // A cutscene choice runs with no talk handler of its own, and the scene number is the
             // only thing that tells its VOICEMAN lines apart from another scene's.
             var scene = ReadCutsceneId(framework);
-            var fallbackHints = ReadTrackedQuestHints();
+            List<string>? fallbackHints = null;
             if (scanAllLuaTexts)
                 MergeHints(ref fallbackHints, ReadAllLuaTextKeys(framework, englishText));
+            if (fallbackHints is null || fallbackHints.Count == 0)
+                MergeHints(ref fallbackHints, ReadTrackedQuestHints());
 
             return new DialogueContext(
                 CutsceneId: scene,
@@ -93,7 +95,8 @@ internal sealed partial class TalkEventReader
             }
         }
 
-        MergeHints(ref handlerHints, ReadTrackedQuestHints());
+        if ((handlerHints is null || handlerHints.Count == 0) && scriptKeys.Count == 0)
+            MergeHints(ref handlerHints, ReadTrackedQuestHints());
         if (scanAllLuaTexts && scriptKeys.Count == 0 && cutsceneId == 0)
             MergeHints(ref handlerHints, ReadAllLuaTextKeys(framework, englishText));
 
@@ -581,13 +584,13 @@ internal sealed partial class TalkEventReader
                 continue;
 
             // EventState is the interaction the player is actually in. Scene is -1
-            // for many handlers, so it alone cannot identify the Talk line.
+            // for many handlers, so an unset Scene (-1) must not match every idle handler.
             if (activeIds.Count > 0)
             {
                 if (!activeIds.Contains(eventId.Id))
                     continue;
             }
-            else if (handler->Scene != framework->Scene)
+            else if (framework->Scene < 0 || handler->Scene != framework->Scene)
             {
                 continue;
             }

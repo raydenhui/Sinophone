@@ -38,6 +38,7 @@ public sealed class SelectionDialogHandler : IDisposable
 
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IGameGui _gameGui;
+    private readonly ITargetManager _targetManager;
     private readonly PluginLog _log;
     private readonly Configuration _configuration;
     private readonly Func<TranslationStore?> _getStore;
@@ -93,6 +94,7 @@ public sealed class SelectionDialogHandler : IDisposable
     public SelectionDialogHandler(
         IAddonLifecycle addonLifecycle,
         IGameGui gameGui,
+        ITargetManager targetManager,
         IPluginLog log,
         Configuration configuration,
         Func<TranslationStore?> getStore,
@@ -102,6 +104,7 @@ public sealed class SelectionDialogHandler : IDisposable
     {
         _addonLifecycle = addonLifecycle;
         _gameGui = gameGui;
+        _targetManager = targetManager;
         _log = new PluginLog(log, configuration, LogCategory.SelectionDialogs);
         _configuration = configuration;
         _getStore = getStore;
@@ -332,7 +335,12 @@ public sealed class SelectionDialogHandler : IDisposable
         if (contexts.TryGetValue(source, out var context))
             return context;
 
-        context = _eventReader.ReadContext(source, includeHandlerHints: true, scanAllLuaTexts: scanAllLuaTexts);
+        var targetAddress = _targetManager.Target?.Address ?? 0;
+        context = _eventReader.ReadContext(
+            source,
+            targetAddress,
+            includeHandlerHints: true,
+            scanAllLuaTexts: scanAllLuaTexts);
         contexts[source] = context;
         return context;
     }

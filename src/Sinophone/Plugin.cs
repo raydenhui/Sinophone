@@ -26,6 +26,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static ITextureReadbackProvider TextureReadback { get; private set; } = null!;
     [PluginService] public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] public static ISigScanner SigScanner { get; private set; } = null!;
+    [PluginService] public static IFramework Framework { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 
     private readonly Configuration _configuration;
@@ -136,6 +137,7 @@ public sealed class Plugin : IDalamudPlugin
             PluginInterface,
             GameInteropProvider,
             SigScanner,
+            Framework,
             Log);
 
         _fontManager = new FontManager(PluginInterface.UiBuilder, _configuration, _interfaceText, _log);
@@ -213,6 +215,7 @@ public sealed class Plugin : IDalamudPlugin
         _selectionDialogHandler = new SelectionDialogHandler(
             AddonLifecycle,
             GameGui,
+            TargetManager,
             Log,
             _configuration,
             () => _store,
