@@ -63,10 +63,15 @@ public sealed class InterfaceStrings
     public required string ModeNative { get; init; }
     public required string TalkNativeWarning { get; init; }
     public required string OpenFontGuide { get; init; }
-    public required string SectionChineseFont { get; init; }
+    public required string GameFontInGeneral { get; init; }
+    public required string SectionGameFont { get; init; }
+    public required string GameFontHint { get; init; }
     public required string BuiltInFont { get; init; }
     public required string BuiltInFontHint { get; init; }
+    public required string ChooseFontFile { get; init; }
+    public required string ChooseFontFolder { get; init; }
     public required string ReloadFont { get; init; }
+    public required string RestoreFont { get; init; }
     public required string SectionDisplay { get; init; }
     public required string ShowSpeakerName { get; init; }
     public required string ShowSpeakerNameHint { get; init; }

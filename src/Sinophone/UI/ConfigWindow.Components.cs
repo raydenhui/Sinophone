@@ -88,28 +88,7 @@ public sealed partial class ConfigWindow
                 Util.OpenLink(FontSetupUrl);
 
             ImGui.TextDisabled(FontSetupUrl);
-        }
-
-        Section(text.SectionChineseFont);
-        Checkbox(text.BuiltInFont, _configuration.BuiltInFontEnabled,
-            v => _configuration.BuiltInFontEnabled = v);
-
-        if (_configuration.BuiltInFontEnabled)
-        {
-            ImGui.TextDisabled(text.BuiltInFontHint);
-            var packPath = _configuration.BuiltInFontPackPath ?? string.Empty;
-            ImGui.SetNextItemWidth(-1f);
-            if (ImGui.InputText("##builtInFontPackPath", ref packPath, 1024))
-                _configuration.BuiltInFontPackPath = packPath;
-
-            if (ImGui.IsItemDeactivatedAfterEdit())
-                _applySettings();
-
-            if (ImGui.Button(text.ReloadFont))
-                _fontReplacement.Reapply();
-
-            ImGui.SameLine();
-            ImGui.TextWrapped(_fontReplacement.Status);
+            ImGui.TextDisabled(text.GameFontInGeneral);
         }
 
         Section(text.SectionDisplay);

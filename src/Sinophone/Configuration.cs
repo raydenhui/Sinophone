@@ -105,8 +105,9 @@ public sealed class Configuration : IPluginConfiguration
 
     /// <summary>
     /// Replace the game's own font files with a pack the user supplies, so native mode can draw
-    /// Chinese without Penumbra or TexTools. The pack is read from the user's disk; the plugin
-    /// ships no font data. Off by default.
+    /// Chinese without Penumbra or TexTools. The replacement is game-wide, so the setting is on
+    /// the General tab. The pack is read from the user's disk; the plugin ships no font data.
+    /// Off by default.
     /// </summary>
     public bool BuiltInFontEnabled { get; set; }
 

@@ -74,12 +74,21 @@ internal static class EnglishStrings
             "Native mode writes Chinese into the game's own dialogue box and subtitle band. " +
             "The game's font has no Chinese glyphs, so install a font mod first.",
         OpenFontGuide = "Open the font setup guide",
-        SectionChineseFont = "Chinese font",
+        GameFontInGeneral = "The game font setting is on the General tab.",
+        SectionGameFont = "Game font (native modes)",
+        GameFontHint =
+            "Native modes draw Chinese with the game's own font, so replacing it changes the " +
+            "whole game. The replacement runs while Sinophone is on. Turn it off to go back to " +
+            "the original font. A font installed with Penumbra or TexTools is separate.",
         BuiltInFont = "Replace the game font with a font pack",
         BuiltInFontHint =
-            "A .ttmp2 font mod or a folder that holds the game's font files. The plugin reads " +
-            "the pack from your disk and ships no font data.",
+            "A .ttmp2 font pack or a folder that holds the game's font files. On the global " +
+            "client, use the pack's (Global) version. The plugin reads the pack from your disk " +
+            "and ships no font data.",
+        ChooseFontFile = "Choose a .ttmp2",
+        ChooseFontFolder = "Choose a folder",
         ReloadFont = "Reload the game font",
+        RestoreFont = "Restore the game's original font",
         SectionDisplay = "Display",
         ShowSpeakerName = "Show speaker name",
         ShowSpeakerNameHint = "The Chinese name is shown with the English name in parentheses.",

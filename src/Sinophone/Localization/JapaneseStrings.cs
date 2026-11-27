@@ -69,12 +69,21 @@ internal static class JapaneseStrings
             "ネイティブモードはゲーム自身の会話ボックスと字幕帯に中国語を書き込みます。" +
             "ゲームのフォントには中国語の字形がないため、先にフォント MOD を導入してください。",
         OpenFontGuide = "フォント設定ガイドを開く",
-        SectionChineseFont = "中国語フォント",
+        GameFontInGeneral = "ゲームのフォント設定は「一般」タブにあります。",
+        SectionGameFont = "ゲームのフォント（ネイティブモード）",
+        GameFontHint =
+            "ネイティブモードはゲーム自身のフォントで中国語を描画するため、置き換えると" +
+            "ゲーム全体に影響します。置き換えは Sinophone の有効中だけ動作し、オフにすると" +
+            "元のフォントに戻ります。Penumbra や TexTools で導入したフォントは別です。",
         BuiltInFont = "フォントパックでゲームのフォントを置き換える",
         BuiltInFontHint =
-            ".ttmp2 フォント MOD、またはゲームのフォントファイルを含むフォルダー。" +
+            ".ttmp2 フォントパック、またはゲームのフォントファイルを含むフォルダー。" +
+            "グローバル版ではパックの (Global) 版を使用してください。" +
             "プラグインはディスクから読むだけで、フォントデータは同梱しません。",
+        ChooseFontFile = ".ttmp2 を選択",
+        ChooseFontFolder = "フォルダーを選択",
         ReloadFont = "ゲームのフォントを再読み込み",
+        RestoreFont = "ゲーム本来のフォントに戻す",
         SectionDisplay = "表示",
         ShowSpeakerName = "話者名を表示",
         ShowSpeakerNameHint = "中国語名は英語名とともに括弧内に表示されます。",
