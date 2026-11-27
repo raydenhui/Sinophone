@@ -10,50 +10,57 @@ The 1.0.0 definition, in the project's own words:
 - The configuration is complete and lets a player shape the display.
 - The major text that carries quest and game-story content has a translation component.
 
-Status: planning. The numbers below are from the TC artifact and the coverage run of 2026-11-21.
+Status: in progress. Scope reviewed 2026-11-27 against the code. Coverage numbers below come from
+the TC artifact and the coverage run of 2026-11-27 against the current `data` release.
 
 ## 1. Story coverage
 
-The matcher is close to done; the surfaces are not. Today's measured coverage: battle talk, chat
-bubbles, item name, and nameplates 100 %, talk 99.3 %, selection 99.0 %, runtime-built text 99.4 %,
-script lines 97.0 % with every miss classified.
+The matcher is close to done; the surfaces are not. Measured coverage: battle talk, chat bubbles,
+item name, and nameplates 100 %, talk 99.3 %, selection 99.1 %, runtime-built text 98.8 %, script
+lines 97.2 % with every miss classified. Runtime text is below the 99 % gate: the 12 misses are
+7 player-name lines and 5 Addon prompts that splice a value into a gap.
 
 ### Required for 1.0
 
 - [ ] **Quest journal and objective text.** The largest story surface with no component today.
       Quest descriptions, objectives, and progress text appear in `Journal` and `JournalDetail`,
-      and are skipped because no overlay watches them. They need an in-place translation like the
-      selection dialogs, and a placement that does not fight the two-column journal layout.
-      Verify: the journal tab for three quests of different lengths, in both variants, nothing
-      clipped and no macro visible.
+      and are skipped because no overlay watches them. Research the addons first, then choose an
+      in-place translation or an anchored overlay. Verify: the journal tab for three quests of
+      different lengths, in both variants, nothing clipped and no macro visible.
 - [ ] **Quest accept and complete dialogs.** `JournalAccept`, `JournalResult`, and the reward list
       inside them. The player reads the quest's premise here, before the journal exists.
       Verify: accept and complete one quest of each type (MSQ, side, leve), both variants.
-- [ ] **`TalkSubtitle` end to end.** The band takes the line from its `AtkValues`; the overlay is
-      the fallback. Verify on a voiced cutscene, with and without the font mod, and note whether
-      a long line scales or runs past the band.
+- [ ] **`TalkSubtitle` in-game check.** The band takes the line from its `AtkValues`; the overlay is
+      the fallback. Implemented by #200. Verify on a voiced cutscene with the built-in font pack and
+      with no font, and note whether a long line scales or runs past the band. Close #199 after.
 - [ ] **Duty story text.** `ContentTalk`, `InstanceContentTextData`, and battle talk in all three
-      styles (plain, image, sound), including a queued line and a line that arrives while another
-      is on screen.
-- [ ] **Every sheet in `Sources.cs` that is shown by nobody** gets either a component or a written
-      reason to stay English: `Warp`, `CSBonusTextData`, `GoldSaucerTextData`, `GimmickBill`,
-      `MKDLore`.
-- [ ] **`EventItem` names.** The item surface reads `Item` only, so event and key items stay
-      English. Either index `EventItem` into the item surface or record it as a non-goal.
-- [ ] **One full expansion sample** played with Debug logs, and every miss in that log triaged into
-      fixed, `ambiguous: no speaker`, or `client label`. This is the only item that proves the
-      coverage numbers against live text.
+      styles (plain, image, sound) are implemented. The remaining check is a queued line and a line
+      that arrives while another is on screen.
+- [ ] **Every sheet in `Sources.cs` that is shown by nobody** gets a written reason to stay English:
+      `Warp`, `CSBonusTextData`, `GoldSaucerTextData`, `MKDLore.Name`. `GimmickBill` is already a
+      Talk source through `TalkEventReader`.
+- [ ] **`EventItem` names in the item tooltip.** The rows are indexed, measured, and served by the
+      store; the tooltip handler returns 0 for an event id, so event and key items stay English in
+      native mode. Resolve `Item` first, then `EventItem`, and use `EventItem` for the English
+      bracket.
+- [ ] **One representative story and duty sample** played with Debug logs, and every miss in that
+      log triaged into fixed, `ambiguous: no speaker`, or `client label`. Two to three hours of
+      story and duty content replaces a full expansion run.
+- [ ] **Coverage gate.** Script lines at least 97 %, talk and selection at least 99 %, and `-Gate`
+      clean against the committed baseline. Runtime-built text is 98.8 %: triage its 12 misses
+      before the gate can pass.
 
 ### Gate
 
-- Coverage: script lines at least 97 %, every other component at least 99 %, `-Gate` clean against
-  the committed baseline.
 - No story surface in the list above left undecided.
+- `Test-Coverage.ps1 -Gate` passes after the data changes.
 
 ## 2. Display correctness
 
-- [ ] Every row in [native-mode-checklist.md](native-mode-checklist.md) ticked, with a font pack,
-      with a mod, and with neither.
+- [ ] Every row in [native-mode-checklist.md](native-mode-checklist.md) ticked.
+- [ ] Three font configurations are not needed: the built-in pack and no font cover the two
+      resource sets, and one Penumbra spot-check confirms the two do not fight. The game font
+      setting is on the **General** tab because it is game-wide.
 - [ ] No line draws outside its box, wraps into a fragment, or shows a macro (`<Sheet(`,
       `<StringParameter(`, `<Unknown60>`).
 - [ ] Selection dialogs: a two-line Chinese prompt in a one-line dialog, a long option list, and an
@@ -61,8 +68,10 @@ script lines 97.0 % with every miss classified.
 - [ ] Item tooltip and nameplates: a long name, the two-language form, and a masked `???`.
 - [ ] Chat bubbles: yells and default balloons, short and long lines, several at once, and a bubble
       whose line has no translation.
-- [ ] Native "what other readers see" decided for every surface, not only Talk, and documented in
-      [translation-workflow.md](translation-workflow.md).
+- [ ] Native "what other readers see" written per surface in
+      [translation-workflow.md](translation-workflow.md). No new per-surface setting: Talk keeps its
+      existing switch, the subtitle restores the caller's values, and the in-place surfaces restore
+      the game's text where they change it.
 
 ## 3. Configuration
 
@@ -70,11 +79,13 @@ script lines 97.0 % with every miss classified.
       size control where it makes sense.
 - [ ] Overlay: position, lock, click-through, width, font size, custom font path, per-component
       appearance overrides.
+- [ ] Game font: on/off, pack file or folder, reload, and restore the stock font. Off by default.
 - [ ] Data: variant, fallback, conversion, auto-update, manual update, and a status readout.
 - [ ] Logs: one group per component, plus diagnostics; hidden groups cost nothing.
-- [ ] Fresh-install audit: what a new player sees with no Chinese font, and with one. The defaults are
-      part of the product, not an afterthought.
-- [ ] Config version and migrations documented; reset to defaults leaves a working install.
+- [ ] Fresh-install audit: what a new player sees with no Chinese font, and with one. The defaults
+      are part of the product, not an afterthought.
+- [ ] Config version and migrations documented: selection dialogs, the dev build's all-on switch,
+      and every field that **Reset All** resets or preserves. Reset leaves a working install.
 
 ## 4. Stability and performance
 
@@ -83,6 +94,7 @@ script lines 97.0 % with every miss classified.
 - [ ] Per-frame paths allocate nothing (Talk reapply, bubble sync, tooltip, nameplates), reviewed
       against [logging-and-performance.md](logging-and-performance.md).
 - [ ] Every hook fails open and logs; a failed hook leaves English and never throws into the game.
+      The nameplate update runs through `HookGuard` like the other callbacks.
 - [ ] Data: background download, cache rebuild, fallback artifact, offline start, corrupted artifact.
 - [ ] A two-hour session with everything on: no growth in the buffered state, no hitch on reload.
 - [ ] Failure modes: no data, half-downloaded data, wrong variant, plugin reload mid-dialogue.
@@ -90,22 +102,25 @@ script lines 97.0 % with every miss classified.
 ## 5. Release hygiene
 
 - [ ] [architecture.md](architecture.md), [translation-workflow.md](translation-workflow.md),
-      [testing.md](testing.md), and `AGENTS.md` match the code.
+      [testing.md](testing.md), [text-coverage.md](text-coverage.md), and `AGENTS.md` match the code.
 - [ ] The three readmes agree, including the font wording.
 - [ ] Manifest fields reviewed; the release notes list every pull request since the previous tag.
 - [ ] CI builds and tests a clean checkout; the release workflow verified on a tag.
-- [ ] Non-goals written down, so 1.0 can be reached:
-      other game languages, runtime-built text beyond the measured classes, native menus and lists,
-      and shipping font data.
+- [ ] The translation data release is rebuilt separately from the plugin `latest` release.
+- [ ] Non-goals written down, so 1.0 can be reached (see below).
 
 ## Non-goals for 1.0
 
 Stated here so they do not creep back into the gates:
 
-- **Other game languages** (Japanese, German, French). The matcher is keyed on English text; this is
-  a design change, not a setting.
 - **Runtime-built text** beyond the classes the coverage tool measures (player name, blank gap,
   client labels). Text with no source row stays English by design.
 - **Native menus, lists, and shops.** Whole-UI replacement is not this plugin's goal.
-- **Replacing the game font.** The plugin can read a user's font pack, but it ships no font data,
-  so a user without a pack still needs a mod.
+- **Shipping font data.** The plugin can replace the game font from a pack the user already has,
+  but it ships no font files. A pack built for the Chinese client is refused, because the global
+  client never loads those files.
+- **Windows that draw no story text.** `Warp`, `CSBonusTextData`, `GoldSaucerTextData`, and
+  `MKDLore.Name` stay English unless the Phase 3 review finds one of them carries story text.
+- **Script dialogue on a non-English client.** Sheet surfaces are keyed by row id and work in any
+  language the global client offers. A script line with no row id is keyed on the English dump, so
+  it can stay English. This is a known limit, not a 1.0 gate.

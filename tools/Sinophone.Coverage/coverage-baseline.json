@@ -1,6 +1,6 @@
 {
   "Variant": "TC",
-  "GeneratedAt": "2026-11-21T19:13:05.0922303+08:00",
+  "GeneratedAt": "2026-11-27T17:06:03.3043819+08:00",
   "Components": {
     "Talk": {
       "Total": 28380,
@@ -22,8 +22,8 @@
     },
     "Selection": {
       "Total": 12347,
-      "Resolved": 12226,
-      "ResolvedById": 12226,
+      "Resolved": 12239,
+      "ResolvedById": 12239,
       "Skipped": 1374
     },
     "Nameplates": {
@@ -40,13 +40,13 @@
     },
     "Talk (scripts)": {
       "Total": 267115,
-      "Resolved": 259066,
-      "ResolvedById": 259066,
+      "Resolved": 259661,
+      "ResolvedById": 259661,
       "Skipped": 247
     },
     "Runtime text": {
-      "Total": 925,
-      "Resolved": 919,
+      "Total": 934,
+      "Resolved": 923,
       "ResolvedById": 0,
       "Skipped": 5
     }
