@@ -41,6 +41,8 @@ public sealed unsafe class FontReplacementService : IDisposable
     private const int ResourceHandleOffset = 0x50;
     private const int FilePathOffset = 0x70;
     private const int FilePathLength = FontPackFiles.MaxLocalPathLength;
+    private const int FileInterfaceHeaderSize = 0x20;
+    private const int FileInterfaceTrailerSize = 0x16;
     private const int FileInterfacePathOffset = 0x21;
 
     private const string FontDirectoryName = "fonts";
@@ -54,6 +56,7 @@ public sealed unsafe class FontReplacementService : IDisposable
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly IGameInteropProvider _interop;
     private readonly ISigScanner _sigScanner;
+    private readonly IFramework _framework;
     private readonly PluginLog _log;
     private readonly string _fontDirectory;
 
@@ -69,11 +72,13 @@ public sealed unsafe class FontReplacementService : IDisposable
         IDalamudPluginInterface pluginInterface,
         IGameInteropProvider interop,
         ISigScanner sigScanner,
+        IFramework framework,
         IPluginLog log)
     {
         _pluginInterface = pluginInterface;
         _interop = interop;
         _sigScanner = sigScanner;
+        _framework = framework;
         _log = new PluginLog(log, configuration, LogCategory.NativeText);
         _fontDirectory = Path.Combine(pluginInterface.GetPluginConfigDirectory(), FontDirectoryName);
     }
@@ -153,6 +158,7 @@ public sealed unsafe class FontReplacementService : IDisposable
     {
         var wasActive = _readSqPackHook is not null;
         Volatile.Write(ref _localPaths, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        _readSqPackHook?.Disable();
         _readSqPackHook?.Dispose();
         _readSqPackHook = null;
         _readFile = null;
@@ -224,11 +230,12 @@ public sealed unsafe class FontReplacementService : IDisposable
         if (hook is null)
             return 0;
 
+        var readFile = _readFile;
         string? localPath = null;
         if (descriptor is not null
             && descriptor->ResourceHandle is not null
             && descriptor->FileMode == FileMode.LoadSqPackResource
-            && _readFile is not null)
+            && readFile is not null)
         {
             try
             {
@@ -243,11 +250,15 @@ public sealed unsafe class FontReplacementService : IDisposable
             }
         }
 
-        if (localPath is null || !FontPackFiles.FitsDescriptor(localPath) || !File.Exists(localPath))
+        if (localPath is null || readFile is null || !FontPackFiles.FitsDescriptor(localPath) || !File.Exists(localPath))
             return hook.Original(fileHandler, descriptor, priority, isSync);
 
-        WriteUnpackedPath(descriptor, localPath);
-        return _readFile!(fileHandler, descriptor, priority, isSync);
+        // Keep the stack interface buffer in this frame so it stays valid until ReadFile returns.
+        var utf16 = Encoding.Unicode.GetBytes(localPath);
+        var interfaceSize = FileInterfaceHeaderSize + utf16.Length + FileInterfaceTrailerSize;
+        var interfaceBuffer = stackalloc byte[interfaceSize];
+        WriteUnpackedPath(descriptor, localPath, utf16, interfaceBuffer, interfaceSize);
+        return readFile(fileHandler, descriptor, priority, isSync);
     }
 
     private static string? ReadGamePath(ResourceHandle* handle)
@@ -263,9 +274,15 @@ public sealed unsafe class FontReplacementService : IDisposable
     /// <summary>
     /// Points the descriptor at a file on disk instead of the SqPack. The game reads the wide
     /// path from the descriptor and from the file interface it points at, which is why both are
-    /// written. The stack buffer lives for the synchronous read that follows.
+    /// written. The caller owns <paramref name="interfaceBuffer"/> and must keep it alive until
+    /// <c>ReadFile</c> returns.
     /// </summary>
-    private static void WriteUnpackedPath(SeFileDescriptor* descriptor, string localPath)
+    internal static void WriteUnpackedPath(
+        SeFileDescriptor* descriptor,
+        string localPath,
+        ReadOnlySpan<byte> utf16,
+        byte* interfaceBuffer,
+        int interfaceSize)
     {
         descriptor->FileMode = FileMode.LoadUnpackedResource;
 
@@ -273,12 +290,9 @@ public sealed unsafe class FontReplacementService : IDisposable
         pathBuffer.Clear();
         localPath.AsSpan().CopyTo(pathBuffer);
 
-        var utf16 = Encoding.Unicode.GetBytes(localPath);
-        var interfaceSize = 0x20 + utf16.Length + 0x16;
-        var interfaceBuffer = stackalloc byte[interfaceSize];
         var interfaceSpan = new Span<byte>(interfaceBuffer, interfaceSize);
         interfaceSpan.Clear();
-        utf16.AsSpan().CopyTo(interfaceSpan[FileInterfacePathOffset..]);
+        utf16.CopyTo(interfaceSpan[FileInterfacePathOffset..]);
         descriptor->FileInterface = interfaceBuffer;
     }
 
@@ -289,6 +303,25 @@ public sealed unsafe class FontReplacementService : IDisposable
     /// </summary>
     private void ReloadFonts()
     {
+        if (_framework.IsFrameworkUnloading)
+            return;
+
+        if (_framework.IsInFrameworkUpdateThread)
+        {
+            ReloadFontsCore();
+            return;
+        }
+
+        // Settings changes run inside UiBuilder.Draw; defer the reload to the framework tick so
+        // the game never unloads its font textures mid-frame.
+        _ = _framework.RunOnFrameworkThread(ReloadFontsCore);
+    }
+
+    private void ReloadFontsCore()
+    {
+        if (_framework.IsFrameworkUnloading)
+            return;
+
         try
         {
             var framework = Framework.Instance();
@@ -390,7 +423,7 @@ public sealed unsafe class FontReplacementService : IDisposable
     /// named; the offsets match ClientStructs' <c>FileDescriptor</c>.
     /// </summary>
     [StructLayout(LayoutKind.Explicit, Size = 0x278)]
-    private struct SeFileDescriptor
+    internal struct SeFileDescriptor
     {
         [FieldOffset(0x00)] public FileMode FileMode;
 
