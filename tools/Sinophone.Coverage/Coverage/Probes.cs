@@ -88,7 +88,7 @@ internal sealed class Probes
 
             case SourceKind.SelectionAddon:
                 // The handler's own entry point: addon label, dialogue, then the parameter template.
-                return SelectionDialogHandler.TryTranslate(_store, english, out var chinese) ? chinese : null;
+                return SelectionPromptText.TryTranslate(_store, english, out var chinese) ? chinese : null;
 
             case SourceKind.Name:
                 return _store.TryGetName(english, out var name) ? name : null;

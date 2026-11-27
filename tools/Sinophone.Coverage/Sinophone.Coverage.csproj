@@ -21,6 +21,10 @@
     <Reference Include="$(DalamudLibPath)Dalamud*.dll">
       <Private>true</Private>
     </Reference>
+    <!-- The evaluator resolves an Addon macro through Lumina, so the tool needs it at run time. -->
+    <Reference Include="$(DalamudLibPath)Lumina*.dll">
+      <Private>true</Private>
+    </Reference>
     <Reference Include="$(DalamudLibPath)Serilog*.dll">
       <Private>true</Private>
     </Reference>
