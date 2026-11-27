@@ -1965,6 +1965,42 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_DoesNotUseATemplateThatIsOnlyAWildcard()
+    {
+        // The real case: a teleport prompt inherited the retainer bell's script key while
+        // that NPC's handler was active. The live value of that key is one conditional, so
+        // its template is a single wildcard and matched the prompt.
+        const string key = "TEXT_CMNDEFRETAINERBELL_00544_LEAVE2_AURA_FEMALE_TYPE1";
+        var artifacts = Artifacts(null, Artifact("TC", ScriptsWithKeys(
+            (key, "My lady.", "沒事了吧？那我繼續去工作了！"))));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        var context = new DialogueContext(
+            ScriptKeys: [key],
+            ScriptTemplates: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [key] = ScriptTextTemplate.Wildcard.ToString(),
+            });
+
+        Assert.False(store.TryGetDialogue(
+            "Teleport to Falcon's Nest for 1,017 gil?\n※This fee is waived when using an aetheryte ticket.",
+            in context,
+            out _));
+
+        // The key still answers its own line, which needs no template.
+        Assert.True(store.TryGetDialogue("My lady.", in context, out var chinese));
+        Assert.Equal("沒事了吧？那我繼續去工作了！", chinese);
+    }
+
+    [Fact]
     public void TryGetDialogue_MatchesOtherTimeOfDay_WhenDumpUsesTheOtherWording()
     {
         var artifacts = Artifacts(null, Artifact("TC", Scripts(

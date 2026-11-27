@@ -379,7 +379,9 @@ premature interface.
   shows matches. Script-dump keys come from the English dump, which resolves conditionals to one
   branch. A live script key also carries the template of the game's own Lua value, so the dump's
   wording matches when the game marks the difference as a conditional span. That covers a branch
-  word no list knows. `TranslationStore` also keeps a second script index with the branch words
+  word no list knows. The template has to keep some fixed text to count: a value that sits entirely
+  inside one conditional is a single wildcard, which matches every other line and would show the
+  wrong NPC's text, so it is not used. `TranslationStore` also keeps a second script index with the branch words
   collapsed: pronouns (`GenderedPronouns`), player nouns (`GenderedNouns`: lad/lass, sir/madam,
   man/woman), and the time of day (`TimeOfDayWords`: morning/day/evening/night). A line written
   for the other gender or another time of day still matches without the key. Exact keys win, and

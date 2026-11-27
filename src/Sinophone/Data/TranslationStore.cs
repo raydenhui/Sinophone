@@ -493,9 +493,12 @@ public sealed partial class TranslationStore
                     // the dump line is this key's other branch even though no word list
                     // knew the words. A reused key still fails: its template belongs to
                     // the other line, which the dump does not match outside the spans.
+                    // A template that is only a wildcard matches every line, so it cannot
+                    // prove this one.
                     if (!sameLine
                         && context.ScriptTemplates is { } templates
                         && templates.TryGetValue(trimmed, out var template)
+                        && ScriptTextTemplate.CanIdentify(template)
                         && ScriptTextTemplate.Matches(template, liveForCompare)
                         && ScriptTextTemplate.Matches(template, pairedKey))
                     {

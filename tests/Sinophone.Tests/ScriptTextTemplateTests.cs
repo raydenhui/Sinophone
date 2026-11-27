@@ -74,6 +74,25 @@ public class ScriptTextTemplateTests
     }
 
     [Fact]
+    public void CanIdentify_RejectsATemplateThatIsOnlyAWildcard()
+    {
+        // A value that sits entirely in one conditional becomes a single wildcard. It
+        // matches every line, so it cannot say which script key the line came from.
+        Assert.False(ScriptTextTemplate.CanIdentify(ScriptTextTemplate.Wildcard.ToString()));
+        Assert.False(ScriptTextTemplate.CanIdentify($"{ScriptTextTemplate.Wildcard} {ScriptTextTemplate.Wildcard}"));
+        Assert.False(ScriptTextTemplate.CanIdentify("Hi " + ScriptTextTemplate.Wildcard));
+    }
+
+    [Fact]
+    public void CanIdentify_AcceptsATemplateWithFixedText()
+    {
+        Assert.True(ScriptTextTemplate.CanIdentify($"The {ScriptTextTemplate.Wildcard} is here."));
+
+        // A template without a wildcard is an exact comparison, so any length counts.
+        Assert.True(ScriptTextTemplate.CanIdentify("No."));
+    }
+
+    [Fact]
     public void Build_KeepsPlainTextAsAnExactTemplate()
     {
         var value = new ReadOnlySeString(Encoding.UTF8.GetBytes("Plain line."));

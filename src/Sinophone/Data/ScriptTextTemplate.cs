@@ -14,6 +14,13 @@ public static partial class ScriptTextTemplate
     /// <summary>Private-use marker that cannot occur in normal dialogue.</summary>
     internal const char Wildcard = '\uE000';
 
+    /// <summary>
+    /// The least fixed text a template with a wildcard may keep and still say which line it
+    /// belongs to. A value that sits entirely inside one conditional becomes a single wildcard,
+    /// and that matches every line, so it proves nothing.
+    /// </summary>
+    internal const int MinIdentifyingLiteral = 4;
+
     [GeneratedRegex(@"\s+([.,!?;:])", RegexOptions.CultureInvariant)]
     private static partial Regex SpaceBeforePunctuation();
 
@@ -124,6 +131,15 @@ public static partial class ScriptTextTemplate
     /// </summary>
     public static int LiteralLength(string template)
         => template.Replace(Wildcard.ToString(), string.Empty, StringComparison.Ordinal).Length;
+
+    /// <summary>
+    /// True when the template holds enough fixed text to identify the line. A template with no
+    /// wildcard is an exact comparison, so any length counts. A template whose whole value sits in
+    /// one conditional, such as the retainer bell's "My lady." line, matches every other line and
+    /// must not be used to accept a script key.
+    /// </summary>
+    public static bool CanIdentify(string template)
+        => template.IndexOf(Wildcard) < 0 || LiteralLength(template) >= MinIdentifyingLiteral;
 
     /// <summary>
     /// Builds a template where each whitespace run is a wildcard. Addon rows with

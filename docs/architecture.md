@@ -160,8 +160,11 @@ that key with the same English line. The live Lua map can reuse a key for anothe
 menu line, and the old code would then show the dump's unrelated Chinese. The
 comparison also accepts the dump's wording when the live Lua value's own template
 could have drawn it. The game marks the spans that vary, such as a gender branch, so
-a word the branch lists do not know still matches. A template with no wildcard has
-to match exactly, so a reused key is still rejected.
+a word the branch lists do not know still matches. A template has to keep enough
+fixed text to say which line it belongs to: a value that sits entirely inside one
+conditional is a single wildcard and matches every other line, so it is not used.
+The same check keeps such a value out of the live key candidates in the first place.
+A template with no wildcard has to match exactly, so a reused key is still rejected.
 
 Several script lines can share one English line. The dumps pair by text key, and a generic line such
 as "You bastard!" appears in three scenes with three different Chinese texts, one of which names a
