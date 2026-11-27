@@ -5,7 +5,7 @@ using Sinophone.Handlers;
 
 namespace Sinophone.Tests;
 
-public class SelectionDialogHandlerTests
+public class SelectionPromptTextTests
 {
     [Fact]
     public void TryTranslate_UsesDialogueLookup_WhenTextMatches()

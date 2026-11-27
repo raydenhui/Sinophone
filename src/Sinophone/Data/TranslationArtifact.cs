@@ -14,6 +14,10 @@ namespace Sinophone.Data;
 /// </remarks>
 public sealed class TranslationArtifact
 {
+    /// <summary>
+    /// Artifact layout version. Version 2 adds the sheet and row id to each script entry; version 1
+    /// is still accepted because the published data release has not been rebuilt yet.
+    /// </summary>
     public int FormatVersion { get; set; } = 2;
 
     /// <summary>Human readable language tag, e.g. <c>CN</c> or <c>TC</c>.</summary>

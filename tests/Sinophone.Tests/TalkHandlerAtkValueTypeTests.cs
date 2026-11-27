@@ -1,7 +1,7 @@
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Sinophone.Handlers;
 
-namespace Sinophone.IntegrationTests;
+namespace Sinophone.Tests;
 
 /// <summary>
 /// Guards the check that decides whether an AtkValue carries text. The game sends

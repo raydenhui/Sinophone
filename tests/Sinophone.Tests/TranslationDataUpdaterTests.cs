@@ -78,8 +78,18 @@ public class TranslationDataUpdaterTests
     }
 
     [Fact]
-    public void TryValidateArtifact_AcceptsArtifactWithSheets()
+    public void TryValidateArtifact_AcceptsTheCurrentFormatVersion()
     {
+        var stream = ArtifactStream("""{"FormatVersion":2,"Language":"CN","Sheets":{"DefaultTalk":{}}}""");
+
+        Assert.True(TranslationDataUpdater.TryValidateArtifact(stream, out var error));
+        Assert.Empty(error);
+    }
+
+    [Fact]
+    public void TryValidateArtifact_AcceptsTheOlderFormatVersion()
+    {
+        // The published data release is still version 1, so a fresh install must load it.
         var stream = ArtifactStream("""{"FormatVersion":1,"Language":"CN","Sheets":{"DefaultTalk":{}}}""");
 
         Assert.True(TranslationDataUpdater.TryValidateArtifact(stream, out var error));
@@ -107,7 +117,7 @@ public class TranslationDataUpdaterTests
     [Fact]
     public void TryValidateArtifact_RejectsArtifactWithoutSheets()
     {
-        var stream = ArtifactStream("""{"FormatVersion":1,"Sheets":{}}""");
+        var stream = ArtifactStream("""{"FormatVersion":2,"Sheets":{}}""");
 
         Assert.False(TranslationDataUpdater.TryValidateArtifact(stream, out var error));
         Assert.Contains("no sheets", error, StringComparison.Ordinal);

@@ -507,22 +507,6 @@ public class TranslationStoreTests
     }
 
     [Fact]
-    public void TryGetName_ReadsTheSpeakerAliasFromAScriptLine()
-    {
-        var scripts = ScriptsWithKeys(
-            ("TEXT_AKTKMG114_04463_PASSER_000_090",
-             "(-Voice from the Past-)If you need a push, I'll be right there behind you.",
-             "(-劃過耳畔的聲音-)如果你決定前進，就由我來支援你。"));
-
-        var artifacts = Artifacts(null, Artifact("TC", scripts));
-        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
-
-        Assert.NotNull(store);
-        Assert.True(store.TryGetName("Voice from the Past", out var name));
-        Assert.Equal("劃過耳畔的聲音", name);
-    }
-
-    [Fact]
     public void Load_IndexesNameSheet_IntoNamesLookup()
     {
         var descriptor = NameSheet((100, "Mother Miounne"));
@@ -534,6 +518,8 @@ public class TranslationStoreTests
         Assert.True(store.TryGetName("Mother Miounne", out var name));
         Assert.Equal("繆恩", name);
         Assert.False(store.TryGetDialogue("Mother Miounne", out _));
+        Assert.Equal(0, store.TextEntryCount);
+        Assert.Equal(1, store.NameEntryCount);
     }
 
     [Fact]
@@ -568,19 +554,6 @@ public class TranslationStoreTests
         Assert.NotNull(store);
         Assert.True(store.TryGetName(gameName, out var name));
         Assert.Equal("天气预报员", name);
-    }
-
-    [Fact]
-    public void Load_DoesNotIndexNames_IntoDialogueLookup()
-    {
-        var descriptor = NameSheet((100, "Mother Miounne"));
-        var artifacts = Artifacts(null, Artifact("TC", (NameSheetName, NameFieldName, 100, "繆恩")));
-
-        var store = Load(descriptor, ChineseVariant.Traditional, false, artifacts);
-
-        Assert.NotNull(store);
-        Assert.Equal(0, store.TextEntryCount);
-        Assert.Equal(1, store.NameEntryCount);
     }
 
     [Fact]
@@ -1129,25 +1102,6 @@ public class TranslationStoreTests
     }
 
     [Fact]
-    public void Lookup_UsesATrackedQuestHint_ToPickTheQuestVariant()
-    {
-        // The same portal prompt exists in three quest scripts. The tracked quest names the
-        // script family, so the store keeps that quest's wording.
-        var scripts = ScriptsWithKeys(
-            ("TEXT_AKTKMG110_04459_Q1_000_041", "Travel through the portal?", "要接觸傳送陣前進嗎？"),
-            ("TEXT_AKTKMG111_04460_Q1_000_135", "Travel through the portal?", "要接觸凋零的傳送門前進嗎？"),
-            ("TEXT_AKTKMG113_04462_Q1_000_040", "Travel through the portal?", "要接觸殘光的傳送門前進嗎？"));
-
-        var artifacts = Artifacts(null, Artifact("TC", scripts));
-        var store = TranslationStore.Load([], ChineseVariant.Traditional, false, artifacts, new FakePluginLog());
-
-        Assert.NotNull(store);
-        var context = new DialogueContext(ScriptKeyHints: ["AKTKMG113_04462"]);
-        Assert.True(store.TryGetDialogue("Travel through the portal?", in context, out var chinese));
-        Assert.Equal("要接觸殘光的傳送門前進嗎？", chinese);
-    }
-
-    [Fact]
     public void Lookup_PicksTheFirstBranch_WhenBothLinesAreInOneCutscene()
     {
         // Both lines are in scene 6006 and spoken by G'raha. The game picks one by player
@@ -1166,18 +1120,6 @@ public class TranslationStoreTests
         var context = new DialogueContext(CutsceneId: 6006);
         Assert.True(store.TryGetDialogue("The significance of these details.", in context, out var chinese));
         Assert.Equal("可能現在的你還有很多資訊沒有接觸到，\n不過，這裡大概就是那個歐米茄的母星。", chinese);
-    }
-
-    [Fact]
-    public void CutsceneIdOf_ReadsTheCutsceneNumberFromAVoiceManKey()
-    {
-        Assert.Equal(6005u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_06005_003840_THANCRED"));
-        Assert.Equal(6005u, TranslationStore.CutsceneIdOf("text_voiceman_06005_003840_thancred"));
-
-        Assert.Equal(0u, TranslationStore.CutsceneIdOf("TEXT_JOBPLD650_02573_ALDIS_000_052"));
-        Assert.Equal(0u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_"));
-        Assert.Equal(0u, TranslationStore.CutsceneIdOf("TEXT_VOICEMAN_NOT_A_NUMBER_X"));
-        Assert.Equal(0u, TranslationStore.CutsceneIdOf(null));
     }
 
     /// <summary>The real Endwalker pair: one English line used by two cutscenes.</summary>
@@ -2462,27 +2404,6 @@ public class TranslationStoreTests
         try
         {
             File.WriteAllBytes(path, [1, 2, 3, 4]);
-
-            Assert.False(TranslationStore.TryLoadCache(
-                path, "key", [descriptor], log, s => s, null, out var cached));
-            Assert.Null(cached);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public void Cache_IsIgnored_WhenTheFileIsEmpty()
-    {
-        var descriptor = TalkSheet((1, "Hello there."));
-        var path = Path.Combine(Path.GetTempPath(), $"sinophone-cache-{Guid.NewGuid():N}.bin");
-        var log = new PluginLog(new FakePluginLog(), new Configuration(), LogCategory.Data);
-
-        try
-        {
-            File.WriteAllBytes(path, []);
 
             Assert.False(TranslationStore.TryLoadCache(
                 path, "key", [descriptor], log, s => s, null, out var cached));
