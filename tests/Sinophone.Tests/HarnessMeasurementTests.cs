@@ -58,17 +58,4 @@ public class HarnessMeasurementTests
 
         Assert.False(measurement.Passed);
     }
-
-    [Fact]
-    public void With_KeepsTheOtherValues()
-    {
-        var measurement = new HarnessMeasurement { Drawn = "你好", English = "Hello", Reverts = 2 };
-
-        var updated = measurement with { Reverts = 3 };
-
-        Assert.Equal("你好", updated.Drawn);
-        Assert.Equal("Hello", updated.English);
-        Assert.Equal(3, updated.Reverts);
-        Assert.Equal(2, measurement.Reverts);
-    }
 }

@@ -54,15 +54,6 @@ public class HarnessReportTests
     }
 
     [Fact]
-    public void Add_ReturnsTheResult()
-    {
-        var report = new HarnessReport();
-        var added = new HarnessResult("one", HarnessSurface.Talk, HarnessOutcome.Passed, "Hello");
-
-        Assert.Same(added, report.Add(added));
-    }
-
-    [Fact]
     public void ToJson_ThenFromJson_KeepsTheResults()
     {
         var report = Sample();

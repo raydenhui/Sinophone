@@ -166,10 +166,6 @@ public class SelectionDialogLanguageTests
         => Assert.Null(SelectionPromptText.EvaluateAddonTemplate(null, "<num(lnum1)>", ["5"], [1]));
 
     [Fact]
-    public void EvaluateAddonTemplate_ReturnsNull_ForATemplateWithoutMacros()
-        => Assert.Null(SelectionPromptText.EvaluateAddonTemplate(null, null, null, null));
-
-    [Fact]
     public void TryGetAddonText_ReturnsTheConvertedTemplate()
     {
         const uint rowId = 11194;

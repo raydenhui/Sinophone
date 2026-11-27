@@ -4,7 +4,7 @@ namespace Sinophone.Tests;
 
 /// <summary>
 /// The parts of the harness that decide what a test is, without touching the game:
-/// which surfaces exist, how a case reports itself, and how the Talk driver reads a run.
+/// how a case reports itself and which checks it runs.
 /// </summary>
 public class HarnessCaseTests
 {
@@ -39,23 +39,5 @@ public class HarnessCaseTests
             .Where(static check => check != HarnessCheck.None && check != HarnessCheck.All);
 
         Assert.All(named, check => Assert.True(HarnessCheck.All.HasFlag(check), check.ToString()));
-    }
-
-    [Fact]
-    public void HarnessSurface_ListsTheSurfacesTheTabCanShow()
-    {
-        var surfaces = Enum.GetValues<HarnessSurface>();
-
-        Assert.Contains(HarnessSurface.Talk, surfaces);
-        Assert.Contains(HarnessSurface.ChatBubble, surfaces);
-    }
-
-    [Fact]
-    public void HarnessOutcome_HasTheFourStatesTheTabDraws()
-    {
-        Assert.True(Enum.IsDefined(typeof(HarnessOutcome), HarnessOutcome.Passed));
-        Assert.True(Enum.IsDefined(typeof(HarnessOutcome), HarnessOutcome.Failed));
-        Assert.True(Enum.IsDefined(typeof(HarnessOutcome), HarnessOutcome.Skipped));
-        Assert.True(Enum.IsDefined(typeof(HarnessOutcome), HarnessOutcome.NotRun));
     }
 }

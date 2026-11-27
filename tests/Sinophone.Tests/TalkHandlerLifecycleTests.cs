@@ -1,7 +1,7 @@
 using Dalamud.Game.Addon.Lifecycle;
 using Sinophone.Handlers;
 
-namespace Sinophone.IntegrationTests;
+namespace Sinophone.Tests;
 
 /// <summary>
 /// Guards the check that decides when the overlay should disappear. The game
