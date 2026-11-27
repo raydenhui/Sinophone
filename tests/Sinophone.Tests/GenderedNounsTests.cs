@@ -17,6 +17,25 @@ public class GenderedNounsTests
             GenderedNouns.Neutralize("At your service, madam."));
 
     [Fact]
+    public void Neutralize_GivesSameKey_ForManAndWoman()
+        => Assert.Equal(
+            GenderedNouns.Neutralize("The very man who saved the child."),
+            GenderedNouns.Neutralize("The very woman who saved the child."));
+
+    [Fact]
+    public void Neutralize_GivesSameKey_ForMenAndWomen()
+        => Assert.Equal(
+            GenderedNouns.Neutralize("You men are all the same."),
+            GenderedNouns.Neutralize("You women are all the same."));
+
+    [Theory]
+    [InlineData("womanhood")]
+    [InlineData("manhole")]
+    [InlineData("manor")]
+    public void Neutralize_LeavesLongerWordsAlone(string text)
+        => Assert.Same(text, GenderedNouns.Neutralize(text));
+
+    [Fact]
     public void Neutralize_CollapsesContractions()
         => Assert.Equal(
             GenderedNouns.Neutralize("Mind the step, lad's."),

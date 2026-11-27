@@ -1957,6 +1957,72 @@ public class TranslationStoreTests
     }
 
     [Fact]
+    public void TryGetDialogue_MatchesThePlayerNoun_WhenTheDumpNamesTheOtherGender()
+    {
+        // The real Yezahn line. The dump holds the female wording; a male player sees
+        // "him"/"man". The pronoun list covers "her"/"him", and the noun list now covers
+        // "woman"/"man", so the branch-neutral key still matches after the name is restored.
+        const string key = "TEXT_AKTKZF101_04493_YEZAHN_000_001";
+        var artifacts = Artifacts(Artifact("CN", ScriptsWithKeys(
+            (key,
+                "Wait, you're her! The very woman who saved Mehvan's child. Player, was it?",
+                "咦，你是不是那个救了麦梵孩子的？"))), null);
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Simplified,
+            false,
+            artifacts,
+            new FakePluginLog(),
+            playerName: () => "Nedyar");
+
+        Assert.NotNull(store);
+        Assert.True(store.TryGetDialogue(
+            "Wait, you're him! The very man who saved Mehvan's child. Player, was it?", out _));
+        Assert.True(store.TryGetDialogue(
+            "Wait, you're him! The very man who saved Mehvan's child. Nedyar, was it?",
+            out var chinese));
+        Assert.Equal("咦，你是不是那个救了麦梵孩子的？", chinese);
+    }
+
+    [Fact]
+    public void TryGetDialogue_UsesTheLiveTemplate_WhenTheDumpHasAnotherBranch()
+    {
+        // "baron"/"baroness" is not in a branch list, but the game's own Lua value marks
+        // the word as a span that varies, so the dump line is still this key's other branch.
+        const string key = "TEXT_TEST_000_1";
+        var artifacts = Artifacts(null, Artifact("TC", ScriptsWithKeys(
+            (key, "The baron is here.", "男爵在此。"))));
+
+        var store = TranslationStore.Load(
+            [],
+            ChineseVariant.Traditional,
+            false,
+            artifacts,
+            new FakePluginLog());
+
+        Assert.NotNull(store);
+
+        var template = $"The {ScriptTextTemplate.Wildcard} is here.";
+        var context = new DialogueContext(
+            ScriptKeys: [key],
+            ScriptTemplates: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [key] = template,
+            });
+
+        Assert.True(store.TryGetDialogue("The baroness is here.", in context, out var chinese));
+        Assert.Equal("男爵在此。", chinese);
+
+        // Without the template the line stays English, which is the old behavior.
+        var plain = new DialogueContext(ScriptKeys: [key]);
+        Assert.False(store.TryGetDialogue("The baroness is here.", in plain, out _));
+
+        // A reused key named by another line does not match outside the template's spans.
+        Assert.False(store.TryGetDialogue("The knight is away.", in context, out _));
+    }
+
+    [Fact]
     public void TryGetDialogue_MatchesOtherTimeOfDay_WhenDumpUsesTheOtherWording()
     {
         var artifacts = Artifacts(null, Artifact("TC", Scripts(

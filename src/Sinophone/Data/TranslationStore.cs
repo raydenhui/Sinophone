@@ -26,7 +26,7 @@ public sealed partial class TranslationStore
     /// threw the cache away after every plugin update and every dev reload, and a full reindex
     /// costs about 20 seconds.
     /// </remarks>
-    public const int IndexFormatVersion = 11;
+    public const int IndexFormatVersion = 12;
 
     private readonly DialogueTextIndex _dialogue = new();
     private readonly NameIndex _names = new();
@@ -474,11 +474,32 @@ public sealed partial class TranslationStore
                     if (liveForCompare.Length == 0)
                         liveForCompare = liveKey;
 
-                    if (!string.Equals(
-                            CollapseBranchWords(liveForCompare),
-                            CollapseBranchWords(pairedKey),
-                            StringComparison.Ordinal)
-                        && !IsCloseEnough(liveForCompare, pairedKey))
+                    var sameLine = string.Equals(
+                                       CollapseBranchWords(liveForCompare),
+                                       CollapseBranchWords(pairedKey),
+                                       StringComparison.Ordinal)
+                                   || IsCloseEnough(liveForCompare, pairedKey);
+
+                    // The game's own Lua value marks the spans that vary, such as a gender
+                    // branch. When the live template could have drawn the dump's wording,
+                    // the dump line is this key's other branch even though no word list
+                    // knew the words. A reused key still fails: its template belongs to
+                    // the other line, which the dump does not match outside the spans.
+                    if (!sameLine
+                        && context.ScriptTemplates is { } templates
+                        && templates.TryGetValue(trimmed, out var template)
+                        && ScriptTextTemplate.Matches(template, liveForCompare)
+                        && ScriptTextTemplate.Matches(template, pairedKey))
+                    {
+                        sameLine = true;
+                        trace?.Step("id.scriptKey", "template", trimmed);
+                        _log.Debug(
+                            "Dialogue accepted script key {ScriptKey} through the live template; " +
+                            "the dump says {Paired}.",
+                            trimmed, pairedKey);
+                    }
+
+                    if (!sameLine)
                     {
                         _log.Debug(
                             "Dialogue ignored script key {ScriptKey}: it names {Paired}, not {Live}.",

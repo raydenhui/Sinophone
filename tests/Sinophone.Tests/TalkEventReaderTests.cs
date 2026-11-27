@@ -44,6 +44,24 @@ public class TalkEventReaderTests
     public void SceneNumberFromPath_ReadsTheSceneTheKeyCarries(string path, uint expected)
         => Assert.Equal(expected, TalkEventReader.SceneNumberFromPath(path));
 
+    [Fact]
+    public void CollectScriptTemplates_KeepsOneTemplatePerKey()
+    {
+        var lines = new[]
+        {
+            new LuaTextLine("TEXT_A_000_1", "live", 1, "first"),
+            new LuaTextLine("text_a_000_1", "live", 1, "second"),
+            new LuaTextLine(string.Empty, "live", 1, "no key"),
+            new LuaTextLine("TEXT_B_000_1", "live", 1, string.Empty),
+        };
+
+        var templates = TalkEventReader.CollectScriptTemplates(lines, null);
+
+        Assert.NotNull(templates);
+        Assert.Single(templates!);
+        Assert.Equal("first", templates!["TEXT_A_000_1"]);
+    }
+
     [Theory]
     [InlineData(1)]   // Quest: dialogue comes from script text keys, not a sheet row.
     [InlineData(11)]  // CustomTalk: dialogue comes from script text keys.
