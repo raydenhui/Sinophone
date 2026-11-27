@@ -666,10 +666,14 @@ internal sealed partial class TalkEventReader
 
             // The product path selects the key from the game's own Lua text map.
             // Only spans the script marks as dynamic may vary; the rest of the
-            // line still has to match exactly.
+            // line still has to match exactly. A value that is one conditional is a
+            // single wildcard and matches every line, so it is no candidate at all.
             if (!readAll)
             {
                 if (value.Length == 0)
+                    continue;
+
+                if (!ScriptTextTemplate.CanIdentify(template))
                     continue;
 
                 if (!ScriptTextTemplate.Matches(template, wanted))
