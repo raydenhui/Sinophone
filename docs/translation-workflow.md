@@ -75,7 +75,7 @@ At startup (if `CheckForDataUpdates` is enabled or no data exists and the assemb
 
 1. Fetches `manifest.json` from the `data` GitHub release.
 2. Compares `manifest.Version` (a content hash) with `Configuration.LastDataVersion` and per-variant flags (`HasSimplifiedData`, `HasTraditionalData`).
-3. Downloads needed `.json.gz` files to `<file>.download`, verifies SHA-256 checksum, gzip decompression, `FormatVersion == 1`, and `Sheets.Count > 0`.
+3. Downloads needed `.json.gz` files to `<file>.download`, verifies SHA-256 checksum, gzip decompression, a supported `FormatVersion` (1, the published data before script row ids, or 2, what DataPrep writes now), and `Sheets.Count > 0`.
 4. Atomically moves valid files into the plugin config directory and sets `_reloadRequested`.
 5. `Plugin.OnTick` consumes `_reloadRequested` on the game thread and triggers a background store reload while the existing store keeps serving.
 

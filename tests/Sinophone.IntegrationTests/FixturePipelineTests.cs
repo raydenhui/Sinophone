@@ -22,7 +22,10 @@ public class FixturePipelineTests
         var artifact = JsonSerializer.Deserialize<TranslationArtifact>(gzip);
 
         Assert.NotNull(artifact);
-        Assert.Equal(1, artifact!.FormatVersion);
+
+        // The checked-in fixture predates the script row-id format; DataPrep writes 2 now.
+        // Both are loaded, so the shape test follows the supported range, not one version.
+        Assert.InRange(artifact!.FormatVersion, 1, 2);
         Assert.Equal(expectedLanguage, artifact.Language);
         Assert.NotEmpty(artifact.Sheets);
         Assert.NotEmpty(artifact.Scripts);

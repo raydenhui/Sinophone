@@ -259,7 +259,10 @@ public sealed class TranslationDataUpdater : IDisposable
                 return false;
             }
 
-            if (artifact.FormatVersion != 1)
+            // Version 1 is the data released before script entries carried a row id. Version 2 is
+            // what DataPrep writes now. Both load, so a published file must not be rejected just
+            // because the release has not been rebuilt yet.
+            if (artifact.FormatVersion is not (1 or 2))
             {
                 error = $"unsupported format version {artifact.FormatVersion}";
                 return false;
