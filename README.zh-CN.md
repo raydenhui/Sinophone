@@ -46,19 +46,9 @@ Sinophone 不在 Dalamud 官方插件列表中。请把它加入自定义插件�
 
 覆盖窗口不需要这一步：它会从 Windows 加载中文字体（或使用插件设置中的字体路径）。以下设置只给原生模式使用：原生模式会把翻译写入游戏本身的窗口，需要游戏自己画出中文。
 
-游戏的字体文件没有中文字形，因此要用含中文字形的字体文件替换。从 [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts) 挑一个：该仓库有多种字体，每个文件夹内包含一个 `.ttmp2` 模组包。把模组包交给插件，或用下列其中一个模组工具安装。
+游戏的字体文件没有中文字形，因此要用含中文字形的字体文件替换。从 [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts) 挑一个：该仓库有多种字体，每个文件夹内包含一个 `.ttmp2` 模组包。请用 TexTools 或 Penumbra 安装。
 
 部分文件夹内有两个模组包。国际服请使用名称结尾为 `(Global)` 的版本。另一个版本替换的是中国服的 `chnaxis_*` 和 `font_chn_*`，国际服不会加载这些文件，因此游戏字体不会改变。
-
-### Sinophone
-
-插件可以自己使用模组包，不需要模组管理工具。
-
-1. 打开 `/sinophone`，前往 **General**。
-2. 打开 **Replace the game font with a font pack**，或使用 **Choose a .ttmp2** / **Choose a folder**。
-3. 点一下 **Reload the game font**。
-
-字体替换会影响整个游戏，因为所有原生界面都用同一个游戏字体。关闭这个设置，或点一下 **Restore the game's original font**，即可恢复游戏原字体。插件只从你的磁盘读取模组包。它不附带字体数据，也不会修改模组包。如果 Penumbra 已经替换游戏字体，插件会把字体交给 Penumbra 处理。
 
 ### TexTools
 
@@ -70,7 +60,7 @@ Sinophone 不在 Dalamud 官方插件列表中。请把它加入自定义插件�
 1. 安装 [Penumbra](https://github.com/xivdev/Penumbra) 并启用。
 2. 导入同一个 `.ttmp2` 并启用。如果字体没有变化，打开 Penumbra 的 **Settings** 分页，前往 **Advanced**，点击 **Reload Fonts**，不用重启游戏。
 
-Penumbra 的集合（collection）是按角色分开的。如果模组已启用但游戏仍缺中文字形，请检查当前角色使用的集合，或改用插件内置的替换功能。
+Penumbra 的集合（collection）是按角色分开的。如果模组已启用但游戏仍缺中文字形，请检查当前角色使用的集合。
 
 ### 装好之后
 

@@ -38,7 +38,7 @@ at the right moment.
 | `Talk`, `TalkSubtitle` pre-layout | `AtkUnitBase.VirtualTable->OnSetup` and `->OnRefresh` | Per addon class; the pointer is read from the live addon | `void(AtkUnitBase*, uint count, AtkValue*)`, refresh returns `bool` | `Handlers/TalkHandler.cs:155` |
 | Battle talk | `UIModule` vtable | indices **198** (`ShowBattleTalk`), **199** (`ShowBattleTalkImage`), **201** (`ShowBattleTalkSound`) | see below | `Handlers/BattleTalkHandler.cs:39` |
 | Yell chat bubble | `NpcYellBalloon.MemberFunctionPointers.OpenBalloon` | named function pointer | see below | `Handlers/ChatBubbleHandler.cs:105` |
-| Game font | `ReadSqPack` | signature `40 56 41 56 48 83 EC ?? 0F BE 02` | `byte(nint, SeFileDescriptor*, int, bool)` | `Fonts/FontReplacementService.cs:31` |
+| Game font (dev builds only) | `ReadSqPack` | signature `40 56 41 56 48 83 EC ?? 0F BE 02` | `byte(nint, SeFileDescriptor*, int, bool)` | `Fonts/FontReplacementService.cs:31` |
 | Game font | `ReadFile` | signature in `FontReplacementService.cs:32` | same shape; called, not hooked | same |
 | Font reload | `AtkModule` vtable | index **43**, called as `(atkModule, false, true)` | `void(AtkModule*, bool, bool)` | `Fonts/FontReplacementService.cs:308` |
 

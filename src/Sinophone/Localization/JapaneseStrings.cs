@@ -72,9 +72,9 @@ internal static class JapaneseStrings
         GameFontInGeneral = "ゲームのフォント設定は「一般」タブにあります。",
         SectionGameFont = "ゲームのフォント（ネイティブモード）",
         GameFontHint =
-            "ネイティブモードはゲーム自身のフォントで中国語を描画するため、置き換えると" +
-            "ゲーム全体に影響します。置き換えは Sinophone の有効中だけ動作し、オフにすると" +
-            "元のフォントに戻ります。Penumbra や TexTools で導入したフォントは別です。",
+            "ネイティブモードは中国語の字形がないゲーム自身のフォントで描画します。" +
+            "Penumbra か TexTools で中国語の字形を含むフォントを導入してください。" +
+            "ゲームのフォントはすべてのネイティブ表示とゲーム全体で共有されます。",
         BuiltInFont = "フォントパックでゲームのフォントを置き換える",
         BuiltInFontHint =
             ".ttmp2 フォントパック、またはゲームのフォントファイルを含むフォルダー。" +

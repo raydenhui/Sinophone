@@ -26,6 +26,7 @@ public sealed partial class ConfigWindow : Window
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
     private readonly FontReplacementService _fontReplacement;
+    private readonly bool _showFontPack;
     private readonly FileDialogManager _fileDialog = new();
 
     private InterfaceStrings Text => _text.Strings;
@@ -59,9 +60,10 @@ public sealed partial class ConfigWindow : Window
         NativeTextProbe nativeProbe,
         TalkContextProbe talkContextProbe,
         HarnessHost? harnessHost,
-        IObjectTable objectTable)
+        IObjectTable objectTable,
+        bool showFontPack)
         : this(configuration, text, fontManager, applySettings, showPreview, statusText, dataUpdater,
-            dataSourceText, aboutText, fontReplacement)
+            dataSourceText, aboutText, fontReplacement, showFontPack)
     {
         _nativeProbe = nativeProbe;
         _talkContextProbe = talkContextProbe;
@@ -80,7 +82,8 @@ public sealed partial class ConfigWindow : Window
         TranslationDataUpdater dataUpdater,
         Func<string> dataSourceText,
         Func<string> aboutText,
-        FontReplacementService fontReplacement)
+        FontReplacementService fontReplacement,
+        bool showFontPack)
         : base("Sinophone###SinophoneConfig", ImGuiWindowFlags.NoCollapse)
     {
         _configuration = configuration;
@@ -93,6 +96,7 @@ public sealed partial class ConfigWindow : Window
         _dataSourceText = dataSourceText;
         _aboutText = aboutText;
         _fontReplacement = fontReplacement;
+        _showFontPack = showFontPack;
 
         Size = new Vector2(540f, 680f);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -307,6 +311,11 @@ public sealed partial class ConfigWindow : Window
 
         if (ImGui.Selectable($"{text.OpenFontGuide}###generalFontGuide"))
             Util.OpenLink(FontSetupUrl);
+
+        // The built-in replacement is a development tool. A release build leaves the font to
+        // Penumbra or TexTools, so its controls stay hidden.
+        if (!_showFontPack)
+            return;
 
         Checkbox(text.BuiltInFont, _configuration.BuiltInFontEnabled,
             v => _configuration.BuiltInFontEnabled = v);

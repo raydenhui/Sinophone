@@ -434,9 +434,13 @@ know leaves the English line in place.
 
 #### The game font
 
-`FontReplacementService` lets the plugin supply the Chinese font itself, so native mode does not
-need Penumbra or TexTools. Off by default. The setting is on the General tab, because the game
-font is shared by every surface and by the rest of the game.
+The built-in replacement in `FontReplacementService` is a development tool. A release build never
+installs its hooks and hides its controls, so a release leaves the game font to Penumbra or
+TexTools. The rest of this section records how the tool works.
+
+`FontReplacementService` lets a dev build supply the Chinese font itself, so native mode does not
+need a mod manager. Off by default. The setting is on the General tab, because the game font is
+shared by every surface and by the rest of the game.
 
 - The user points the setting at a `.ttmp2` font mod or a folder, or picks one with the file
   dialog. `FontPackExtractor` copies the font files into `<plugin config>/fonts`; the pack itself

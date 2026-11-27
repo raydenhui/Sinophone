@@ -63,26 +63,11 @@ own windows and need the game to draw Chinese itself.
 
 The game's font files have no Chinese glyphs, so replace them with a font that has them. Pick one
 from [AtmoOmen/FFXIVFonts](https://github.com/AtmoOmen/FFXIVFonts): the repository has several
-fonts and each folder holds one as a `.ttmp2` modpack. Give the pack to the plugin, or install it
-with one of the two mod tools.
+fonts and each folder holds one as a `.ttmp2` modpack. Install it with TexTools or Penumbra.
 
 Some folders hold two packs. Use the one ending in `(Global)` on the global client. The other pack
 replaces the Chinese client's `chnaxis_*` and `font_chn_*` files, which the global client never
 loads, so it leaves the game font unchanged.
-
-### Sinophone
-
-The plugin can use the pack itself, without a mod manager.
-
-1. Open `/sinophone` and go to **General**.
-2. Turn on **Replace the game font with a font pack**, or use **Choose a .ttmp2** / **Choose a
-   folder**.
-3. Click **Reload the game font**.
-
-The replacement is game-wide, because every native surface draws with the same game font. Turn the
-setting off, or click **Restore the game's original font**, to put the game's font back. The plugin
-reads the pack from your disk. It ships no font data and never changes the pack. If Penumbra
-already replaces the game font, the plugin leaves the font to Penumbra.
 
 ### TexTools
 
@@ -96,7 +81,7 @@ already replaces the game font, the plugin leaves the font to Penumbra.
    **Settings** tab, go to **Advanced**, and click **Reload Fonts**.
 
 Penumbra collections are per character. If the pack is enabled but the game still misses glyphs,
-check the collection the current character uses, or use the plugin's built-in replacement instead.
+check the collection the current character uses.
 
 ### Either way
 

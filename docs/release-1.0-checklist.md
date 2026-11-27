@@ -31,8 +31,8 @@ lines 97.2 % with every miss classified. Runtime text is below the 99 % gate: th
       inside them. The player reads the quest's premise here, before the journal exists.
       Verify: accept and complete one quest of each type (MSQ, side, leve), both variants.
 - [ ] **`TalkSubtitle` in-game check.** The band takes the line from its `AtkValues`; the overlay is
-      the fallback. Implemented by #200. Verify on a voiced cutscene with the built-in font pack and
-      with no font, and note whether a long line scales or runs past the band. Close #199 after.
+      the fallback. Implemented by #200. Verify on a voiced cutscene with a font mod and with no
+      font, and note whether a long line scales or runs past the band. Close #199 after.
 - [ ] **Duty story text.** `ContentTalk`, `InstanceContentTextData`, and battle talk in all three
       styles (plain, image, sound) are implemented. The remaining check is a queued line and a line
       that arrives while another is on screen.
@@ -58,9 +58,8 @@ lines 97.2 % with every miss classified. Runtime text is below the 99 % gate: th
 ## 2. Display correctness
 
 - [ ] Every row in [native-mode-checklist.md](native-mode-checklist.md) ticked.
-- [ ] Three font configurations are not needed: the built-in pack and no font cover the two
-      resource sets, and one Penumbra spot-check confirms the two do not fight. The game font
-      setting is on the **General** tab because it is game-wide.
+- [ ] Two font configurations cover the resource sets: a font mod and no font. One Penumbra
+      spot-check confirms a TexTools font or no font does not fight it.
 - [ ] No line draws outside its box, wraps into a fragment, or shows a macro (`<Sheet(`,
       `<StringParameter(`, `<Unknown60>`).
 - [ ] Selection dialogs: a two-line Chinese prompt in a one-line dialog, a long option list, and an
@@ -79,7 +78,8 @@ lines 97.2 % with every miss classified. Runtime text is below the 99 % gate: th
       size control where it makes sense.
 - [ ] Overlay: position, lock, click-through, width, font size, custom font path, per-component
       appearance overrides.
-- [ ] Game font: on/off, pack file or folder, reload, and restore the stock font. Off by default.
+- [ ] Game font (dev build only): on/off, pack file or folder, reload, and restore the stock font.
+      A release build shows none of these controls and installs none of the hooks.
 - [ ] Data: variant, fallback, conversion, auto-update, manual update, and a status readout.
 - [ ] Logs: one group per component, plus diagnostics; hidden groups cost nothing.
 - [ ] Fresh-install audit: what a new player sees with no Chinese font, and with one. The defaults
@@ -116,9 +116,9 @@ Stated here so they do not creep back into the gates:
 - **Runtime-built text** beyond the classes the coverage tool measures (player name, blank gap,
   client labels). Text with no source row stays English by design.
 - **Native menus, lists, and shops.** Whole-UI replacement is not this plugin's goal.
-- **Shipping font data.** The plugin can replace the game font from a pack the user already has,
-  but it ships no font files. A pack built for the Chinese client is refused, because the global
-  client never loads those files.
+- **Shipping font data.** A dev build can replace the game font from a pack the user already has,
+  but the plugin ships no font files. A pack built for the Chinese client is refused, because the
+  global client never loads those files.
 - **Windows that draw no story text.** `Warp`, `CSBonusTextData`, `GoldSaucerTextData`, and
   `MKDLore.Name` stay English unless the Phase 3 review finds one of them carries story text.
 - **Script dialogue on a non-English client.** Sheet surfaces are keyed by row id and work in any
