@@ -48,15 +48,19 @@ public static class FontPackExtractor
             return FontPackResult.Failure($"The font pack has no {ManifestEntryName} manifest.");
 
         Dictionary<string, Ttmp2Entry> entries;
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using (var stream = manifest.Open())
         {
-            if (!TryParseManifest(stream, out entries, out var error))
+            if (!TryParseManifest(stream, out entries, out var error, seenPaths))
                 return FontPackResult.Failure(error);
         }
 
         var missing = MissingFiles(entries.Keys);
         if (missing.Count > 0)
-            return MissingResult(missing);
+        {
+            var hint = UnsupportedPackHint(seenPaths);
+            return hint is null ? MissingResult(missing) : FontPackResult.Failure(hint);
+        }
 
         var data = FindEntry(archive, DataEntryName);
         if (data is null)
@@ -99,7 +103,10 @@ public static class FontPackExtractor
             .Where(gamePath => !filesByName.ContainsKey(FontPackFiles.NameOf(gamePath)))
             .ToArray();
         if (missing.Length > 0)
-            return MissingResult(missing);
+        {
+            var hint = UnsupportedPackHint(filesByName.Keys);
+            return hint is null ? MissingResult(missing) : FontPackResult.Failure(hint);
+        }
 
         Directory.CreateDirectory(destinationDirectory);
         var localPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -122,6 +129,13 @@ public static class FontPackExtractor
         Stream stream,
         out Dictionary<string, Ttmp2Entry> entries,
         out string error)
+        => TryParseManifest(stream, out entries, out error, null);
+
+    internal static bool TryParseManifest(
+        Stream stream,
+        out Dictionary<string, Ttmp2Entry> entries,
+        out string error,
+        ICollection<string>? seenPaths)
     {
         entries = new Dictionary<string, Ttmp2Entry>(StringComparer.OrdinalIgnoreCase);
         error = string.Empty;
@@ -158,6 +172,7 @@ public static class FontPackExtractor
                 }
 
                 var gamePath = FontPackFiles.Normalize(pathElement.GetString() ?? string.Empty);
+                seenPaths?.Add(gamePath);
                 if (!FontPackFiles.IsRequired(gamePath))
                     continue;
 
@@ -204,6 +219,23 @@ public static class FontPackExtractor
             $"The font pack is missing {missing.Count} of the {FontPackFiles.Required.Count} font " +
             $"files the game loads. A partial pack garbles the fonts it leaves out. Missing: " +
             string.Join(", ", missing) + ".");
+
+    /// <summary>
+    /// A pack for the Chinese client replaces different font files, so on the global client it
+    /// would leave the game font unchanged. Say that instead of only listing the missing files.
+    /// </summary>
+    private static string? UnsupportedPackHint(IEnumerable<string> provided)
+    {
+        var chineseClientPack = provided.Any(static path =>
+            path.Contains("chnaxis", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("font_chn", StringComparison.OrdinalIgnoreCase));
+
+        return chineseClientPack
+            ? "This pack is for the Chinese client: it replaces chnaxis_*.fdt and font_chn_*.tex. " +
+              "The global client loads common/font/axis_*.fdt and font1/font2.tex. Use the pack's " +
+              "(Global) version."
+            : null;
+    }
 
     private static FontPackResult Validate(Dictionary<string, string> localPaths)
     {

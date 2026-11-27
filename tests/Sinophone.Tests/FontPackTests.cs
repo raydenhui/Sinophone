@@ -147,6 +147,59 @@ public class FontPackTests
             Assert.False(result.Success);
             Assert.Contains("axis_18.fdt", result.Message);
             Assert.Contains("missing 1", result.Message);
+            Assert.DoesNotContain("Chinese client", result.Message);
+        }
+        finally
+        {
+            Delete(source);
+            Delete(destination);
+        }
+    }
+
+    [Fact]
+    public void Extract_ExplainsAChineseClientPack()
+    {
+        var source = TempDirectory();
+        var destination = TempDirectory();
+        try
+        {
+            var pack = Path.Combine(source, "pack.ttmp2");
+            WritePack(
+                pack,
+                [],
+                Manifest([
+                    ("common/font/chnaxis_120.fdt", 0, 10),
+                    ("common/font/font_chn_1.tex", 10, 10),
+                ]));
+
+            var result = FontPackExtractor.Extract(pack, destination);
+
+            Assert.False(result.Success);
+            Assert.Contains("Chinese client", result.Message);
+            Assert.Contains("(Global)", result.Message);
+        }
+        finally
+        {
+            Delete(source);
+            Delete(destination);
+        }
+    }
+
+    [Fact]
+    public void Extract_ExplainsAChineseClientFontFolder()
+    {
+        var source = TempDirectory();
+        var destination = TempDirectory();
+        try
+        {
+            File.WriteAllBytes(Path.Combine(source, "chnaxis_120.fdt"), [1, 2, 3]);
+            File.WriteAllBytes(Path.Combine(source, "font_chn_1.tex"), [4, 5, 6]);
+
+            var result = FontPackExtractor.Extract(source, destination);
+
+            Assert.False(result.Success);
+            Assert.Contains("Chinese client", result.Message);
+            Assert.Contains("(Global)", result.Message);
         }
         finally
         {

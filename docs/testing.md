@@ -159,11 +159,16 @@ changing, then checks it:
 | No macro | No `<Sheet(`, `<StringParameter(`, or other tag is drawn as text |
 | Fits | The text is no larger than the room the game gave it |
 | No leading closing mark | No rendered line starts with `。` or another closing mark |
-| Glyphs | Every character has a glyph in the game font |
+| Glyphs | Every character has a glyph in the surface's own game font; a bubble reads its text node's font type |
 | No revert | The game did not put the English back after the translation appeared |
 
+The tab also has a **Game font** check. **Check the Chinese font** asks the game's font manager for
+each character in a fixed sample and names the ones it cannot draw; **Check every font** does the
+same for all six game fonts. Use it before a run when the question is whether the font is loaded,
+not whether the translation is right.
+
 A run writes `harness-YYYYMMDD-HHMMSS.json` next to the plugin config, under `harness/`. The
-Results sub-tab draws the last run as a table.
+Results sub-tab draws the last run as a table; hover a detail cell to see every check.
 
 **What is compiled where.** The harness core is always compiled, so `Test.ps1` covers it: the
 case model, the settle rule, the checks, the run schedule, the session, the report, the revert

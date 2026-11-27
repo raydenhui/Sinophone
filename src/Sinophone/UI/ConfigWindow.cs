@@ -1,4 +1,5 @@
 using Action = System.Action;
+using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Utility;
 
 namespace Sinophone.UI;
@@ -25,6 +26,7 @@ public sealed partial class ConfigWindow : Window
     private readonly Func<string> _dataSourceText;
     private readonly Func<string> _aboutText;
     private readonly FontReplacementService _fontReplacement;
+    private readonly FileDialogManager _fileDialog = new();
 
     private InterfaceStrings Text => _text.Strings;
 #if SINOPHONE_TESTING
@@ -34,6 +36,7 @@ public sealed partial class ConfigWindow : Window
     private readonly HarnessHost? _harnessHost;
     private readonly IObjectTable? _objectTable;
     private readonly HarnessTabState _harness = new();
+    private string _gameFontCheck = "Not checked yet.";
 #endif
 
 #if SINOPHONE_TESTING
@@ -104,6 +107,8 @@ public sealed partial class ConfigWindow : Window
         _fontManager.EnsureUiFont();
         var uiFont = _fontManager.UiHandle;
         using var font = uiFont is { Available: true } ? uiFont.Push() : null;
+
+        _fileDialog.Draw();
 
         if (!ImGui.BeginTabBar("SinophoneTabs"))
             return;
@@ -232,6 +237,8 @@ public sealed partial class ConfigWindow : Window
             _applySettings();
         }
 
+        DrawGameFontSettings();
+
         Section(text.SectionFontOverlay);
         SliderFloat(text.FontSize, _configuration.FontSize, 12f, 42f, "%.0f px",
             v => _configuration.FontSize = v);
@@ -286,6 +293,84 @@ public sealed partial class ConfigWindow : Window
             InterfaceLanguage.Japanese => Text.LanguageJapanese,
             _ => Text.InterfaceLanguageAuto,
         };
+
+    /// <summary>
+    /// The game-wide font replacement. It lives here, not in a component tab, because every
+    /// native surface draws with the same game font.
+    /// </summary>
+    private void DrawGameFontSettings()
+    {
+        var text = Text;
+
+        Section(text.SectionGameFont);
+        ImGui.TextWrapped(text.GameFontHint);
+
+        if (ImGui.Selectable($"{text.OpenFontGuide}###generalFontGuide"))
+            Util.OpenLink(FontSetupUrl);
+
+        Checkbox(text.BuiltInFont, _configuration.BuiltInFontEnabled,
+            v => _configuration.BuiltInFontEnabled = v);
+
+        if (_configuration.BuiltInFontEnabled)
+        {
+            ImGui.Indent();
+            ImGui.TextDisabled(text.BuiltInFontHint);
+            ImGui.Unindent();
+
+            var packPath = _configuration.BuiltInFontPackPath ?? string.Empty;
+            ImGui.SetNextItemWidth(-1f);
+            if (ImGui.InputText("##builtInFontPackPath", ref packPath, 1024))
+                _configuration.BuiltInFontPackPath = packPath;
+
+            if (ImGui.IsItemDeactivatedAfterEdit())
+                _applySettings();
+
+            if (ImGui.Button(text.ChooseFontFile))
+                ChooseFontFile();
+
+            ImGui.SameLine();
+            if (ImGui.Button(text.ChooseFontFolder))
+                ChooseFontFolder();
+
+            ImGui.SameLine();
+            if (ImGui.Button(text.ReloadFont))
+                _fontReplacement.Reapply();
+        }
+
+        ImGui.TextWrapped(_fontReplacement.Status);
+
+        if (_configuration.BuiltInFontEnabled && ImGui.Button(text.RestoreFont))
+        {
+            // Keep the path, so turning the replacement back on needs no second choice.
+            _configuration.BuiltInFontEnabled = false;
+            _applySettings();
+        }
+    }
+
+    private void ChooseFontFile()
+    {
+        _fileDialog.OpenFileDialog(Text.ChooseFontFile, ".ttmp2", (ok, path) =>
+        {
+            if (ok && !string.IsNullOrWhiteSpace(path))
+                SetFontPack(path);
+        });
+    }
+
+    private void ChooseFontFolder()
+    {
+        _fileDialog.OpenFolderDialog(Text.ChooseFontFolder, (ok, path) =>
+        {
+            if (ok && !string.IsNullOrWhiteSpace(path))
+                SetFontPack(path);
+        });
+    }
+
+    private void SetFontPack(string path)
+    {
+        _configuration.BuiltInFontPackPath = path;
+        _configuration.BuiltInFontEnabled = true;
+        _applySettings();
+    }
 
     private void DrawDataTab()
     {

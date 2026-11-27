@@ -504,12 +504,15 @@ flowchart TD
 
 The native surfaces write Chinese into the game's own windows, which draw with the game's font.
 `FontReplacementService` lets the user supply a Chinese font as a `.ttmp2` mod or a folder, with no
-Penumbra or TexTools. The overlay is unaffected.
+Penumbra or TexTools. The overlay is unaffected. The setting is on the **General** tab, because
+the replacement changes the font of the whole game.
 
 1. **Read the pack.** `FontPackExtractor` reads the TexTools manifest (`TTMPL.mpl`, a JSON object
    with a `SimpleModsList` array of byte ranges into `TTMPD.mpd`), or walks a folder for the same
    file names. It copies the 25 font files the global client loads into `<plugin config>/fonts`
-   and refuses a pack that lacks any of them.
+   and refuses a pack that lacks any of them. A Chinese-client pack (`chnaxis_*`, `font_chn_*`)
+   is refused with a message that names the pack's `(Global)` version, because the global client
+   would keep its original font.
 2. **Ask Penumbra first.** Over IPC, `Penumbra.ResolvePlayerPath` and then
    `Penumbra.ResolveDefaultPath`. If any font path resolves to another file, Penumbra owns the font
    and the built-in path stays off.
@@ -522,7 +525,12 @@ Penumbra or TexTools. The overlay is unaffected.
    and after removing the hooks, so the game rebuilds its fonts from the new files, or from the
    SqPack again.
 5. **Toggle off / unload.** Dispose the hooks, clear the map, and reload, so the stock font comes
-   back.
+   back. The settings also have an explicit **Restore the game's original font** button, which
+   turns the setting off and runs the same reload.
+6. **Check in a dev build.** `GlyphProbe` asks the game's font manager whether it has a glyph for
+   each character. The Testing tab has a button that names the missing characters for the loaded
+   font. A chat bubble case reads the `_MiniTalk` text node's font type, so it reports the bubble's
+   own missing glyphs instead of skipping the check.
 
 The plugin ships no font data: the pack stays the user's file. The redirection follows the MIT
 VFXEditor code at commit `8be61a5`; see `THIRD-PARTY-NOTICES.md`.

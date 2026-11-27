@@ -66,12 +66,21 @@ internal static class SimplifiedChineseStrings
             "原生模式会把中文写入游戏自己的对话框和字幕栏。" +
             "游戏字体没有中文字形，请先安装字体模组。",
         OpenFontGuide = "打开字体设置指南",
-        SectionChineseFont = "中文字体",
+        GameFontInGeneral = "游戏字体设置位于“常规”标签页。",
+        SectionGameFont = "游戏字体（原生模式）",
+        GameFontHint =
+            "原生模式用游戏自己的字体显示中文，所以替换字体会影响整个游戏。" +
+            "替换只在 Sinophone 启用时生效，关闭后即恢复原字体。" +
+            "通过 Penumbra 或 TexTools 安装的字体不受此处控制。",
         BuiltInFont = "用字体包替换游戏字体",
         BuiltInFontHint =
-            ".ttmp2 字体模组，或包含游戏字体文件的文件夹。" +
+            ".ttmp2 字体包，或包含游戏字体文件的文件夹。" +
+            "国际服请使用字体包的 (Global) 版本。" +
             "插件只从你的磁盘读取，不附带字体数据。",
+        ChooseFontFile = "选择 .ttmp2",
+        ChooseFontFolder = "选择文件夹",
         ReloadFont = "重新加载游戏字体",
+        RestoreFont = "恢复游戏原字体",
         SectionDisplay = "显示",
         ShowSpeakerName = "显示说话者名称",
         ShowSpeakerNameHint = "中文名称会和英文名称一起显示在括号中。",

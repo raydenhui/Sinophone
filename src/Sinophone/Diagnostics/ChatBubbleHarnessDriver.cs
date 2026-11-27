@@ -12,12 +12,14 @@ namespace Sinophone.Diagnostics;
 public sealed class ChatBubbleHarnessDriver : IHarnessDriver
 {
     private readonly HarnessBubbleTarget _target;
+    private readonly IGameGui _gameGui;
     private readonly Func<string?>? _text;
     private readonly HarnessLineTracker _tracker = new();
 
-    public ChatBubbleHarnessDriver(HarnessBubbleTarget target, Func<string?>? text = null)
+    public ChatBubbleHarnessDriver(HarnessBubbleTarget target, IGameGui gameGui, Func<string?>? text = null)
     {
         _target = target;
+        _gameGui = gameGui;
         _text = text;
     }
 
@@ -75,9 +77,9 @@ public sealed class ChatBubbleHarnessDriver : IHarnessDriver
             Expected = harnessCase.ExpectedChinese,
             Reverts = _tracker.Reverts,
 
-            // The balloon has no text node to ask for a font type, so the glyph check is
-            // reported as not measured instead of claiming every character has one.
-            MissingGlyphs = -1,
+            // The bubble text node knows its own font type. A bubble that has just closed
+            // reports -1, which the check reads as not measured.
+            MissingGlyphs = ChatBubbleHarness.MissingGlyphs(_gameGui, drawn),
         };
     }
 

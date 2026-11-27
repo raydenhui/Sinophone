@@ -66,12 +66,21 @@ internal static class TraditionalChineseStrings
             "原生模式會把中文寫入遊戲自己的對話框和字幕列。" +
             "遊戲字型沒有中文字形，請先安裝字型模組。",
         OpenFontGuide = "開啟字型設定指南",
-        SectionChineseFont = "中文字型",
+        GameFontInGeneral = "遊戲字型設定位於「一般」分頁。",
+        SectionGameFont = "遊戲字型（原生模式）",
+        GameFontHint =
+            "原生模式用遊戲自己的字型顯示中文，所以取代字型會影響整個遊戲。" +
+            "取代只在 Sinophone 啟用時生效，關閉後即恢復原字型。" +
+            "透過 Penumbra 或 TexTools 安裝的字型不受此處控制。",
         BuiltInFont = "用字型包取代遊戲字型",
         BuiltInFontHint =
-            ".ttmp2 字型模組，或包含遊戲字型檔案的資料夾。" +
+            ".ttmp2 字型包，或包含遊戲字型檔案的資料夾。" +
+            "國際服請使用字型包的 (Global) 版本。" +
             "外掛只從你的磁碟讀取，不附帶字型資料。",
+        ChooseFontFile = "選擇 .ttmp2",
+        ChooseFontFolder = "選擇資料夾",
         ReloadFont = "重新載入遊戲字型",
+        RestoreFont = "恢復遊戲原字型",
         SectionDisplay = "顯示",
         ShowSpeakerName = "顯示說話者名稱",
         ShowSpeakerNameHint = "中文名稱會和英文名稱一起顯示在括號中。",

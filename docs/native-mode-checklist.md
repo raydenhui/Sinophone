@@ -27,10 +27,14 @@ and write down which build was running when a row failed.
 | --- | --- |
 | Font pack on, no font mod installed | Chinese in the dialogue box, nameplates, chat bubbles, and battle talk |
 | Change the font pack path, then click **Reload the game font** | The new font appears without restarting the game |
+| Choose a `.ttmp2` with **Choose a .ttmp2** | The path fills in, the pack applies, and the status names the pack |
+| Choose a folder with **Choose a folder** | The path fills in, the pack applies, and the status names the folder |
 | A pack missing one file | The pack is refused; the status names the missing file; the stock font does not change |
+| A pack for the Chinese client (`chnaxis_*`, `font_chn_*`) | The pack is refused; the status names the `(Global)` version |
 | A plugin config folder whose path is too long for the game | The pack is refused with the path-length message |
 | Penumbra with a font mod active, font pack on | The status says Penumbra owns the font; the font does not change |
 | Turn the font pack off while a line is open | The stock font comes back after the reload |
+| Click **Restore the game's original font** while a line is open | The setting turns off, the reload runs, and the stock font comes back |
 | Unload the plugin with the font pack on | The stock font comes back |
 | Talk to an NPC with a short line | Chinese in the dialogue box, no overlay above it |
 | Talk to an NPC with a long line | Text wraps inside the box, nothing clipped |
@@ -107,11 +111,16 @@ and write down which build was running when a row failed.
 A dev plugin build has a **Testing** tab in the settings window. The **Talk** sub-tab can write a
 case's English line into an open Talk window and check it every frame; the **Chat bubbles** sub-tab
 starts a bubble above a picked object. Both write a JSON report, and a PNG per case when screenshots
-are on. Use a run as the first pass over the rows above. A run cannot see whether a Chinese font is
-installed or judge whether the text reads well, so the eye check still decides.
+are on. Use a run as the first pass over the rows above. A run reports missing glyphs, but it cannot
+judge whether the text reads well, so the eye check still decides.
 
 A run writes into the live addon and does not put the player's own line back. Talk to an NPC again
 after a run before judging a row.
+
+The **Testing** tab also has a **Game font** check. **Check the Chinese font** reports whether the
+loaded Axis font has every sample character; **Check every font** lists all six. A chat bubble run
+now reads the bubble node's own font type, so a bubble case reports its missing glyphs instead of
+skipping the check.
 
 ## Done when
 

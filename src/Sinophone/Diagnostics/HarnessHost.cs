@@ -15,6 +15,7 @@ public sealed class HarnessHost : IDisposable
     private readonly PluginLog _log;
     private readonly HarnessCapture? _capture;
     private readonly TalkHarnessSurface _talkSurface;
+    private readonly IGameGui _gameGui;
     private readonly HarnessSession _session;
     private readonly Func<string, string?> _englishForChinese;
 
@@ -31,6 +32,7 @@ public sealed class HarnessHost : IDisposable
         _configuration = configuration;
         _log = new PluginLog(log, configuration, LogCategory.Diagnostics);
         _talkSurface = new TalkHarnessSurface(gameGui, _log);
+        _gameGui = gameGui;
         _englishForChinese = englishForChinese;
 
         _session = new HarnessSession(
@@ -115,7 +117,10 @@ public sealed class HarnessHost : IDisposable
     /// <summary>Starts a chat bubble run above one character.</summary>
     public bool StartBubbleRun(IReadOnlyList<HarnessCase> cases, HarnessBubbleTarget target, bool captureFrames)
     {
-        var driver = new ChatBubbleHarnessDriver(target) { Capture = captureFrames ? _capture : null };
+        var driver = new ChatBubbleHarnessDriver(target, _gameGui)
+        {
+            Capture = captureFrames ? _capture : null,
+        };
         return _session.Start(cases, driver, _configuration.Variant.ToString(), _configuration.LastDataVersion);
     }
 

@@ -79,7 +79,7 @@ public sealed unsafe class FontReplacementService : IDisposable
     }
 
     /// <summary>What the settings show. Kept short so it fits beside the path field.</summary>
-    public string Status { get; private set; } = "Off.";
+    public string Status { get; private set; } = "The built-in font replacement is off.";
 
     /// <summary>True while the file reader is redirected to a pack.</summary>
     public bool IsActive => _readSqPackHook is not null;
@@ -106,7 +106,7 @@ public sealed unsafe class FontReplacementService : IDisposable
 
         if (!_requested)
         {
-            Disable("Off.");
+            Disable("The built-in font replacement is off.");
             return;
         }
 
@@ -338,8 +338,7 @@ public sealed unsafe class FontReplacementService : IDisposable
                 foreach (var gamePath in FontPackFiles.Required)
                 {
                     var resolved = subscriber.InvokeFunc(gamePath);
-                    if (!string.IsNullOrWhiteSpace(resolved)
-                        && !string.Equals(resolved, gamePath, StringComparison.OrdinalIgnoreCase))
+                    if (IsReplacedPath(gamePath, resolved))
                     {
                         _log.Debug(
                             "Font: Penumbra resolves {GamePath} to {Resolved}; leaving the font to Penumbra.",
@@ -347,8 +346,6 @@ public sealed unsafe class FontReplacementService : IDisposable
                         return true;
                     }
                 }
-
-                return false;
             }
             catch (Exception ex)
             {
@@ -359,6 +356,11 @@ public sealed unsafe class FontReplacementService : IDisposable
         return false;
     }
 
+    /// <summary>True when Penumbra answered with a different file than the game path asked for.</summary>
+    internal static bool IsReplacedPath(string gamePath, string? resolved)
+        => !string.IsNullOrWhiteSpace(resolved)
+           && !string.Equals(resolved, gamePath, StringComparison.OrdinalIgnoreCase);
+
     private static string DescribeSource(string source)
         => Directory.Exists(source) ? new DirectoryInfo(source).Name : Path.GetFileName(source);
 
@@ -368,7 +370,7 @@ public sealed unsafe class FontReplacementService : IDisposable
             return;
 
         _disposed = true;
-        Disable("Off.");
+        Disable("The built-in font replacement is off.");
     }
 
     private delegate byte ReadSqPackDelegate(

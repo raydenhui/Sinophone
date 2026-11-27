@@ -407,8 +407,10 @@ know leaves the English line in place.
   placed. Re-confirm with the `Native text` sub-tab of the Testing tab (testing builds only)
   before changing either constant.
 - The game's font has no complete Chinese glyph set. Without a font pack or a mod the line shows
-  the missing-glyph character, so the settings section warns and links the README font setup. The
-  plugin cannot tell whether the font it writes with can draw the characters.
+  the missing-glyph character, so the settings section warns and links the README font setup. A
+  release build cannot tell whether the font it writes with can draw the characters. A dev build
+  can: `GlyphProbe` reads the game's font manager, and the Testing tab reports the characters a
+  loaded font has no glyph for.
 - A write saves the game's text, colors, flags, and node size for that node first. `RestoreAll`
   puts them back when the setting is turned off and on plugin unload. A second write must not save
   Chinese as the original, so the writer only saves when the node does not already hold text this
@@ -430,14 +432,17 @@ know leaves the English line in place.
 #### The game font
 
 `FontReplacementService` lets the plugin supply the Chinese font itself, so native mode does not
-need Penumbra or TexTools. Off by default.
+need Penumbra or TexTools. Off by default. The setting is on the General tab, because the game
+font is shared by every surface and by the rest of the game.
 
-- The user points the setting at a `.ttmp2` font mod or a folder. `FontPackExtractor` copies the
-  font files into `<plugin config>/fonts`; the pack itself is only read. The plugin ships no font
-  data.
+- The user points the setting at a `.ttmp2` font mod or a folder, or picks one with the file
+  dialog. `FontPackExtractor` copies the font files into `<plugin config>/fonts`; the pack itself
+  is only read. The plugin ships no font data.
 - A pack must replace all 25 font files the global client loads. An `.fdt` left at its original
   would point into an atlas that was re-laid out, so a partial pack is refused and the missing
-  names are listed.
+  names are listed. A pack for the Chinese client replaces `chnaxis_*` and `font_chn_*` instead;
+  that pack is refused with a message naming the `(Global)` version, because the global client
+  loads none of those files and the game font would stay unchanged.
 - `FontReplacementService` hooks `ReadSqPack` and reads the game's `ReadFile` by signature. When a
   resource handle asks for a replaced path, it switches the file descriptor to
   `LoadUnpackedResource`, writes the wide path, and lets the game read the file. Every other path
